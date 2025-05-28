@@ -3,31 +3,24 @@ import sys
 import pandas as pd
 from os import listdir
 from os.path import isfile, join
+from util import features_25, QIs, minus_QIs, calculate_reconstruction_score
 
 def main():
-    mypath = "/Users/golobs/Documents/GradSchool/NIST-CRC-25/NIST_Red-Team_Problems1-24_v2/"
-    mypath = "/Users/golobs/Documents/GradSchool/NIST-CRC-25/25_PracticeProblem/"
-    onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath, f)) and f.endswith("Deid.csv")]
-    for f in onlyfiles:
-        df = pd.read_csv(mypath + f)
-        print(f, df.shape)
-        # print()
+    QI = "QI1"
 
+    reconstructed = pd.read_csv(f"/Users/golobs/PycharmProjects/smartnoise-sdk/reconstructed_data_{QI}.csv").iloc[:, 1:]
+    # reconstructed = pd.read_csv("25_Demo_25f_Reconstructed.csv").iloc[:, 1:]
+    original = pd.read_csv("/Users/golobs/Documents/GradSchool/NIST-CRC-25/25_PracticeProblem/25_Demo_25f_OriginalData.csv")
+    hidden_features = minus_QIs[QI]
 
+    reconstruction_scores = pd.DataFrame(index=features_25)
+    attack_name = "partial_MST_attack"
+    reconstruction_scores.loc[hidden_features, attack_name] = calculate_reconstruction_score(original, reconstructed, hidden_features)
 
+    for x in reconstruction_scores.loc[sorted(hidden_features), attack_name].T.to_numpy():
+        print(x, end=",")
+    print(round(reconstruction_scores.loc[sorted(hidden_features), attack_name].T.to_numpy().mean(), 2))
 
-
-def calculate_reconstruction_score(df_original, df_reconstructed):
-    print('\n\n\n\n')
-    total_records = len(df_original)
-
-    for col in df_original.columns:
-        value_counts = df_original[col].value_counts()
-        rarity_scores = df_original[col].map(total_records / value_counts)
-        max_score = rarity_scores.sum()
-
-        score = ( (df_original[col].values == df_reconstructed[col].values) * rarity_scores ).sum()
-        print(col, score / max_score * 100)
 
 
 main()

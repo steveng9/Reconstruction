@@ -16,11 +16,12 @@ from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
 
 test_size_ = 0.2
-hidden_dims_ = [128, 96, 64]
+hidden_dims_ = [300]
+# hidden_dims_ = [500]
 batch_size_ = 264
-learning_rate_ = 0.003
+learning_rate_ = 0.0003
 epochs_ = 400
-patience = 7
+patience = 30000
 
 
 
@@ -69,15 +70,13 @@ def main():
         pd.set_option('display.max_columns', None)
         pd.set_option('display.max_rows', None)
 
-        print(reconstruction_scores)
-        sums = reconstruction_scores.iloc[:, 1:].sum()
-        print(sums)
 
-
-
-
-
-
+        for l in reconstruction_scores.loc[sorted(hidden_features)].T.to_numpy()[2:]:
+            for x in l:
+                print(x, end=",")
+            print()
+            # print(round(l.mean(), 2))
+        print("ave: ", round(reconstruction_scores.loc[sorted(hidden_features)].T.iloc[2:].mean().mean(), 2))
 
 
 # Custom dataset class for categorical data
@@ -104,9 +103,10 @@ class CategoricalNN(nn.Module):
             layers.append(nn.Linear(prev_dim, hidden_dim))
             layers.append(nn.ReLU())
             layers.append(nn.BatchNorm1d(hidden_dim))
-            layers.append(nn.Dropout(dropout_rate))
+            # layers.append(nn.Dropout(dropout_rate))
             prev_dim = hidden_dim
         layers.append(nn.Linear(prev_dim, output_dim))
+        layers.append(nn.Sigmoid())
 
         self.model = nn.Sequential(*layers)
 
@@ -176,10 +176,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, e
         training_history['val_loss'].append(val_loss)
         training_history['val_accuracy'].append(val_accuracy)
 
-        print(f'Epoch {epoch + 1}/{epochs}, '
-              f'Train Loss: {train_loss:.4f}, '
-              f'Val Loss: {val_loss:.4f}, '
-              f'Val Accuracy: {val_accuracy:.4f}')
+        # print(f'Epoch {epoch + 1}/{epochs}, '
+        #       f'Train Loss: {train_loss:.4f}, '
+        #       f'Val Loss: {val_loss:.4f}, '
+        #       f'Val Accuracy: {val_accuracy:.4f}')
 
         # Early stopping
         if val_loss < best_val_loss:
@@ -251,14 +251,22 @@ def process_categorical_data(df, target_column, targets):
     return X_encoded, y_encoded, targets_encoded, encoder, label_encoder
 
 
+def mlp_300_reconstruction(deid, targets, qi, hidden_features):
+    return nn_reconstruction(deid, targets, qi, hidden_features, test_size=.2, hidden_dims=[300], batch_size=264, learning_rate=.0003, epochs=400), None, None
+
+
+def mlp_128_96_64_reconstruction(deid, targets, qi, hidden_features):
+    return nn_reconstruction(deid, targets, qi, hidden_features, test_size=.2, hidden_dims=[128, 96, 64], batch_size=264, learning_rate=.003, epochs=400), None, None
+
+
 def nn_reconstruction(deid, targets, qi, hidden_features, test_size=test_size_, hidden_dims=hidden_dims_, batch_size=batch_size_, learning_rate=learning_rate_, epochs=epochs_):
 
     targets_copy = targets.copy()
     for hidden_feature in hidden_features:
-        print(f'\n\nHidden feature: {hidden_feature}')
+        # print(f'\n\nHidden feature: {hidden_feature}')
 
         # Process categorical data
-        X_encoded, y_encoded, targets_encoded, feature_encoder, label_encoder = process_categorical_data(deid[qi+[hidden_feature]], hidden_feature, targets)
+        X_encoded, y_encoded, targets_encoded, feature_encoder, label_encoder = process_categorical_data(deid[qi+[hidden_feature]], hidden_feature, targets[qi])
 
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(X_encoded, y_encoded, test_size=test_size, random_state=42)
@@ -285,7 +293,7 @@ def nn_reconstruction(deid, targets, qi, hidden_features, test_size=test_size_, 
 
         # Determine device
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        print(f"Using device: {device}")
+        # print(f"Using  device: {device}")
 
         # Train model
         trained_model, history = train_model(model, train_loader, test_loader, criterion, optimizer, device, epochs)

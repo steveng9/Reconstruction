@@ -14,13 +14,13 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
-
+updates = 10
 test_size_ = 0.2
-hidden_dims_ = [128, 96, 64]
+hidden_dims_ = [2000]
 batch_size_ = 264
-learning_rate_ = 0.001
-epochs_ = 200
-patience = 30
+learning_rate_ = 0.0005
+epochs_ = 300
+patience = 10000
 
 
 
@@ -154,9 +154,10 @@ class CategoricalNN(nn.Module):
             layers.append(nn.Linear(prev_dim, hidden_dim))
             layers.append(nn.ReLU())
             layers.append(nn.BatchNorm1d(hidden_dim))
-            layers.append(nn.Dropout(dropout_rate))
+            # layers.append(nn.Dropout(dropout_rate))
             prev_dim = hidden_dim
         layers.append(nn.Linear(prev_dim, output_dim))
+        layers.append(nn.Sigmoid())
 
         self.model = nn.Sequential(*layers)
 
@@ -221,10 +222,11 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, y
         training_history['val_loss'].append(val_loss)
         training_history['val_accuracy'].append(val_accuracy)
 
-        print(f'Epoch {epoch + 1}/{epochs}, '
-              f'Train Loss: {train_loss:.4f}, '
-              f'Val Loss: {val_loss:.4f}, '
-              f'Val Accuracy: {val_accuracy:.4f}')
+        if epoch % updates == 0:
+            print(f'Epoch {epoch + 1}/{epochs}, '
+                  f'Train Loss: {train_loss:.4f}, '
+                  f'Val Loss: {val_loss:.4f}, '
+                  f'Val Accuracy: {val_accuracy:.4f}')
 
         # Early stopping
         if val_loss < best_val_loss:

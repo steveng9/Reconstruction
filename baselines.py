@@ -11,39 +11,60 @@ from util import *
 
 
 def main():
+    qis = [
+        "QI1",
+        "QI2",
+    ]
+    sdg_practice_problems = [
+        "25_Demo_AIM_e1_25f_Deid.csv",
+        "25_Demo_TVAE_25f_Deid.csv",
+        "25_Demo_CellSupression_25f_Deid.csv",
+        "25_Demo_Synthpop_25f_Deid.csv",
+        "25_Demo_ARF_25f_Deid.csv",
+        "25_Demo_RANKSWAP_25f_Deid.csv",
+        "25_Demo_MST_e10_25f_Deid.csv",
+    ]
     mypath = "/Users/golobs/Documents/GradSchool/NIST-CRC-25/25_PracticeProblem/"
-    files = [f for f in listdir(mypath) if isfile(join(mypath, f))]
     target_filename = "25_Demo_25f_OriginalData.csv"
     targets_original = pd.read_csv(join(mypath, target_filename))
-    deid_filenames = [f for f in files if f.endswith("Deid.csv")]
 
-
-    for qi_name in ["QI1", "QI2"]:
+    for qi_name in qis:
 
         reconstruction_scores = pd.DataFrame(index=features_25)
-        reconstruction_scores["nunique"] = targets_original.nunique()
-        reconstruction_scores["random_guess"] = round(1 / targets_original.nunique() * 100, 1)
 
         qi = QIs[qi_name]
         hidden_features = list(set(features_25).difference(set(qi)))
         targets = targets_original[qi]
 
-        for deid_filename in deid_filenames:
+        for deid_filename in sdg_practice_problems:
+            sdg_method_name = "_".join(deid_filename.split("_")[2:-2])
+            # print("\n", qi_name, sdg_method_name, ml_name)
+            deid = pd.read_csv(join(mypath, deid_filename))
+
+            recon_method_name = f"{qi_name}_{sdg_method_name}"
+
             method_name = "_".join(deid_filename.split("_")[2:-2])
             print(deid_filename)
             deid = pd.read_csv(join(mypath, deid_filename))
-
-            baseline_name = f"{qi_name}_{method_name}"
-            reconstruction_scores[baseline_name] = np.NAN
-            recon = mode_baseline(deid, targets, hidden_features)
-            reconstruction_scores.loc[hidden_features, baseline_name] = simple_accuracy_score(targets_original, recon, hidden_features)
-
-            # baseline_name = f"{qi_name}_KNN_{method_name}"
+            #
+            # baseline_name = f"{qi_name}_{method_name}"
             # reconstruction_scores[baseline_name] = np.NAN
-            # recon = KNN_baseline(deid, targets, qi, hidden_features)
-            # reconstruction_scores.loc[hidden_features, baseline_name] = calculate_reconstruction_score(targets_original, recon, hidden_features)
+            # recon = mode_baseline(deid, targets, hidden_features)
+            # reconstruction_scores.loc[hidden_features, baseline_name] = simple_accuracy_score(targets_original, recon, hidden_features)
+
+            reconstruction_scores[recon_method_name] = np.NAN
+            recon = simply_measure_deid_itself_baseline(deid, targets, qi, hidden_features)
+            reconstruction_scores.loc[hidden_features, recon_method_name] = calculate_reconstruction_score(targets_original, recon, hidden_features)
 
         print()
+
+        print(qi_name)
+        for l in reconstruction_scores.loc[sorted(hidden_features)].T.to_numpy():
+            for x in l:
+                print(x, end=",")
+            print()
+            # print(round(l.mean(), 2))
+        print("ave: ", round(reconstruction_scores.loc[sorted(hidden_features)].T.mean().mean(), 2))
 
 
     print()
@@ -53,6 +74,18 @@ def main():
 
 
 
+def simply_measure_deid_itself_baseline(deid, targets, qi, hidden_features):
+    targets_copy = targets.copy()
+    full_cycles = len(deid) // len(targets)
+    remainder = len(deid) % len(targets)
+
+    result_parts = [deid] * full_cycles
+    if remainder > 0:
+        result_parts.append(deid.iloc[:remainder])
+
+    targets_copy[hidden_features] = pd.concat(result_parts, ignore_index=True)[hidden_features]
+
+    return targets_copy
 
 def random_baseline(deid, targets, hidden_features):
     # TODO: mean won't work for discrete values. Fix this somehow.
