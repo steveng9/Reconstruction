@@ -22,24 +22,24 @@ def main():
         "QI2",
     ]
     sdg_practice_problems = [
-        "25_Demo_AIM_e1_25f_Deid.csv",
-        "25_Demo_TVAE_25f_Deid.csv",
-        "25_Demo_CellSupression_25f_Deid.csv",
-        "25_Demo_Synthpop_25f_Deid.csv",
+        # "25_Demo_AIM_e1_25f_Deid.csv",
+        # "25_Demo_TVAE_25f_Deid.csv",
+        # "25_Demo_CellSupression_25f_Deid.csv",
+        # "25_Demo_Synthpop_25f_Deid.csv",
         "25_Demo_ARF_25f_Deid.csv",
-        "25_Demo_RANKSWAP_25f_Deid.csv",
-        "25_Demo_MST_e10_25f_Deid.csv",
+        # "25_Demo_RANKSWAP_25f_Deid.csv",
+        # "25_Demo_MST_e10_25f_Deid.csv",
     ]
     ml_methods = {
         # "NB": NB_reconstruction,
-        # "RF": random_forest_25_25_reconstruction,
+        "RF": random_forest_25_25_reconstruction,
         # "LR": logistic_regression_reconstruction,
         # "lgboost": lgboost_reconstruction,
         # "MLP": MLP_reconstruction,
         # "SVM": SVM_reconstruction,
         # "KNN": KNN_baseline,
         # "Ensemble": ensemble1_reconstruction,
-        "chained_RF": chained_rf_reconstruction,
+        # "chained_RF": chained_rf_reconstruction,
         # "chained_NB": chained_nb_reconstruction,
     }
 
@@ -68,8 +68,8 @@ def main():
                 deid = pd.read_csv(join(mypath, deid_filename))
 
                 recon_method_name = f"{qi_name}_{ml_name}_{sdg_method_name}"
-                # recon = logistic_regression_reconstruction(deid, targets, qi, hidden_features)
-                recon, _, _ = ml_method(deid, targets, qi, hidden_features)
+                recon, _, _ = ml_method(deid, targets, qi, hidden_features, problem_name=sdg_method_name, qi_name=qi_name)
+                # recon, _, _ = ml_method(deid, targets, qi, hidden_features)
                 reconstruction_scores.loc[hidden_features, recon_method_name] = calculate_reconstruction_score(targets_original, recon, hidden_features)
 
                 # print(qi_name, recon_method_name)
@@ -123,37 +123,46 @@ def random_forest_reconstruction(deid, targets, qi, hidden_features, num_estimat
     return targets_copy, probas, classes_
 
 
-def random_forest_25_25_reconstruction(deid, targets, qi, hidden_features, num_estimators=25, max_depth=25, classes=None):
+def random_forest_25_25_reconstruction(deid, targets, qi, hidden_features, num_estimators=25, max_depth=25, classes=None, problem_name=None, qi_name=None):
     targets_copy = targets.copy()
+
     probas = []
     classes_ = []
     for hidden_feature in hidden_features:
         model = RandomForestClassifier(n_estimators=num_estimators, max_depth=max_depth)
-        y_train = deid[hidden_feature]
-        model.fit(deid[qi], y_train)
-        all_classes = model.classes_
         if classes is not None:
-            all_classes = np.array(classes[hidden_feature])
-            model.classes_ = all_classes
+            class_weights = {cls: 1.0 for cls in classes[hidden_feature]}
+            model = RandomForestClassifier(n_estimators=num_estimators, max_depth=max_depth, class_weight=class_weights)
+            # manually add all classes to make sure model sees them all... (I know this probably isn't necessary)
+            deid_augmented = augment_df(deid, classes[hidden_feature], hidden_feature)
+            y_train = deid_augmented[hidden_feature]
+            model.fit(deid_augmented[qi], y_train)
+            assert len(classes[hidden_feature]) == len(model.classes_)
+        else:
+            y_train = deid[hidden_feature]
+            model.fit(deid[qi], y_train)
 
-        # Fill in missing class columns with 0s if needed
-        def full_proba_matrix(probas, trained_classes, all_classes):
-            full_probas = np.zeros((probas.shape[0], len(all_classes)))
-            for i, cls in enumerate(trained_classes):
-                full_index = np.where(all_classes == cls)[0][0]
-                full_probas[:, full_index] = probas[:, i]
-            return full_probas
-
+        dump_artifact({"model": model, "feature_names": model.feature_names_in_, "class_names": model.classes_}, f"./saved_models/{problem_name}_{qi_name}_{hidden_feature}_rf_model.pkl")
         try:
             targets_copy[hidden_feature] = model.predict(targets)
         except Exception:
             print()
+
         real_probas = model.predict_proba(targets)
-        trained_classes = model.classes_[np.isin(model.classes_, np.unique(y_train))]
-        full_probas = full_proba_matrix(real_probas, trained_classes, all_classes)
-        probas.append(full_probas)
+        probas.append(real_probas)
         classes_.append(model.classes_)
     return targets_copy, probas, classes_
+
+def augment_df(deid, classes, hidden_feature):
+    deid_copy = deid.copy()
+    deid_copy = deid.iloc[:len(classes)]._append(deid_copy)
+    deid_copy.index = range(len(deid) + len(classes))
+    deid_copy.loc[range(len(classes)), hidden_feature] = classes
+
+    return deid_copy
+
+
+
 
 
 def chained_rf_reconstruction(deid, targets, qi, hidden_features):
@@ -212,18 +221,35 @@ def lgboost_reconstruction(deid, targets, qi, hidden_features):
 def SVM_reconstruction(deid, targets, qi, hidden_features):
     return None, None
 
-def NB_reconstruction(deid, targets, qi, hidden_features):
+def NB_reconstruction(deid, targets, qi, hidden_features, classes=None):
     targets_copy = targets.copy()
+    probas = []
     for hidden_feature in hidden_features:
-        model = GaussianNB()
         type_ = deid[hidden_feature].dtypes
-        model.fit(deid[qi].astype(str), deid[hidden_feature].astype(str))
-        targets_copy[hidden_feature] = model.predict(targets[qi].astype(str))
-        if type_ == "float64":
-            targets_copy[hidden_feature] = targets_copy[hidden_feature].astype(float)
+        if classes is not None:
+            model = GaussianNB()
+            # manually add all classes to make sure model sees them all... (I know this probably isn't necessary)
+            deid_augmented = augment_df(deid, classes[hidden_feature], hidden_feature)
+            y_train = deid_augmented[hidden_feature]
+            model.fit(deid_augmented[qi].astype(str), y_train.astype(str))
+            assert len(classes[hidden_feature]) == len(model.classes_)
         else:
-            targets_copy[hidden_feature] = targets_copy[hidden_feature].astype(int)
-    return targets_copy, None, None
+            y_train = deid[hidden_feature]
+            model.fit(deid[qi].astype(str), y_train.astype(str))
+
+        try:
+            targets_copy[hidden_feature] = model.predict(targets_copy[qi].astype(str))
+            if type_ == "float64":
+                targets_copy[hidden_feature] = targets_copy[hidden_feature].astype(float)
+            else:
+                targets_copy[hidden_feature] = targets_copy[hidden_feature].astype(int)
+        except Exception:
+            print("Exception occured")
+
+        real_probas = model.predict_proba(targets_copy[qi].astype(str))
+        probas.append(real_probas)
+
+    return targets_copy, probas, None
 
 def chained_nb_reconstruction(deid, targets, qi, hidden_features):
     targets_copy = targets.copy()

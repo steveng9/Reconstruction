@@ -20,23 +20,23 @@ hidden_dims_ = [300]
 # hidden_dims_ = [500]
 batch_size_ = 264
 learning_rate_ = 0.0003
-epochs_ = 400
-patience = 30000
+epochs_ = 250
+patience = 200
 
 
 
 def main():
     qis = [
         "QI1",
-        "QI2",
+        # "QI2",
     ]
     sdg_practice_problems = [
         "25_Demo_AIM_e1_25f_Deid.csv",
         "25_Demo_TVAE_25f_Deid.csv",
-        "25_Demo_CellSupression_25f_Deid.csv",
-        "25_Demo_Synthpop_25f_Deid.csv",
-        "25_Demo_ARF_25f_Deid.csv",
-        "25_Demo_RANKSWAP_25f_Deid.csv",
+        # "25_Demo_CellSupression_25f_Deid.csv",
+        # "25_Demo_Synthpop_25f_Deid.csv",
+        # "25_Demo_ARF_25f_Deid.csv",
+        # "25_Demo_RANKSWAP_25f_Deid.csv",
         "25_Demo_MST_e10_25f_Deid.csv",
     ]
 
@@ -62,8 +62,14 @@ def main():
 
             recon_method_name = f"{qi_name}_{sdg_method_name}"
             # recon = logistic_regression_reconstruction(deid, targets, qi, hidden_features)
-            recon = nn_reconstruction(deid, targets, qi, hidden_features)
+            # recon = nn_reconstruction(deid, targets, qi, hidden_features)
+            recon = chained_mlp_reconstruction(deid, targets, qi, hidden_features)
             reconstruction_scores.loc[hidden_features, recon_method_name] = calculate_reconstruction_score(targets_original, recon, hidden_features)
+
+            print(qi_name, recon_method_name)
+            # for x in reconstruction_scores.loc[sorted(hidden_features), recon_method_name].T.to_numpy():
+            #     print(x, end=",")
+            print(reconstruction_scores[recon_method_name].mean())
 
         # Set display width very large to avoid wrapping and truncating
         pd.set_option('display.width', 1000)
@@ -176,10 +182,11 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, e
         training_history['val_loss'].append(val_loss)
         training_history['val_accuracy'].append(val_accuracy)
 
-        # print(f'Epoch {epoch + 1}/{epochs}, '
-        #       f'Train Loss: {train_loss:.4f}, '
-        #       f'Val Loss: {val_loss:.4f}, '
-        #       f'Val Accuracy: {val_accuracy:.4f}')
+        if epoch % 20 == 0:
+            print(f'Epoch {epoch + 1}/{epochs}, '
+                  f'Train Loss: {train_loss:.4f}, '
+                  f'Val Loss: {val_loss:.4f}, '
+                  f'Val Accuracy: {val_accuracy:.4f}')
 
         # Early stopping
         if val_loss < best_val_loss:
@@ -252,7 +259,7 @@ def process_categorical_data(df, target_column, targets):
 
 
 def mlp_300_reconstruction(deid, targets, qi, hidden_features):
-    return nn_reconstruction(deid, targets, qi, hidden_features, test_size=.2, hidden_dims=[300], batch_size=264, learning_rate=.0003, epochs=400), None, None
+    return nn_reconstruction(deid, targets, qi, hidden_features, test_size=.2, hidden_dims=[300], batch_size=264, learning_rate=.0003, epochs=250), None, None
 
 
 def mlp_128_96_64_reconstruction(deid, targets, qi, hidden_features):
@@ -263,7 +270,7 @@ def nn_reconstruction(deid, targets, qi, hidden_features, test_size=test_size_, 
 
     targets_copy = targets.copy()
     for hidden_feature in hidden_features:
-        # print(f'\n\nHidden feature: {hidden_feature}')
+        print(f'\n\nHidden feature: {hidden_feature}')
 
         # Process categorical data
         X_encoded, y_encoded, targets_encoded, feature_encoder, label_encoder = process_categorical_data(deid[qi+[hidden_feature]], hidden_feature, targets[qi])
@@ -307,6 +314,18 @@ def nn_reconstruction(deid, targets, qi, hidden_features, test_size=test_size_, 
 
     # return trained_model, history, original_predictions, original_true_labels, feature_encoder, label_encoder
     return targets_copy.astype(int)
+
+
+def chained_mlp_reconstruction(deid, targets, qi, hidden_features):
+    adequate_epochs = {'F23': 10, 'F13': 75, 'F11': 70, 'F43': 15, 'F36': 60, 'F15': 90, 'F33': 70, 'F25': 30, 'F18': 20, 'F5': 45, 'F30': 20, 'F10': 25, 'F12': 15, 'F50': 15, 'F3': 15, 'F1': 25, 'F9': 20, 'F21': 25}
+    targets_copy = targets.copy()
+    qi_copy = qi.copy()
+    for hidden_feature in hidden_features:
+        dim_size = 300 + (len(qi_copy)-7)*20
+        recon = nn_reconstruction(deid, targets_copy, qi_copy, [hidden_feature], test_size=.2, hidden_dims=[dim_size], batch_size=264, learning_rate=.0002, epochs=adequate_epochs[hidden_feature])
+        targets_copy[hidden_feature] = recon[hidden_feature]
+        qi_copy.append(hidden_feature)
+    return targets_copy, None, None
 
 
 

@@ -12,16 +12,20 @@ import lightgbm as lgb
 from sklearn.naive_bayes import GaussianNB
 from sklearn.preprocessing import OneHotEncoder
 
-import get_aux_data
+from get_aux_data import get_rankswap_data_as_auxiliary, create_auxiliary_combined
 from baselines import KNN_baseline
-from recon_ML_classifiers import random_forest_25_25_reconstruction
+from recon_ML_classifiers import random_forest_25_25_reconstruction, NB_reconstruction
 from util import *
 
 
 
+# aux_fn = get_rankswap_data_as_auxiliary
+aux_fn = create_auxiliary_combined
+
+
 def main():
     qis = [
-        "QI1",
+        # "QI1",
         "QI2",
     ]
     sdg_practice_problems = [
@@ -34,8 +38,8 @@ def main():
         "25_Demo_MST_e10_25f_Deid.csv",
     ]
     ml_methods = {
-        # "NB": NB_reconstruction,
-        "RF": random_forest_25_25_reconstruction,
+        "NB": NB_reconstruction,
+        # "RF": random_forest_25_25_reconstruction,
         # "LR": logistic_regression_reconstruction,
         # "lgboost": lgboost_reconstruction,
         # "MLP": MLP_reconstruction,
@@ -49,8 +53,10 @@ def main():
     mypath = "/Users/golobs/Documents/GradSchool/NIST-CRC-25/25_PracticeProblem/"
     target_filename = "25_Demo_25f_OriginalData.csv"
     targets_original = pd.read_csv(join(mypath, target_filename))
-    # aux = get_aux_data.create_auxiliary_combined()[features_25].astype(int).sample(n=10000)
-    aux = get_aux_data.create_auxiliary_combined()[features_25].astype(int)
+    aux = aux_fn()[features_25].astype(int).sample(n=30_000)
+    # aux = aux_fn()[features_25].astype(int).sample(n=100_000)
+    # aux = aux_fn()[features_25].astype(int)
+
 
 
     for ml_name, ml_method in ml_methods.items():
@@ -66,6 +72,9 @@ def main():
                 sdg_method_name = "_".join(deid_filename.split("_")[2:-2])
                 # print("\n", qi_name, sdg_method_name, ml_name)
                 deid = pd.read_csv(join(mypath, deid_filename))
+
+
+                aux, deid = match_aux_and_synth_classes(aux, deid)
 
                 recon_method_name = f"{qi_name}_{ml_name}_{sdg_method_name}"
                 # recon = logistic_regression_reconstruction(deid, targets, qi, hidden_features)
@@ -98,16 +107,13 @@ def main():
 def probability_ratio_reconstruction(base_reconstruction_method, deid, auxiliary_dataset, targets, qi, hidden_features, keep_proportions=False):
     targets_copy = targets.copy()
     classes = {col: list(set(auxiliary_dataset[col].unique()).union(set(deid[col].unique()))) for col in auxiliary_dataset.columns}
-    base_recon, base_probas, base_classes = base_reconstruction_method(deid, targets, qi, hidden_features, classes=classes)
-    aux_recon, aux_probas, aux_classes = base_reconstruction_method(auxiliary_dataset, targets, qi, hidden_features, classes=classes)
-
-    probability_ratios = []
-    combined_classes = []
+    _, base_probas, _ = base_reconstruction_method(deid, targets, qi, hidden_features, classes=classes)
+    _, aux_probas, _ = base_reconstruction_method(auxiliary_dataset, targets, qi, hidden_features, classes=classes)
 
     for i, hidden_feature in enumerate(hidden_features):
         base_proba = base_probas[i]
         aux_proba = aux_probas[i]
-        classes = aux_classes[i]
+        featuere_classes = classes[hidden_feature]
         if base_proba.shape[1] == aux_proba.shape[1]:
             epsilon = 1e-10
             ratio = base_proba / (aux_proba + epsilon)
@@ -122,12 +128,12 @@ def probability_ratio_reconstruction(base_reconstruction_method, deid, auxiliary
                 # Get sorted order (row indices) based on row-wise max value
                 sorted_indices = np.argsort(-row_max)
 
-                class_counts = {cl: 0 for cl in classes}
-                deid_class_counts = {cl: 0 for cl in classes}
+                class_counts = {cl: 0 for cl in featuere_classes}
+                deid_class_counts = {cl: 0 for cl in featuere_classes}
                 deid_class_counts.update(dict(deid[hidden_feature].value_counts()))
                 deid_class_counts = {cl: math.ceil(ct*len(targets)/len(deid)) for cl, ct in deid_class_counts.items()}
                 feature_recon = np.zeros(len(targets))
-                classes_copy = np.array(classes.copy())
+                classes_copy = np.array(featuere_classes.copy())
                 for k, idx in enumerate(sorted_indices):
                     try:
                         preferred_class_idx = ratio_normalized[idx].argmax()
@@ -139,11 +145,11 @@ def probability_ratio_reconstruction(base_reconstruction_method, deid, auxiliary
                             ratio_normalized = np.delete(ratio_normalized, preferred_class_idx, axis=1)
                             classes_copy = np.delete(classes_copy, preferred_class_idx)
                     except Exception as e:
-                        print(e)
+                        print("Error! ", k, idx, hidden_feature, e)
                 targets_copy[hidden_feature] = feature_recon
 
             else:
-                targets_copy[hidden_feature] = classes[ratio_normalized.argmax(axis=1)]
+                targets_copy[hidden_feature] = np.array(featuere_classes)[ratio_normalized.argmax(axis=1)]
 
 
         else:

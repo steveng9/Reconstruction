@@ -146,6 +146,50 @@ class AuxiliaryDatasetCreator:
             raise IOError(f"Error reading complementary file {complementary_path}: {e}")
 
 
+    def auxiliary_creation_5(self, problem_range: range = range(1, 25)) -> pd.DataFrame:
+        """
+        Auxiliary creation method 5: Combine only RANKSWAP deidentified datasets.
+
+        Args:
+            problem_range: Range of problem numbers to include (default: 1-24)
+
+        Returns:
+            pd.DataFrame: Combined dataset from all RANKSWAP files in specified problems
+        """
+        combined_datasets = []
+
+        for problem_num in problem_range:
+            # Find all deidentified files for this problem number that contain RANKSWAP
+            pattern = f"{problem_num}_*_Deid.csv"
+            all_deid_files = list(self.red_team_path.glob(pattern))
+
+            # Filter for files containing RANKSWAP in the name
+            rankswap_files = [f for f in all_deid_files if "RANKSWAP" in f.name]
+
+            if not rankswap_files:
+                print(f"Warning: No RANKSWAP files found for problem {problem_num}")
+                continue
+
+            for rankswap_file in rankswap_files:
+                try:
+                    df = pd.read_csv(rankswap_file)
+                    # Add metadata columns to track source
+                    df['source_problem'] = problem_num
+                    df['source_file'] = rankswap_file.name
+                    combined_datasets.append(df)
+                    print(f"Added {len(df)} rows from {rankswap_file.name}")
+                except Exception as e:
+                    print(f"Error reading {rankswap_file}: {e}")
+
+        if not combined_datasets:
+            raise ValueError("No RANKSWAP datasets were successfully loaded")
+
+        # Combine all datasets
+        result = pd.concat(combined_datasets, ignore_index=True, sort=False)
+        print(f"Total combined RANKSWAP dataset size: {len(result)} rows")
+
+        return result
+
     def get_available_problems(self) -> List[int]:
         """
         Get list of available problem numbers in the red team directory.
@@ -273,3 +317,9 @@ def get_auxiliary_for_problem(current_problem_file: str) -> pd.DataFrame:
         # If we can't parse problem number, use method 2 (all combined)
         print(f"Warning: Could not parse problem number from {current_problem_file}, using all combined data")
         return creator.auxiliary_creation_2()
+
+
+def get_rankswap_data_as_auxiliary() -> pd.DataFrame:
+    """Quick function to create auxiliary dataset using only RANKSWAP files."""
+    creator = AuxiliaryDatasetCreator()
+    return creator.auxiliary_creation_5()
