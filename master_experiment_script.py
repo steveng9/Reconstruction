@@ -23,7 +23,8 @@ from attacks.attention_classifier import attention_reconstruction
 
 N_RUNS_default = 1
 
-CONFIG_PATH_default = "/Users/stevengolob/Documents/school/PhD/reconstruction_project/configs/dev_config.yaml"
+on_server = len(sys.argv) > 1 and sys.argv[1] == 'T'
+CONFIG_PATH_default = "/home/golobs/data/NIST_CRC" if on_server else "/Users/stevengolob/Documents/school/PhD/reconstruction_project/configs/dev_config.yaml"
 
 def main():
     args = parse_args()
