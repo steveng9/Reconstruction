@@ -2,7 +2,6 @@
 import sys
 import os
 from get_data import get_meta_data_for_diffusion
-from master_experiment_script import on_server
 
 on_server = len(sys.argv) > 1 and sys.argv[1] == "T"
 if on_server:
