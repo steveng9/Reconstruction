@@ -6,6 +6,7 @@ This model uses multi-head self-attention to learn complex relationships between
 features and performs autoregressive reconstruction (like LLM next-token prediction).
 """
 
+import os
 import yaml
 import numpy as np
 import pandas as pd
@@ -46,7 +47,7 @@ feature_order_default = None  # Will use natural order if None
 PLOT = False
 
 CONFIG_PATH_default = "/Users/stevengolob/Documents/school/PhD/reconstruction_project/configs/dev_config.yaml"
-model_save_dir = "/Users/stevengolob/PycharmProjects/Reconstruction/models/"
+# model_save_dir = "/Users/stevengolob/PycharmProjects/Reconstruction/models/"
 
 
 def _development():
@@ -261,7 +262,7 @@ class TabularAttentionModel(nn.Module):
 # TRAINING
 # ============================================================================
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, device,
+def train_model(cfg, model, train_loader, val_loader, criterion, optimizer, device,
                 epochs, early_stopping_patience):
     """Train the attention model."""
     model.to(device)
@@ -352,7 +353,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device,
         plt.show()
 
     # Load best model
-    model.load_state_dict(torch.load(model_save_dir + 'best_attention_model.pth'))
+    model.load_state_dict(torch.load(cfg["dataset"]["artifacts"] + 'best_attention_model.pth'))
     return model
 
 
@@ -468,7 +469,7 @@ def attention_reconstruction_single(cfg, synth, targets, known_features, hidden_
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-        trained_model = train_model(
+        trained_model = train_model(cfg,
             model, train_loader, val_loader, criterion, optimizer,
             device, epochs, patience
         )
@@ -566,7 +567,7 @@ def attention_reconstruction_autoregressive(cfg, synth, targets, known_features,
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-        trained_model = train_model(
+        trained_model = train_model(cfg,
             model, train_loader, val_loader, criterion, optimizer,
             device, epochs, patience
         )
@@ -591,6 +592,8 @@ def attention_reconstruction(cfg, synth, targets, known_features, hidden_feature
     Main adapter for single-feature attention-based reconstruction.
     Predicts each hidden feature independently.
     """
+    cfg["dataset"]["artifacts"] = cfg["dataset"]["dir"] + "/attention_artifacts"
+    os.makedirs(cfg["dataset"]["artifacts"], exist_ok=True)
     return attention_reconstruction_single(
         cfg, synth, targets, known_features, hidden_features,
         cfg["attack_params"].get("embedding_dim", embedding_dim_default),
@@ -611,6 +614,9 @@ def attention_autoregressive_reconstruction(cfg, synth, targets, known_features,
     Main adapter for autoregressive attention-based reconstruction.
     Predicts hidden features sequentially, using previous predictions.
     """
+
+    cfg["dataset"]["artifacts"] = cfg["dataset"]["dir"] + "/attention_AR_artifacts"
+    os.makedirs(cfg["dataset"]["artifacts"], exist_ok=True)
     return attention_reconstruction_autoregressive(
         cfg, synth, targets, known_features, hidden_features,
         cfg["attack_params"].get("embedding_dim", embedding_dim_default),
