@@ -2,11 +2,27 @@
 Master experiment script for tabular RePaint experiments.
 Usage: python run_experiment.py --config configs/experiment1.yaml --data_dir /path/to/data
 """
+import argparse
 import sys
-import os
+
+N_RUNS_default = 1
+parser = argparse.ArgumentParser()
+argparse.ArgumentParser(description="Run tabular Reconstruction experiments")
+parser.add_argument("--n_runs", type=int, default=N_RUNS_default, help="Number of runs to average over")
+parser.add_argument("--on_server", type=bool, default=False, help="changes directories depending on which machine running on")
+args = parser.parse_args()
+
+# Set path BEFORE importing other modules
+if args.on_server:
+    sys.path.append('/home/golobs/MIA_on_diffusion/')
+    sys.path.append('/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM')
+else:
+    sys.path.append('/Users/stevengolob/PycharmProjects/MIA_on_diffusion/')
+    sys.path.append('/Users/stevengolob/PycharmProjects/MIA_on_diffusion/midst_models/single_table_TabDDPM')
+
+
 import yaml
 import numpy as np
-import argparse
 import wandb
 
 from get_data import load_data
@@ -21,14 +37,12 @@ from attacks.attention_classifier import attention_reconstruction
 
 
 
-N_RUNS_default = 1
 
-on_server = len(sys.argv) > 1 and sys.argv[1] == 'T'
-CONFIG_PATH_default = "/home/golobs/data/NIST_CRC/dev_config.yaml" if on_server else "/Users/stevengolob/Documents/school/PhD/reconstruction_project/configs/dev_config.yaml"
+# on_server = len(sys.argv) > 1 and sys.argv[1] == 'T'
 
 def main():
-    args = parse_args()
-    config = load_config(args.config)
+    CONFIG_PATH_default = "/home/golobs/data/NIST_CRC/dev_config.yaml" if args.on_server else "/Users/stevengolob/Documents/school/PhD/reconstruction_project/configs/dev_config.yaml"
+    config = load_config(CONFIG_PATH_default)
 
     print(f"Running {args.n_runs} experiments with config: {args.config}")
     wandb.init(
@@ -47,13 +61,14 @@ def main():
     print(f"\n{'=' * 50}\nAll runs complete!\n{'=' * 50}")
 
 
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Run tabular Reconstruction experiments")
-    # parser.add_argument("--data_dir", type=str, default=default_data_dir, help="Path to data directory")
-    parser.add_argument("--config", type=str, default=CONFIG_PATH_default, help="Path to config YAML file")
-    parser.add_argument("--n_runs", type=int, default=N_RUNS_default, help="Number of runs to average over")
-    return parser.parse_args()
+#
+# def parse_args():
+#     parser = argparse.ArgumentParser(description="Run tabular Reconstruction experiments")
+#     # parser.add_argument("--data_dir", type=str, default=default_data_dir, help="Path to data directory")
+#     # parser.add_argument("--config", type=str, default=CONFIG_PATH_default, help="Path to config YAML file")
+#     parser.add_argument("--n_runs", type=int, default=N_RUNS_default, help="Number of runs to average over")
+#     parser.add_argument("--on_server", type=bool, default=False, help="changes directories depending on which machine running on")
+#     return parser.parse_args()
 
 
 def load_config(config_path):
