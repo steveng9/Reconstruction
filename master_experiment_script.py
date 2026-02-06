@@ -20,6 +20,7 @@ else:
     sys.path.append('/Users/stevengolob/PycharmProjects/MIA_on_diffusion/')
     sys.path.append('/Users/stevengolob/PycharmProjects/MIA_on_diffusion/midst_models/single_table_TabDDPM')
 
+CONFIG_PATH_default = "/home/golobs/data/NIST_CRC/dev_data/dev_config.yaml" if args.on_server else "/Users/stevengolob/Documents/school/PhD/reconstruction_project/configs/dev_config.yaml"
 
 import yaml
 import numpy as np
@@ -41,10 +42,9 @@ from attacks.attention_classifier import attention_reconstruction
 # on_server = len(sys.argv) > 1 and sys.argv[1] == 'T'
 
 def main():
-    CONFIG_PATH_default = "/home/golobs/data/NIST_CRC/dev_data/dev_config.yaml" if args.on_server else "/Users/stevengolob/Documents/school/PhD/reconstruction_project/configs/dev_config.yaml"
     config = load_config(CONFIG_PATH_default)
 
-    print(f"Running {args.n_runs} experiments with config: {args.config}")
+    print(f"Running {args.n_runs} experiments with config: {CONFIG_PATH_default}")
     wandb.init(
         project=config['wandb']['project'],
         name=f"{config['wandb']['name']}",
