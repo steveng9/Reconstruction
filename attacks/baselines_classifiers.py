@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler
 from util import *
 
 
-def main():
+def _development():
     qis = [
         "QI1",
         "QI2",
@@ -74,8 +74,8 @@ def main():
 
 
 
-def simply_measure_deid_itself_baseline(deid, targets, qi, hidden_features):
-    targets_copy = targets.copy()
+def simply_measure_deid_itself_baseline(cfg, deid, targets, qi, hidden_features):
+    reconstructed_targets = targets.copy()
     full_cycles = len(deid) // len(targets)
     remainder = len(deid) % len(targets)
 
@@ -83,31 +83,32 @@ def simply_measure_deid_itself_baseline(deid, targets, qi, hidden_features):
     if remainder > 0:
         result_parts.append(deid.iloc[:remainder])
 
-    targets_copy[hidden_features] = pd.concat(result_parts, ignore_index=True)[hidden_features]
+    reconstructed_targets[hidden_features] = pd.concat(result_parts, ignore_index=True)[hidden_features]
 
-    return targets_copy
+    return reconstructed_targets
 
-def random_baseline(deid, targets, hidden_features):
-    # TODO: mean won't work for discrete values. Fix this somehow.
-    targets_copy = targets.copy()
+
+def random_baseline(cfg, deid, targets, qi, hidden_features):
+    reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
-        targets_copy[hidden_feature] = deid[hidden_feature].sample().values[0]
-    return targets_copy
+        reconstructed_targets[hidden_feature] = deid[hidden_feature].sample().values[0]
+    return reconstructed_targets
 
-def mean_baseline(deid, targets, hidden_features):
+
+def mean_baseline(cfg, deid, targets, qi, hidden_features):
     # TODO: mean won't work for discrete values. Fix this somehow.
-    targets_copy = targets.copy()
+    reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
-        targets_copy[hidden_feature] = deid[hidden_feature].mean()
-    return targets_copy
+        reconstructed_targets[hidden_feature] = deid[hidden_feature].mean()
+    return reconstructed_targets
 
 
-def slightly_better_mean_baseline(deid, targets, hidden_features, qi):
-    targets_copy = targets.copy()
+def slightly_better_mean_baseline(cfg, deid, targets, qi, hidden_features):
+    reconstructed_targets = targets.copy()
     lookup = deid.groupby(qi)[hidden_features].mean().round().reset_index()
 
     recon = pd.merge(
-        targets_copy,
+        reconstructed_targets,
         lookup,
         on=qi,
         how='left'
@@ -124,46 +125,14 @@ def slightly_better_mean_baseline(deid, targets, hidden_features, qi):
     return recon
 
 
-def mode_baseline(deid, targets, hidden_features):
-    targets_copy = targets.copy()
+def mode_baseline(cfg, deid, targets, qi, hidden_features):
+    reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
-        targets_copy[hidden_feature] = deid[hidden_feature].mode()[0]
-    return targets_copy
+        reconstructed_targets[hidden_feature] = deid[hidden_feature].mode()[0]
+    return reconstructed_targets
 
-
-def KNN_baseline(deid, targets, qi, hidden_features, k=1, use_weights=True):
-
-    scaler = StandardScaler()
-    syn_qi_scaled = scaler.fit_transform(deid[qi])
-    target_qi_scaled = scaler.transform(targets[qi])
-
-    nbrs = NearestNeighbors(n_neighbors=k).fit(syn_qi_scaled)
-    distances, indices = nbrs.kneighbors(target_qi_scaled)
-
-    recon = targets.copy()
-
-    for feature in hidden_features:
-        feature_values = []
-
-        for i in range(targets.shape[0]):
-            neighbor_indices = indices[i]
-            neighbor_values = deid.iloc[neighbor_indices][feature].values
-
-            if use_weights and not np.isclose(distances[i][0], 0):
-                weights = 1 / (distances[i] + 1e-6)
-                weights = weights / np.sum(weights)
-                weighted_value = np.sum(neighbor_values * weights)  # weighted sum of nbrs features -- instead of avg
-                feature_values.append(round(weighted_value))
-            else:
-                feature_values.append(round(np.mean(neighbor_values)))
-                # TODO: mean won't work for discrete values. Fix this somehow.
-                # feature_values.append(round(np.mode(neighbor_values)))
-
-        recon[feature] = feature_values
-
-    return recon, None, None
 
 
 
 if __name__ == "__main__":
-    main()
+    _development()

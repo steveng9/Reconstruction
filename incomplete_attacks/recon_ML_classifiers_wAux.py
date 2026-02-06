@@ -1,20 +1,12 @@
 import math
-import sys
 
-import numpy as np
-import pandas as pd
-from os import listdir
-from os.path import isfile, join
+from os.path import join
 
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
 import lightgbm as lgb
-from sklearn.naive_bayes import GaussianNB
-from sklearn.preprocessing import OneHotEncoder
 
-from get_aux_data import get_rankswap_data_as_auxiliary, create_auxiliary_combined
-from baselines import KNN_baseline
-from recon_ML_classifiers import random_forest_25_25_reconstruction, NB_reconstruction
+from get_aux_data import create_auxiliary_combined
+from attacks.baselines_classifiers import KNN_baseline
+from attacks.ML_classifiers import random_forest_25_25_reconstruction, NB_reconstruction
 from util import *
 
 
@@ -105,7 +97,7 @@ def main():
 
 
 def probability_ratio_reconstruction(base_reconstruction_method, deid, auxiliary_dataset, targets, qi, hidden_features, keep_proportions=False):
-    targets_copy = targets.copy()
+    reconstructed_targets = targets.copy()
     classes = {col: list(set(auxiliary_dataset[col].unique()).union(set(deid[col].unique()))) for col in auxiliary_dataset.columns}
     _, base_probas, _ = base_reconstruction_method(deid, targets, qi, hidden_features, classes=classes)
     _, aux_probas, _ = base_reconstruction_method(auxiliary_dataset, targets, qi, hidden_features, classes=classes)
@@ -146,10 +138,10 @@ def probability_ratio_reconstruction(base_reconstruction_method, deid, auxiliary
                             classes_copy = np.delete(classes_copy, preferred_class_idx)
                     except Exception as e:
                         print("Error! ", k, idx, hidden_feature, e)
-                targets_copy[hidden_feature] = feature_recon
+                reconstructed_targets[hidden_feature] = feature_recon
 
             else:
-                targets_copy[hidden_feature] = np.array(featuere_classes)[ratio_normalized.argmax(axis=1)]
+                reconstructed_targets[hidden_feature] = np.array(featuere_classes)[ratio_normalized.argmax(axis=1)]
 
 
         else:
@@ -157,7 +149,7 @@ def probability_ratio_reconstruction(base_reconstruction_method, deid, auxiliary
             print(f"Warning: Class count mismatch for {hidden_feature}")
 
 
-    return targets_copy, None, None
+    return reconstructed_targets, None, None
 
 
 if __name__ == "__main__":

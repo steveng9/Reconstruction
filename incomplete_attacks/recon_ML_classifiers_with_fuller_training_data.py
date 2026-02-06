@@ -1,22 +1,12 @@
-import sys
-from idlelib.debugobj import myrepr
-
 import os
-import numpy as np
-import pandas as pd
-from os import listdir
-from os.path import isfile, join
-from pathlib import Path
+from os.path import join
 
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
 import lightgbm as lgb
 from sklearn.naive_bayes import GaussianNB
-from sklearn.preprocessing import OneHotEncoder
 
-from baselines import KNN_baseline
-from recon_ML_classifiers import chained_rf_reconstruction
-from recon_NN_classifier import mlp_300_reconstruction, chained_mlp_reconstruction
+from attacks.baselines_classifiers import KNN_baseline
+from attacks.NN_classifier import mlp_300_reconstruction, chained_mlp_reconstruction
 from util import *
 
 
@@ -137,7 +127,7 @@ def get_additional_training_data(deid_filename, deid, use_only_from_deid=False, 
 
 
 def random_forest_25_25_reconstruction(deid, targets, qi, hidden_features, num_estimators=25, max_depth=25, classes=None, problem_name=None, qi_name=None):
-    targets_copy = targets.copy()
+    reconstructed_targets = targets.copy()
     if "flag" in deid.columns:
         qi = qi.copy()
         qi.append("flag")
@@ -149,18 +139,18 @@ def random_forest_25_25_reconstruction(deid, targets, qi, hidden_features, num_e
         type_ = deid[hidden_feature].dtypes
         y_train = deid[hidden_feature]
         model.fit(deid[qi], y_train.astype(int).astype(str))
-        targets_copy[hidden_feature] = model.predict(targets)
+        reconstructed_targets[hidden_feature] = model.predict(targets)
 
         if type_ == "float64":
-            targets_copy[hidden_feature] = targets_copy[hidden_feature].astype(float)
+            reconstructed_targets[hidden_feature] = reconstructed_targets[hidden_feature].astype(float)
         else:
-            targets_copy[hidden_feature] = targets_copy[hidden_feature].astype(int)
+            reconstructed_targets[hidden_feature] = reconstructed_targets[hidden_feature].astype(int)
 
 
         real_probas = model.predict_proba(targets[qi])
         probas.append(real_probas)
         classes_.append(model.classes_)
-    return targets_copy, probas, classes_
+    return reconstructed_targets, probas, classes_
 
 
 
@@ -168,7 +158,7 @@ def random_forest_25_25_reconstruction(deid, targets, qi, hidden_features, num_e
 
 
 def NB_reconstruction(deid, targets, qi, hidden_features, classes=None):
-    targets_copy = targets.copy()
+    reconstructed_targets = targets.copy()
     probas = []
     for hidden_feature in hidden_features:
         type_ = deid[hidden_feature].dtypes
@@ -176,16 +166,16 @@ def NB_reconstruction(deid, targets, qi, hidden_features, classes=None):
         y_train = deid[hidden_feature]
         model.fit(deid[qi].astype(str), y_train.astype(str))
 
-        targets_copy[hidden_feature] = model.predict(targets_copy[qi].astype(str))
+        reconstructed_targets[hidden_feature] = model.predict(reconstructed_targets[qi].astype(str))
         if type_ == "float64":
-            targets_copy[hidden_feature] = targets_copy[hidden_feature].astype(float)
+            reconstructed_targets[hidden_feature] = reconstructed_targets[hidden_feature].astype(float)
         else:
-            targets_copy[hidden_feature] = targets_copy[hidden_feature].astype(int)
+            reconstructed_targets[hidden_feature] = reconstructed_targets[hidden_feature].astype(int)
 
-        real_probas = model.predict_proba(targets_copy[qi].astype(str))
+        real_probas = model.predict_proba(reconstructed_targets[qi].astype(str))
         probas.append(real_probas)
 
-    return targets_copy, probas, None
+    return reconstructed_targets, probas, None
 
 
 

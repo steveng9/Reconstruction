@@ -83,7 +83,7 @@ def main():
 
 def nn_all_at_once_reconstruction(deid, targets, qi, hidden_features, test_size=test_size_, hidden_dims=hidden_dims_, batch_size=batch_size_, learning_rate=learning_rate_, epochs=epochs_):
 
-    targets_copy = targets.copy()
+    reconstructed_targets = targets.copy()
 
     # Process categorical data
     X_encoded, y_encoded, targets_encoded, feature_encoder, y_encoder = process_categorical_data(deid, qi, hidden_features, targets)
@@ -121,8 +121,8 @@ def nn_all_at_once_reconstruction(deid, targets, qi, hidden_features, test_size=
     # Make predictions
     ohe_predictions = predict(trained_model, targets_loader, device, y_encoder)
     original_predictions = y_encoder.inverse_transform(ohe_predictions)
-    targets_copy[hidden_features] = original_predictions
-    return targets_copy.astype(int)
+    reconstructed_targets[hidden_features] = original_predictions
+    return reconstructed_targets.astype(int)
 
 
 

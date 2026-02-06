@@ -1,0 +1,266 @@
+---
+title: "SDRN SDMicro Rank Swap"
+author: "DJ Streat"
+output: html_notebook
+---
+
+```{r}
+install.packages('sdcMicro_5.7.7.tar.gz', repos = NULL, type="source")
+```
+
+```{r}
+library(sdcMicro)
+library(rjson)
+library(readr)
+library(dplyr)
+```
+
+```{r}
+#factor_columns = c('AGEGRP', 'BTHUS', 'CTZN', 'DIFAGEGR', 'GENDER', 'MARSTA', #'MINRTY', 'RACETHMP', 'A16', 'A22', 'A25', 'A29', 'A36')
+
+
+# factor_columns = c('AGEGRP', 'DIFAGEGR', 'GENDER',
+#                    'MARSTA', 'MINRTY', 'RACETHMP',
+#                    "BTHUS", "CTZN", "EMSECSM", "RACETHMP",
+#                    "CHSCH", "CHFAMCOV", "CHLAYCOV", "CHRET",
+#                    "CHOT", "CHFAM",
+#                    "CHLOC", "CHCON", "CHPAY", "CHCHG",
+#                    "CHLAY", "WRKG", "LOOKWK",
+#                    "EMUS", "WAPROD", "WAMGMT", "WAAPRSH",
+#                    "EMED", "WASALE", "WABRSH",
+#                    "WAOT", "WAQM", "WATEA", "WACOM", "WAACC",
+#                    "WASVC", "WADSN", "WAEMRL",
+#                    "WADEV", "CHUN12",
+#                    'A16', 'A22', 'A25', 'A29', 'A36',
+#                    'DIFBIR','N20CPRNG','EMSECDT', 'BAAY5RP', 'BARGNP')
+# factor_columns = c('AGE',  'AGEMARR', 'BPL','CITIZEN','DURUNEMP',
+#                    'EDUC','EMPSTAT','FAMSIZE','FARM','GQ','GQTYPE',
+#                    'HISPAN','INCWAGE','IND','LABFORCE','MARST','MIGRATE5',
+#                    'MTONGUE', 'NATIVITY','OWNERSHP', 'RACE','SEX','URBAN',
+#                    'VETSTAT', 'WKSWORK1')
+factor_columns_25f = c('AGE',  'AGEMARR', 'BPL','CITIZEN','DURUNEMP',
+                   'EDUC','EMPSTAT','FAMSIZE','FARM','GQ','GQTYPE',
+                   'HISPAN','INCWAGE','IND','LABFORCE','MARST','MIGRATE5',
+                   'MTONGUE', 'NATIVITY','OWNERSHP', 'RACE','SEX','URBAN',
+                   'VETSTAT', 'WKSWORK1')
+
+swap_feats = c('AGE', 'AGEMARR', 'FAMSIZE', 'INCWAGE')
+non_swap_feats <- factor_columns_25f[!factor_columns_25f %in% swap_feats]
+```
+
+```{r}
+strata_23_gt <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/23_SWAPPING_25f_QID1_GT.csv")
+strata_24_gt <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/24_SWAPPING_25f_QID2_GT.csv")
+
+
+```
+
+```{r}
+strata_25_gt <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/25_DEMO_25f_GT.csv")
+```
+
+```{r}
+
+strata_23_common_cols <- intersect(names(strata_23_gt), factor_columns_25f)
+strata_24_common_cols <- intersect(names(strata_24_gt), factor_columns_25f)
+```
+
+```{r}
+
+strata_25_common_cols <- intersect(names(strata_25_gt), factor_columns_25f)
+```
+
+```{r}
+strata_23_gt <- strata_23_gt[ , strata_23_common_cols, drop = TRUE]
+strata_24_gt <- strata_24_gt[ , strata_24_common_cols, drop = TRUE]
+```
+
+```{r}
+
+strata_25_gt <- strata_25_gt[ , strata_25_common_cols, drop = TRUE]
+```
+
+```{r}
+# column_names <- names(sdrn_data)
+strata_23_common_cols <- names(strata_23_gt)
+strata_24_common_cols <- names(strata_24_gt)
+print(strata_23_common_cols)
+print(strata_24_common_cols)
+```
+
+```{r}
+strata_25_common_cols <- names(strata_25_gt)
+print(strata_25_common_cols)
+```
+
+```{r}
+# num_columns = setdiff(names(sdrn), factor_columns)
+
+#num_columns = c('EARNP', 'SALARYP', 'WKSLYR', 'WKSWK', 'WTSURVY')
+
+# for (c in colnames(sdrn)) {
+#   if (c %in% factor_columns) {
+#     sdrn[[c]] <- as.factor(sdrn[[c]])
+#   }
+# }
+
+# Function to convert specified columns in a data frame to factors
+convert_to_factors <- function(df, factor_columns) {
+  # Check if df is a data frame
+  if (!is.data.frame(df)) {
+    stop("df must be a data frame.")
+  }
+
+  # Check if factor_columns is a character vector
+  if (!is.character(factor_columns) && !is.numeric(factor_columns)) { # Allow for numeric indices too
+    stop("factor_columns must be a character vector (column names) or a numeric vector (column indices).")
+  }
+
+  #Handle numeric indices
+  if (is.numeric(factor_columns)) {
+    if (any(factor_columns < 1 | factor_columns > ncol(df) | ! all(factor_columns == floor(factor_columns)))) {
+      stop("Numeric indices in factor_columns must be valid (positive integers).")
+    }
+    factor_columns <- colnames(df)[factor_columns]  # Convert indices to column names
+  }
+
+  # Iterate through the specified columns
+  for (col in factor_columns) {  # Use factor_columns directly now
+    if (col %in% colnames(df)) {  # Safely check if column exists
+        df[[col]] <- as.factor(df[[col]])
+    } else {
+        warning(paste("Column", col, "not found in data frame. Skipping."))
+    }
+  }
+
+  return(df)  # Return the modified data frame
+}
+```
+
+```{r}
+strata_23_gt <- convert_to_factors(strata_23_gt, non_swap_feats)
+strata_24_gt <- convert_to_factors(strata_24_gt, non_swap_feats)
+```
+
+```{r}
+
+strata_25_gt <- convert_to_factors(strata_25_gt, non_swap_feats)
+```
+
+```{r}
+# sdrn <- sdrn[ , (names(sdrn) %in% factor_columns)]
+```
+
+```{r}
+selectedNumVar = c()
+
+# keyVars = c('AGEGRP',
+#             'BTHUS',
+#             'CTZN',
+#             'GENDER',
+#             'MARSTA',
+#             'RACETHMP',
+#             'DIFBIR',
+#             'N2OCPRNG',
+#             'EMSECDT',
+#             'BAAYR5P',
+#             'BARGNP')
+
+# keyVars = c('RACE', 'SEX', 'AGE')
+
+# print(setdiff(keyVars, names(sdrn)))
+
+# strata_23_sdcInitial <- createSdcObj(dat=strata_23_gt,
+#                            keyVars=keyVars,
+#                            numVar=selectedNumVar)
+# strata_24_sdcInitial <- createSdcObj(dat=strata_24_gt,
+#                            keyVars=keyVars,
+#                            numVar=selectedNumVar)
+```
+
+```{r}
+strata_23_data_swap <- rankSwap(
+  obj = strata_23_gt,
+  variables = swap_feats
+)
+strata_24_data_swap <- rankSwap(
+  obj = strata_24_gt,
+  variables = swap_feats
+)
+
+```
+
+```{r}
+
+strata_25_data_swap <- rankSwap(
+  obj = strata_25_gt,
+  variables = swap_feats
+)
+
+```
+
+```{r}
+# print(sdcInitial, 'ls')
+print(strata_23_data_swap, 'ls')
+print(strata_24_data_swap, 'ls')
+```
+
+```{r}
+print(strata_25_data_swap, 'ls')
+```
+
+```{r}
+strata_23_anon <- strata_23_data_swap %>% mutate(across(
+  .cols = all_of(swap_feats),
+  .fns = ~ as.integer(.x)
+))
+strata_24_anon <- strata_24_data_swap %>% mutate(across(
+  .cols = all_of(swap_feats),
+  .fns = ~ as.integer(.x)
+))
+```
+
+```{r}
+
+strata_25_anon <- strata_25_data_swap %>% mutate(across(
+  .cols = all_of(swap_feats),
+  .fns = ~ as.integer(.x)
+))
+```
+
+```{r}
+# anon
+strata_23_anon
+strata_24_anon
+```
+
+```{r}
+strata_25_anon
+```
+
+```{r}
+write.csv(strata_23_anon, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/23_SWAPPING_25f_QID1_Deid.csv', row.names=FALSE)
+write.csv(strata_24_anon, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/24_SWAPPING_25f_QID2_Deid.csv', row.names=FALSE)
+```
+
+```{r}
+write.csv(strata_25_anon, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/25_Demo_SWAPPING_25f_Deid.csv', row.names=FALSE)
+```
+
+```{r}
+# QID FEATURE SETS
+QID_1_FEATURES = c(
+    'RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT'
+)
+QID_2_FEATURES = c(
+    'RACE', 'SEX', 'BPL', 'FARM', 'HISPAN', 'LABFORCE', 'MIGRATE5'
+)
+
+strata_23_attackTargets <- strata_23_anon[ , QID_1_FEATURES, drop = TRUE]
+strata_24_attackTargets <- strata_24_anon[ , QID_2_FEATURES, drop = TRUE]
+```
+
+```{r}
+write.csv(strata_23_attackTargets, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/23_SWAPPING_25f_QID1_AttackTargets.csv', row.names=FALSE)
+write.csv(strata_24_attackTargets, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/24_SWAPPING_25f_QID2_AttackTargets.csv', row.names=FALSE)
+```

@@ -1,0 +1,58 @@
+
+# Dataset settings
+dataset:
+  name: "NIST-CRC"
+  size: 10_000
+
+
+# W&B settings
+wandb:
+  project: "tabular-reconstruction-attacks"
+  name: "Old, NIST Experiments"
+
+
+
+
+  tags:
+    - "nist-crc data"
+    - "development"
+#    - "chained"
+#    - "augmented training data"
+  group: "Partial SDG"
+#  notes: "chained, (best features first, I think)"
+QI: "QI2"
+attack_method: "Partial MST"
+#attack_params:
+#  chain_order: "best first"
+#  ensemble:
+#    - "RF"
+#    - "KNN"
+#    - "LGBM"
+#    - "CellSupression"
+#    - "Synthpop"
+#    - "AIM"
+#    - "ARF"
+#    - "TVAE"
+#  num_estimators: 25
+#  max_depth: 25
+#  k: 1
+#  max_iter: 100
+#  objective: 'multiclass'
+#  metric: 'multi_logloss'
+#  test_size: 0.2
+#  jumps: 10
+#  hidden_dims:
+#    - "300 + (len(qi)-7)*20"
+#    - 1024
+#    - 1024
+#    - 1024
+#    - 1024
+#    - 512
+#  batch_size: 264
+#  learning_rate: 0.0003
+#  epochs: 400
+#  dropout: 0.1
+#  patience: 100
+#  num_hidden_layers: 2
+
+

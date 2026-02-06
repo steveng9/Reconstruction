@@ -1,9 +1,9 @@
 import pandas as pd
 
-from baselines import KNN_baseline
-from recon_ML_classifiers import chained_rf_reconstruction, chained_nb_reconstruction, NB_reconstruction, \
-    lgboost_reconstruction, random_forest_25_25_reconstruction, ensemble1_reconstruction, random_forest_reconstruction
-from recon_NN_classifier import mlp_300_reconstruction, mlp_128_96_64_reconstruction
+from attacks.baselines_classifiers import KNN_baseline
+from attacks.ML_classifiers import chained_rf_reconstruction, chained_nb_reconstruction, NB_reconstruction, \
+    random_forest_25_25_reconstruction, ensemble1_reconstruction, random_forest_reconstruction
+from attacks.NN_classifier import mlp_300_reconstruction, mlp_128_96_64_reconstruction
 from util import minus_QIs, QIs, features_50
 
 problems = {

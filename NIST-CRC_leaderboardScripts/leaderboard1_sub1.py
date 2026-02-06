@@ -1,8 +1,8 @@
 import pandas as pd
 
-from baselines import KNN_baseline
-from recon_ML_classifiers import chained_rf_reconstruction, chained_nb_reconstruction, NB_reconstruction
-from recon_NN_classifier import mlp_300_reconstruction
+from attacks.baselines_classifiers import KNN_baseline
+from attacks.ML_classifiers import chained_rf_reconstruction, chained_nb_reconstruction, NB_reconstruction
+from attacks.NN_classifier import mlp_300_reconstruction
 from util import minus_QIs, QIs, features_50
 
 problems = [

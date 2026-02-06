@@ -1,0 +1,290 @@
+---
+title: "SDRN SDMicro Cell Supression"
+author: "DJ Streat"
+output: html_notebook
+---
+
+```{r}
+install.packages('sdcMicro_5.7.7.tar.gz', repos = NULL, type="source")
+```
+
+```{r}
+library(sdcMicro)
+library(rjson)
+library(readr)
+```
+
+```{r}
+#factor_columns = c('AGEGRP', 'BTHUS', 'CTZN', 'DIFAGEGR', 'GENDER', 'MARSTA', #'MINRTY', 'RACETHMP', 'A16', 'A22', 'A25', 'A29', 'A36')
+
+
+# factor_columns = c('AGEGRP', 'DIFAGEGR', 'GENDER',
+#                    'MARSTA', 'MINRTY', 'RACETHMP',
+#                    "BTHUS", "CTZN", "EMSECSM", "RACETHMP",
+#                    "CHSCH", "CHFAMCOV", "CHLAYCOV", "CHRET",
+#                    "CHOT", "CHFAM",
+#                    "CHLOC", "CHCON", "CHPAY", "CHCHG",
+#                    "CHLAY", "WRKG", "LOOKWK",
+#                    "EMUS", "WAPROD", "WAMGMT", "WAAPRSH",
+#                    "EMED", "WASALE", "WABRSH",
+#                    "WAOT", "WAQM", "WATEA", "WACOM", "WAACC",
+#                    "WASVC", "WADSN", "WAEMRL",
+#                    "WADEV", "CHUN12",
+#                    'A16', 'A22', 'A25', 'A29', 'A36',
+#                    'DIFBIR','N20CPRNG','EMSECDT', 'BAAY5RP', 'BARGNP')
+# factor_columns = c('AGE',  'AGEMARR', 'BPL','CITIZEN','DURUNEMP',
+#                    'EDUC','EMPSTAT','FAMSIZE','FARM','GQ','GQTYPE',
+#                    'HISPAN','INCWAGE','IND','LABFORCE','MARST','MIGRATE5',
+#                    'MTONGUE', 'NATIVITY','OWNERSHP', 'RACE','SEX','URBAN',
+#                    'VETSTAT', 'WKSWORK1')
+factor_columns_25f = c('AGE',  'AGEMARR', 'BPL','CITIZEN','DURUNEMP',
+                   'EDUC','EMPSTAT','FAMSIZE','FARM','GQ','GQTYPE',
+                   'HISPAN','INCWAGE','IND','LABFORCE','MARST','MIGRATE5',
+                   'MTONGUE', 'NATIVITY','OWNERSHP', 'RACE','SEX','URBAN',
+                   'VETSTAT', 'WKSWORK1')
+factor_columns_50f = c('AGE','AGEMARR','BPL','CHBORN','CITIZEN',
+                'CITY','CLASSWKR','COUNTY','DURUNEMP',
+                'EDUC','EMPSTAT','FAMSIZE','FARM','FBPL',
+                'GQ','GQFUNDS','GQTYPE','HISPAN','HRSWORK1',
+                'INCNONWG','INCWAGE','IND','LABFORCE',
+                'MARRNO','MARST','MBPL','METAREA','METRO',
+                'MIGCITY5','MIGRATE5','MIGTYPE5','MTONGUE',
+                'NATIVITY','NCHLT5','OCC','OWNERSHP','RACE',
+                'RENT','SAMEPLAC','SCHOOL','SEX','SSENROLL',
+                'URBAN','VALUEH','VETCHILD','VETPER',
+                'VETSTAT','VETWWI','WARD','WKSWORK1')
+
+```
+
+```{r}
+# sdrn_data = read.csv("C:/Users/DamonStreat/Downloads/sdcmicro_bundle/sdcmicro_bundle/groundtruth_50M90pct_245f.csv")
+# sdrn_data = read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/25_DEMO_25f_GT.csv")
+
+strata_19_gt <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/19_CELL_SUPPRESSION_25f_QID1_GT.csv")
+strata_20_gt <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/20_CELL_SUPPRESSION_25f_QID2_GT.csv")
+strata_21_gt <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/21_CELL_SUPPRESSION_50f_QID1_GT.csv")
+strata_22_gt <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/22_CELL_SUPPRESSION_50f_QID2_GT.csv")
+
+```
+
+```{r}
+
+strata_19_common_cols <- intersect(names(strata_19_gt), factor_columns_25f)
+strata_20_common_cols <- intersect(names(strata_20_gt), factor_columns_25f)
+strata_21_common_cols <- intersect(names(strata_21_gt), factor_columns_50f)
+strata_22_common_cols <- intersect(names(strata_22_gt), factor_columns_50f)
+```
+
+```{r}
+strata_19_gt <- strata_19_gt[ , strata_19_common_cols, drop = TRUE]
+strata_20_gt <- strata_20_gt[ , strata_20_common_cols, drop = TRUE]
+strata_21_gt <- strata_21_gt[ , strata_21_common_cols, drop = TRUE]
+strata_22_gt <- strata_22_gt[ , strata_22_common_cols, drop = TRUE]
+```
+
+```{r}
+# column_names <- names(sdrn_data)
+strata_19_column_names <- names(strata_19_gt)
+strata_20_column_names <- names(strata_20_gt)
+strata_21_column_names <- names(strata_21_gt)
+strata_22_column_names <- names(strata_22_gt)
+print(strata_19_column_names)
+print(strata_21_column_names)
+```
+
+```{r}
+# sdrn <- as.data.frame(sdrn_data)
+strata_19_df <- as.data.frame(strata_19_gt)
+strata_20_df <- as.data.frame(strata_20_gt)
+strata_21_df <- as.data.frame(strata_21_gt)
+strata_22_df <- as.data.frame(strata_22_gt)
+```
+
+```{r}
+# num_columns = setdiff(names(sdrn), factor_columns)
+
+#num_columns = c('EARNP', 'SALARYP', 'WKSLYR', 'WKSWK', 'WTSURVY')
+
+# for (c in colnames(sdrn)) {
+#   if (c %in% factor_columns) {
+#     sdrn[[c]] <- as.factor(sdrn[[c]])
+#   }
+# }
+
+# Function to convert specified columns in a data frame to factors
+convert_to_factors <- function(df, factor_columns) {
+  # Check if df is a data frame
+  if (!is.data.frame(df)) {
+    stop("df must be a data frame.")
+  }
+
+  # Check if factor_columns is a character vector
+  if (!is.character(factor_columns) && !is.numeric(factor_columns)) { # Allow for numeric indices too
+    stop("factor_columns must be a character vector (column names) or a numeric vector (column indices).")
+  }
+
+  #Handle numeric indices
+  if (is.numeric(factor_columns)) {
+    if (any(factor_columns < 1 | factor_columns > ncol(df) | ! all(factor_columns == floor(factor_columns)))) {
+      stop("Numeric indices in factor_columns must be valid (positive integers).")
+    }
+    factor_columns <- colnames(df)[factor_columns]  # Convert indices to column names
+  }
+
+  # Iterate through the specified columns
+  for (col in factor_columns) {  # Use factor_columns directly now
+    if (col %in% colnames(df)) {  # Safely check if column exists
+        df[[col]] <- as.factor(df[[col]])
+    } else {
+        warning(paste("Column", col, "not found in data frame. Skipping."))
+    }
+  }
+
+  return(df)  # Return the modified data frame
+}
+```
+
+```{r}
+strata_19_df <- convert_to_factors(strata_19_df, factor_columns_25f)
+strata_20_df <- convert_to_factors(strata_20_df, factor_columns_25f)
+strata_21_df <- convert_to_factors(strata_21_df, factor_columns_50f)
+strata_22_df <- convert_to_factors(strata_22_df, factor_columns_50f)
+```
+
+```{r}
+sdrn
+```
+
+```{r}
+# sdrn <- sdrn[ , (names(sdrn) %in% factor_columns)]
+```
+
+```{r}
+selectedNumVar = c()
+
+# keyVars = c('AGEGRP',
+#             'BTHUS',
+#             'CTZN',
+#             'GENDER',
+#             'MARSTA',
+#             'RACETHMP',
+#             'DIFBIR',
+#             'N2OCPRNG',
+#             'EMSECDT',
+#             'BAAYR5P',
+#             'BARGNP')
+
+keyVars = c('RACE', 'SEX', 'AGE')
+
+# print(setdiff(keyVars, names(sdrn)))
+
+strata_19_sdcInitial <- createSdcObj(dat=strata_19_df,
+                           keyVars=keyVars,
+                           numVar=selectedNumVar)
+strata_20_sdcInitial <- createSdcObj(dat=strata_20_df,
+                           keyVars=keyVars,
+                           numVar=selectedNumVar)
+strata_21_sdcInitial <- createSdcObj(dat=strata_21_df,
+                           keyVars=keyVars,
+                           numVar=selectedNumVar)
+strata_22_sdcInitial <- createSdcObj(dat=strata_22_df,
+                           keyVars=keyVars,
+                           numVar=selectedNumVar)
+```
+
+```{r}
+
+# sdcInitial <- localSuppression(sdcInitial, k=6)
+strata_19_sdcInitial <- localSuppression(strata_19_sdcInitial, k=6)
+strata_20_sdcInitial <- localSuppression(strata_20_sdcInitial, k=6)
+strata_21_sdcInitial <- localSuppression(strata_21_sdcInitial, k=6)
+strata_22_sdcInitial <- localSuppression(strata_22_sdcInitial, k=6)
+
+```
+
+```{r}
+# print(sdcInitial, 'ls')
+print(strata_19_sdcInitial, 'ls')
+print(strata_20_sdcInitial, 'ls')
+print(strata_21_sdcInitial, 'ls')
+print(strata_22_sdcInitial, 'ls')
+```
+
+```{r}
+# anon <- extractManipData(sdcInitial)
+strata_19_anon <- extractManipData(strata_19_sdcInitial)
+strata_20_anon <- extractManipData(strata_20_sdcInitial)
+strata_21_anon <- extractManipData(strata_21_sdcInitial)
+strata_22_anon <- extractManipData(strata_22_sdcInitial)
+```
+
+```{r}
+# Create a logical matrix where TRUE represents NA values
+# na_matrix <- is.na(anon)
+strata_19_na_matrix <- is.na(strata_19_anon)
+strata_20_na_matrix <- is.na(strata_20_anon)
+strata_21_na_matrix <- is.na(strata_21_anon)
+strata_22_na_matrix <- is.na(strata_22_anon)
+
+# Use rowSums() to count TRUE values by row, indicating rows with any NAs
+# rows_with_na <- sum(rowSums(na_matrix) > 0)
+strata_19_rows_with_na <- sum(rowSums(strata_19_na_matrix) > 0)
+strata_20_rows_with_na <- sum(rowSums(strata_20_na_matrix) > 0)
+strata_21_rows_with_na <- sum(rowSums(strata_21_na_matrix) > 0)
+strata_22_rows_with_na <- sum(rowSums(strata_22_na_matrix) > 0)
+
+# Print the number of rows containing at least one NA
+# print(rows_with_na)
+print(strata_19_rows_with_na)
+print(strata_20_rows_with_na)
+print(strata_21_rows_with_na)
+print(strata_22_rows_with_na)
+
+```
+
+```{r}
+# anon <- na.omit(anon)
+strata_19_anon <- na.omit(strata_19_anon)
+strata_20_anon <- na.omit(strata_20_anon)
+strata_21_anon <- na.omit(strata_21_anon)
+strata_22_anon <- na.omit(strata_22_anon)
+```
+
+```{r}
+# anon
+strata_19_anon
+strata_20_anon
+strata_21_anon
+strata_22_anon
+```
+
+```{r}
+# write.csv(anon, 'SDRN_245f_SDCMicro_k6.csv', row.names=FALSE)
+# write.csv(anon, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/25_Demo_CellSupression_25f_Deid.csv', row.names=FALSE)
+write.csv(strata_19_anon, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/19_CELL_SUPPRESSION_25f_QID1_Deid.csv', row.names=FALSE)
+write.csv(strata_20_anon, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/20_CELL_SUPPRESSION_25f_QID2_Deid.csv', row.names=FALSE)
+write.csv(strata_21_anon, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/21_CELL_SUPPRESSION_50f_QID1_Deid.csv', row.names=FALSE)
+write.csv(strata_22_anon, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/22_CELL_SUPPRESSION_50f_QID2_Deid.csv', row.names=FALSE)
+```
+
+```{r}
+# QID FEATURE SETS
+QID_1_FEATURES = c(
+    'RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT'
+)
+QID_2_FEATURES = c(
+    'RACE', 'SEX', 'BPL', 'FARM', 'HISPAN', 'LABFORCE', 'MIGRATE5'
+)
+
+strata_19_attackTargets <- strata_19_anon[ , QID_1_FEATURES, drop = TRUE]
+strata_20_attackTargets <- strata_20_anon[ , QID_2_FEATURES, drop = TRUE]
+strata_21_attackTargets <- strata_21_anon[ , QID_1_FEATURES, drop = TRUE]
+strata_22_attackTargets <- strata_22_anon[ , QID_2_FEATURES, drop = TRUE]
+```
+
+```{r}
+write.csv(strata_19_attackTargets, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/19_CELL_SUPPRESSION_25f_QID1_AttackTargets.csv', row.names=FALSE)
+write.csv(strata_20_attackTargets, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/20_CELL_SUPPRESSION_25f_QID2_AttackTargets.csv', row.names=FALSE)
+write.csv(strata_21_attackTargets, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/21_CELL_SUPPRESSION_50f_QID1_AttackTargets.csv', row.names=FALSE)
+write.csv(strata_22_attackTargets, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/22_CELL_SUPPRESSION_50f_QID2_AttackTargets.csv', row.names=FALSE)
+```

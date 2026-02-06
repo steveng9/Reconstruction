@@ -1,0 +1,125 @@
+---
+title: "Match 3 Arizona -- Synthpop Synthesis"
+output: html_notebook
+---
+
+```{r}
+library(data.table)
+library(synthpop)
+library(dplyr)
+```
+
+```{r}
+#arizona_1k_sample <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/arizona_1k_sample.csv")
+
+# arizona_data <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/25_DEMO_25f_GT.csv")
+
+strata_1_gt <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/1_SYNTHPOP_25f_QID1_GT.csv")
+
+strata_2_gt <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/2_SYNTHPOP_25f_QID2_GT.csv")
+
+strata_3_gt <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/3_SYNTHPOP_50f_QID1_GT.csv")
+
+strata_4_gt <- read.csv("C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/4_SYNTHPOP_50f_QID2_GT.csv")
+
+
+```
+
+```{r}
+factor_columns_25f = c('AGE',  'AGEMARR', 'BPL','CITIZEN','DURUNEMP',
+                   'EDUC','EMPSTAT','FAMSIZE','FARM','GQ','GQTYPE',
+                   'HISPAN','INCWAGE','IND','LABFORCE','MARST','MIGRATE5',
+                   'MTONGUE', 'NATIVITY','OWNERSHP', 'RACE','SEX','URBAN',
+                   'VETSTAT', 'WKSWORK1')
+factor_columns_50f = c('AGE','AGEMARR','BPL','CHBORN','CITIZEN',
+                'CITY','CLASSWKR','COUNTY','DURUNEMP',
+                'EDUC','EMPSTAT','FAMSIZE','FARM','FBPL',
+                'GQ','GQFUNDS','GQTYPE','HISPAN','HRSWORK1',
+                'INCNONWG','INCWAGE','IND','LABFORCE',
+                'MARRNO','MARST','MBPL','METAREA','METRO',
+                'MIGCITY5','MIGRATE5','MIGTYPE5','MTONGUE',
+                'NATIVITY','NCHLT5','OCC','OWNERSHP','RACE',
+                'RENT','SAMEPLAC','SCHOOL','SEX','SSENROLL',
+                'URBAN','VALUEH','VETCHILD','VETPER',
+                'VETSTAT','VETWWI','WARD','WKSWORK1')
+
+strata_1_common_cols <- intersect(names(strata_1_gt), factor_columns_25f)
+strata_2_common_cols <- intersect(names(strata_2_gt), factor_columns_25f)
+strata_3_common_cols <- intersect(names(strata_3_gt), factor_columns_50f)
+strata_4_common_cols <- intersect(names(strata_4_gt), factor_columns_50f)
+
+
+# arizona_data <- arizona_data[ , (names(arizona_data) %in% factor_columns)]
+```
+
+```{r}
+# codebook.syn(arizona_data)
+codebook.syn(strata_1_gt)
+```
+
+```{r}
+
+codebook.syn(strata_2_gt)
+```
+
+```{r}
+
+codebook.syn(strata_3_gt)
+```
+
+```{r}
+
+codebook.syn(strata_4_gt)
+```
+
+```{r}
+strata_1_gt <- strata_1_gt[ , strata_1_common_cols, drop = TRUE]
+strata_2_gt <- strata_2_gt[ , strata_2_common_cols, drop = TRUE]
+strata_3_gt <- strata_3_gt[ , strata_3_common_cols, drop = TRUE]
+strata_4_gt <- strata_4_gt[ , strata_4_common_cols, drop = TRUE]
+```
+
+```{r}
+# ariz_reduced_schema_syn_data <- syn(data=arizona_data, method='cart')
+strata_1_syn_data <- syn(data=strata_1_gt, method='cart')
+strata_2_syn_data <- syn(data=strata_2_gt, method='cart')
+strata_3_syn_data <- syn(data=strata_3_gt, method='cart')
+strata_4_syn_data <- syn(data=strata_4_gt, method='cart')
+```
+
+```{r}
+# write.csv(ariz_reduced_schema_syn_data$syn, "C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/RSynthpop_arizona_reduced_schema_1k_sample.csv")
+# write.csv(ariz_reduced_schema_syn_data$syn, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/25_Demo_Synthpop_25f_Deid.csv', row.names=FALSE)
+```
+
+```{r}
+# write.csv(strata_1_syn_data$syn, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/1_SYNTHPOP_25f_QID1_Deid.csv', row.names=FALSE)
+# write.csv(strata_2_syn_data$syn, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/2_SYNTHPOP_25f_QID2_Deid.csv', row.names=FALSE)
+# write.csv(strata_3_syn_data$syn, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/3_SYNTHPOP_50f_QID1_Deid.csv', row.names=FALSE)
+# write.csv(strata_4_syn_data$syn, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/4_SYNTHPOP_50f_QID2_Deid.csv', row.names=FALSE)
+```
+
+```{r}
+# QID FEATURE SETS
+QID_1_FEATURES = c(
+    'RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT'
+)
+QID_2_FEATURES = c(
+    'RACE', 'SEX', 'BPL', 'FARM', 'HISPAN', 'LABFORCE', 'MIGRATE5'
+)
+```
+
+```{r}
+
+strata_1_attackTargets <- strata_1_syn_data$syn[ , QID_1_FEATURES, drop = TRUE]
+strata_2_attackTargets <- strata_2_syn_data$syn[ , QID_2_FEATURES, drop = TRUE]
+strata_3_attackTargets <- strata_3_syn_data$syn[ , QID_1_FEATURES, drop = TRUE]
+strata_4_attackTargets <- strata_4_syn_data$syn[ , QID_2_FEATURES, drop = TRUE]
+```
+
+```{r}
+# write.csv(strata_1_attackTargets, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/1_SYNTHPOP_25f_QID1_AttackTargets.csv', row.names=FALSE)
+# write.csv(strata_2_syn_data$syn, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/2_SYNTHPOP_25f_QID2_AttackTargets.csv', row.names=FALSE)
+# write.csv(strata_3_syn_data$syn, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/3_SYNTHPOP_50f_QID1_AttackTargets.csv', row.names=FALSE)
+# write.csv(strata_4_syn_data$syn, 'C:/Users/DamonStreat/Development/kmetrics/Match 3/Arizona/DATA_STRATA/DEID_DATA/4_SYNTHPOP_50f_QID2_AttackTargets.csv', row.names=FALSE)
+```

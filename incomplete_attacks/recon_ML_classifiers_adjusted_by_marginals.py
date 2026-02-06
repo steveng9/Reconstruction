@@ -1,17 +1,10 @@
-import sys
-
-import numpy as np
-import pandas as pd
-from os import listdir
-from os.path import isfile, join
+from os.path import join
 
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
 import lightgbm as lgb
 from sklearn.naive_bayes import GaussianNB
-from sklearn.preprocessing import OneHotEncoder
 
-from baselines import KNN_baseline
+from attacks.baselines_classifiers import KNN_baseline
 from util import *
 
 
@@ -87,7 +80,7 @@ def main():
 
 
 def random_forest_25_25_reconstruction(deid, targets, qi, hidden_features, num_estimators=25, max_depth=25, classes=None, problem_name=None, qi_name=None):
-    targets_copy = targets.copy()
+    reconstructed_targets = targets.copy()
     # aux, deid = match_aux_and_synth_classes(aux, deid)
 
     probas = []
@@ -109,17 +102,17 @@ def random_forest_25_25_reconstruction(deid, targets, qi, hidden_features, num_e
         y_pred_t_adjusted = y_pred_t * (y_true_d_marg / y_pred_d_marg)
         adjusted_predictions = model.classes_[y_pred_t_adjusted.argmax(axis=1)]
 
-        targets_copy[hidden_feature] = adjusted_predictions
+        reconstructed_targets[hidden_feature] = adjusted_predictions
 
         if not (adjusted_predictions == predictions).all():
             print(f"adjusted {hidden_feature} predictions")
 
-    return targets_copy, None, None
+    return reconstructed_targets, None, None
 
 
 
 def NB_reconstruction(deid, targets, qi, hidden_features, classes=None):
-    targets_copy = targets.copy()
+    reconstructed_targets = targets.copy()
     probas = []
     for hidden_feature in hidden_features:
         type_ = deid[hidden_feature].dtypes
@@ -140,18 +133,18 @@ def NB_reconstruction(deid, targets, qi, hidden_features, classes=None):
         y_pred_t_adjusted = y_pred_t * (y_true_d_marg / y_pred_d_marg)
         adjusted_predictions = model.classes_[y_pred_t_adjusted.argmax(axis=1)]
 
-        targets_copy[hidden_feature] = adjusted_predictions
+        reconstructed_targets[hidden_feature] = adjusted_predictions
 
         if not (adjusted_predictions == predictions).all():
             print(f"adjusted {hidden_feature} predictions")
 
         if type_ == "float64":
-            targets_copy[hidden_feature] = targets_copy[hidden_feature].astype(float)
+            reconstructed_targets[hidden_feature] = reconstructed_targets[hidden_feature].astype(float)
         else:
-            targets_copy[hidden_feature] = targets_copy[hidden_feature].astype(int)
+            reconstructed_targets[hidden_feature] = reconstructed_targets[hidden_feature].astype(int)
 
 
-    return targets_copy, None, None
+    return reconstructed_targets, None, None
 
 
 
