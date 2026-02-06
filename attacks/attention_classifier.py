@@ -326,7 +326,7 @@ def train_model(cfg, model, train_loader, val_loader, criterion, optimizer, devi
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
-            torch.save(model.state_dict(), '../models/best_attention_model.pth')
+            torch.save(model.state_dict(), os.path.join(cfg["dataset"]["artifacts"], 'best_attention_model.pth'))
         else:
             patience_counter += 1
             if patience_counter >= early_stopping_patience:
@@ -353,7 +353,7 @@ def train_model(cfg, model, train_loader, val_loader, criterion, optimizer, devi
         plt.show()
 
     # Load best model
-    model.load_state_dict(torch.load(cfg["dataset"]["artifacts"] + 'best_attention_model.pth'))
+    model.load_state_dict(torch.load(os.path.join(cfg["dataset"]["artifacts"], 'best_attention_model.pth'))
     return model
 
 
