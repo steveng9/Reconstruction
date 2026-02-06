@@ -2,9 +2,15 @@
 import sys
 import os
 from get_data import get_meta_data_for_diffusion
+from master_experiment_script import on_server
 
-sys.path.append('/Users/stevengolob/PycharmProjects/MIA_on_diffusion/')
-sys.path.append('/Users/stevengolob/PycharmProjects/MIA_on_diffusion/midst_models/single_table_TabDDPM')
+on_server = len(sys.argv) > 1 and sys.argv[1] == "T"
+if on_server:
+    sys.path.append('/home/golobs/MIA_on_diffusion/')
+    sys.path.append('/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM')
+else:
+    sys.path.append('/Users/stevengolob/PycharmProjects/MIA_on_diffusion/')
+    sys.path.append('/Users/stevengolob/PycharmProjects/MIA_on_diffusion/midst_models/single_table_TabDDPM')
 from tabddpm_reconstruction_attack import train_diffusion_for_reconstruction, reconstruct_data
 
 
