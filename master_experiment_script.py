@@ -33,7 +33,7 @@ from scoring import calculate_reconstruction_score
 from attacks.NN_classifier import mlp_classification_reconstruction
 from attacks.ML_classifiers import KNN_reconstruction, lgboost_reconstruction, SVM_classification_reconstruction
 from attacks.partialDiffusion import repaint_reconstruction, partial_tabddpm_reconstruction
-from attacks.attention_classifier import attention_reconstruction
+from attacks.attention_classifier import attention_reconstruction, attention_autoregressive_reconstruction
 
 
 

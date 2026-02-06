@@ -210,6 +210,10 @@ class TabularAttentionModel(nn.Module):
 
     def __init__(self, feature_vocab_sizes, num_classes, embedding_dim,
                  num_heads, num_layers, feedforward_dim, dropout_rate):
+        if torch.cuda.is_available():
+            print("Using CUDA device :)")
+        else:
+            print("NOT Using CUDA!")
         super(TabularAttentionModel, self).__init__()
 
         self.num_features = len(feature_vocab_sizes)
@@ -425,18 +429,27 @@ def attention_reconstruction_single(cfg, synth, targets, known_features, hidden_
         # Handle unseen categories by mapping them to a special index or the most common class
         encoded_targets = pd.DataFrame()
         for col in all_features:
-            target_values = targets[col].astype(str)
+            target_values = targets[col].astype(str).copy()  # IMPORTANT: Copy to avoid modifying original
 
             # Check for unseen categories
             seen_categories = set(encoders[col].classes_)
+            target_categories = set(target_values.unique())
+            unseen_categories = target_categories - seen_categories
             unseen_mask = ~target_values.isin(seen_categories)
 
             if unseen_mask.any():
                 # Replace unseen categories with the most common category from training
                 most_common = train_df[col].astype(str).mode()[0]
-                target_values = target_values.copy()
+                num_unseen_rows = unseen_mask.sum()
+                num_unseen_cats = len(unseen_categories)
+                num_seen_cats = len(seen_categories)
+
+                print(f"Warning in '{col}':")
+                print(f"  - {num_unseen_cats} unseen categories (out of {num_seen_cats} seen in synth)")
+                print(f"  - {num_unseen_rows} rows affected (out of {len(target_values)} total)")
+                print(f"  - Mapping to most common: '{most_common}'")
+
                 target_values[unseen_mask] = most_common
-                print(f"Warning: {unseen_mask.sum()} / {len(seen_categories)} categories unseen in '{col}' mapped to '{most_common}'")
 
             encoded_targets[col] = encoders[col].transform(target_values)
 
@@ -523,18 +536,27 @@ def attention_reconstruction_autoregressive(cfg, synth, targets, known_features,
         # Handle unseen categories by mapping them to a special index or the most common class
         encoded_targets = pd.DataFrame()
         for col in all_features:
-            target_values = targets_copy[col].astype(str)
+            target_values = targets_copy[col].astype(str).copy()  # IMPORTANT: Copy to avoid modifying original
 
             # Check for unseen categories
             seen_categories = set(encoders[col].classes_)
+            target_categories = set(target_values.unique())
+            unseen_categories = target_categories - seen_categories
             unseen_mask = ~target_values.isin(seen_categories)
 
             if unseen_mask.any():
                 # Replace unseen categories with the most common category from training
                 most_common = train_df[col].astype(str).mode()[0]
-                target_values = target_values.copy()
+                num_unseen_rows = unseen_mask.sum()
+                num_unseen_cats = len(unseen_categories)
+                num_seen_cats = len(seen_categories)
+
+                print(f"Warning in '{col}':")
+                print(f"  - {num_unseen_cats} unseen categories (out of {num_seen_cats} seen in synth)")
+                print(f"  - {num_unseen_rows} rows affected (out of {len(target_values)} total)")
+                print(f"  - Mapping to most common: '{most_common}'")
+
                 target_values[unseen_mask] = most_common
-                print(f"Warning: {unseen_mask.sum()} / {len(seen_categories)} categories unseen in '{col}' mapped to '{most_common}'")
 
             encoded_targets[col] = encoders[col].transform(target_values)
 
