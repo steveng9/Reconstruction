@@ -41,7 +41,7 @@ from attacks.attention_classifier import attention_reconstruction
 # on_server = len(sys.argv) > 1 and sys.argv[1] == 'T'
 
 def main():
-    CONFIG_PATH_default = "/home/golobs/data/NIST_CRC/dev_config.yaml" if args.on_server else "/Users/stevengolob/Documents/school/PhD/reconstruction_project/configs/dev_config.yaml"
+    CONFIG_PATH_default = "/home/golobs/data/NIST_CRC/dev_data/dev_config.yaml" if args.on_server else "/Users/stevengolob/Documents/school/PhD/reconstruction_project/configs/dev_config.yaml"
     config = load_config(CONFIG_PATH_default)
 
     print(f"Running {args.n_runs} experiments with config: {args.config}")
