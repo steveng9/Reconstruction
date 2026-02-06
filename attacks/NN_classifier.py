@@ -1,6 +1,6 @@
 
 import sys
-
+import os
 import numpy as np
 import pandas as pd
 from os.path import isfile, join
@@ -89,7 +89,9 @@ def _development():
 
 def mlp_classification_reconstruction(cfg, synth, targets, known_features, hidden_features):
     """Main adapter that reads from config or uses defaults."""
-    return nn_classification_reconstruction(
+    cfg["dataset"]["artifacts"] = cfg["dataset"]["dir"] + "/mlp_artifacts"
+    os.makedirs(cfg["dataset"]["artifacts"], exist_ok=True)
+    return nn_classification_reconstruction(cfg,
         synth, targets, known_features, hidden_features,
         cfg["attack_params"].get("test_size", test_size_default),
         cfg["attack_params"].get("hidden_dims", hidden_dims_default),
@@ -106,6 +108,8 @@ def chained_mlp_classification_reconstruction(cfg, synth, targets, known_feature
     Chained reconstruction: predict each hidden feature sequentially,
     adding each predicted feature to the known features for the next prediction.
     """
+    cfg["dataset"]["artifacts"] = cfg["dataset"]["dir"] + "/mlp_chained_artifacts"
+    os.makedirs(cfg["dataset"]["artifacts"], exist_ok=True)
     adequate_epochs = {
         'F23': 10, 'F13': 75, 'F11': 70, 'F43': 15, 'F36': 60,
         'F15': 90, 'F33': 70, 'F25': 30, 'F18': 20, 'F5': 45,
@@ -123,7 +127,7 @@ def chained_mlp_classification_reconstruction(cfg, synth, targets, known_feature
         # Get epochs for this feature if specified, otherwise use default
         feature_epochs = adequate_epochs.get(hidden_feature, 50)
 
-        recon = nn_classification_reconstruction(
+        recon = nn_classification_reconstruction(cfg,
             synth, reconstructed_targets, known_features_copy, [hidden_feature],
             test_size=0.2,
             hidden_dims=[dim_size],
@@ -179,7 +183,7 @@ class CategoricalNN(nn.Module):
         return self.model(x)
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, device, epochs, early_stopping_patience):
+def train_model(cfg, model, train_loader, val_loader, criterion, optimizer, device, epochs, early_stopping_patience):
     model.to(device)
     best_val_loss = float('inf')
     train_losses = []
@@ -252,7 +256,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, e
             best_val_loss = val_loss
             patience_counter = 0
             # Save best model
-            torch.save(model.state_dict(), '../models/best_model_categorical.pth')
+            torch.save(model.state_dict(), os.path.join(cfg["dataset"]["artifacts"], 'best_model_categorical.pth'))
         else:
             patience_counter += 1
             if patience_counter >= early_stopping_patience:
@@ -279,7 +283,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, e
         plt.show()
 
     # Load best model
-    model.load_state_dict(torch.load('best_model_categorical.pth'))
+    model.load_state_dict(torch.load(os.path.join(cfg["dataset"]["artifacts"], 'best_model_categorical.pth')))
     return model, training_history
 
 
@@ -318,7 +322,7 @@ def process_categorical_data(df, target_column, targets):
     return X_encoded, y_encoded, targets_encoded, encoder, label_encoder
 
 
-def nn_classification_reconstruction(synth, targets, known_features, hidden_features,
+def nn_classification_reconstruction(cfg, synth, targets, known_features, hidden_features,
                                      test_size, hidden_dims, batch_size, learning_rate,
                                      epochs, patience, dropout_rate):
     reconstructed_targets = targets.copy()
@@ -355,7 +359,7 @@ def nn_classification_reconstruction(synth, targets, known_features, hidden_feat
         # Determine device
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-        trained_model, history = train_model(
+        trained_model, history = train_model(cfg,
             model, train_loader, test_loader, criterion, optimizer, device, epochs, patience
         )
 

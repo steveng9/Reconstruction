@@ -1,5 +1,5 @@
 import sys
-
+import os
 import numpy as np
 import pandas as pd
 from os.path import isfile, join
@@ -27,6 +27,8 @@ PLOT = False
 
 
 def mlp_repression_reconstruction(cfg, synth, targets, known_features, hidden_features):
+    cfg["dataset"]["artifacts"] = cfg["dataset"]["dir"] + "/mlp_continuous_artifacts"
+    os.makedirs(cfg["dataset"]["artifacts"], exist_ok=True)
     return nn_regression_reconstruction(
         synth, targets, known_features, hidden_features,
         cfg["attack_params"].get("test_size", test_size_default),
@@ -40,6 +42,8 @@ def mlp_repression_reconstruction(cfg, synth, targets, known_features, hidden_fe
 
 
 def chained_mlp_regression_reconstruction(cfg, synth, targets, known_features, hidden_features):
+    cfg["dataset"]["artifacts"] = cfg["dataset"]["dir"] + "/mlp_continuous_chained_artifacts"
+    os.makedirs(cfg["dataset"]["artifacts"], exist_ok=True)
     """
     Chained reconstruction: predict each hidden feature sequentially,
     adding each predicted feature to the known features for the next prediction.
@@ -113,7 +117,7 @@ class ContinuousNN(nn.Module):
         return self.model(x)
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, device, epochs,
+def train_model(cfg, model, train_loader, val_loader, criterion, optimizer, device, epochs,
                 early_stopping_patience):
     model.to(device)
     best_val_loss = float('inf')
@@ -188,7 +192,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, e
             best_val_loss = val_loss
             patience_counter = 0
             # Save best model
-            torch.save(model.state_dict(), '../models/best_model_continuous.pth')
+            torch.save(model.state_dict(), os.path.join(cfg["dataset"]["artifacts"], 'best_model_continuous.pth'))
         else:
             patience_counter += 1
             if patience_counter >= early_stopping_patience:
@@ -216,7 +220,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device, e
         plt.show()
 
     # Load best model
-    model.load_state_dict(torch.load('../models/best_model_continuous.pth'))
+    model.load_state_dict(torch.load(os.path.join(cfg["dataset"]["artifacts"], 'best_model_continuous.pth')))
     return model, training_history
 
 
@@ -255,7 +259,7 @@ def process_continuous_data(df, target_column, targets):
 
 
 
-def nn_regression_reconstruction(synth, targets, known_features, hidden_features,
+def nn_regression_reconstruction(cfg, synth, targets, known_features, hidden_features,
                                  test_size, hidden_dims, batch_size, learning_rate, epochs, patience, dropout_rate):
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
@@ -293,7 +297,7 @@ def nn_regression_reconstruction(synth, targets, known_features, hidden_features
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
         # Train model
-        trained_model, history = train_model(model, train_loader, test_loader, criterion, optimizer, device, epochs, patience)
+        trained_model, history = train_model(cfg, model, train_loader, test_loader, criterion, optimizer, device, epochs, patience)
 
         # Make predictions
         predictions, _ = predict(trained_model, targets_loader, device)
