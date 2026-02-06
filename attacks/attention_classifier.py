@@ -353,7 +353,7 @@ def train_model(cfg, model, train_loader, val_loader, criterion, optimizer, devi
         plt.show()
 
     # Load best model
-    model.load_state_dict(torch.load(os.path.join(cfg["dataset"]["artifacts"], 'best_attention_model.pth'))
+    model.load_state_dict(torch.load(os.path.join(cfg["dataset"]["artifacts"], 'best_attention_model.pth')))
     return model
 
 
