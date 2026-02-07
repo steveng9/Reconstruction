@@ -296,7 +296,7 @@ class MultiHeadTabularModel(nn.Module):
 # TRAINING FUNCTIONS
 # ============================================================================
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, device,
+def train_model(cfg, model, train_loader, val_loader, criterion, optimizer, device,
                 epochs, early_stopping_patience):
     """Train the attention model."""
     model.to(device)
@@ -360,7 +360,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device,
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
-            torch.save(model.state_dict(), 'best_attention_model.pth')
+            torch.save(model.state_dict(), os.path.join(cfg["dataset"]["artifacts"], 'best_attention_model.pth'))
         else:
             patience_counter += 1
             if patience_counter >= early_stopping_patience:
@@ -385,11 +385,11 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device,
         plt.tight_layout()
         plt.show()
 
-    model.load_state_dict(torch.load('best_attention_model.pth'))
+    model.load_state_dict(torch.load(os.path.join(cfg["dataset"]["artifacts"], 'best_attention_model.pth')))
     return model
 
 
-def train_multihead_model(model, train_loaders, val_loaders, criterion, optimizer,
+def train_multihead_model(cfg, model, train_loaders, val_loaders, criterion, optimizer,
                           device, epochs, early_stopping_patience):
     """Train the multi-head autoregressive model."""
     model.to(device)
@@ -452,14 +452,14 @@ def train_multihead_model(model, train_loaders, val_loaders, criterion, optimize
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
-            torch.save(model.state_dict(), 'best_multihead_attention_model.pth')
+            torch.save(model.state_dict(), os.path.join(cfg["dataset"]["artifacts"], 'best_multihead_attention_model.pth'))
         else:
             patience_counter += 1
             if patience_counter >= early_stopping_patience:
                 print(f'Early stopping triggered after {epoch + 1} epochs')
                 break
 
-    model.load_state_dict(torch.load('best_multihead_attention_model.pth'))
+    model.load_state_dict(torch.load(os.path.join(cfg["dataset"]["artifacts"], 'best_multihead_attention_model.pth')))
     return model
 
 
@@ -598,7 +598,7 @@ def attention_reconstruction_single(cfg, synth, targets, known_features, hidden_
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-        trained_model = train_model(
+        trained_model = train_model(cfg,
             model, train_loader, val_loader, criterion, optimizer,
             device, epochs, patience
         )
@@ -768,7 +768,7 @@ def attention_reconstruction_autoregressive_true(cfg, synth, targets, known_feat
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    trained_model = train_multihead_model(
+    trained_model = train_multihead_model(cfg, 
         model, train_loaders, val_loaders, criterion, optimizer,
         device, epochs, patience
     )
