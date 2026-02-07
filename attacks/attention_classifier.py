@@ -40,6 +40,23 @@ learning_rate_default = 0.001
 epochs_default = 100
 patience_default = 30
 
+
+# Architecture - True Autoregressive (single model, multiple heads)
+# Generally needs more capacity and regularization
+num_heads_AR_default = 8  # More heads to learn different feature relationships
+embedding_dim_AR_default = 128  # Larger embeddings (must be divisible by num_heads)
+num_layers_AR_default = 3  # Deeper network
+feedforward_dim_AR_default = 256  # Wider FFN
+dropout_rate_AR_default = 0.3  # More dropout to prevent overfitting
+
+# Training - True Autoregressive
+test_size_AR_default = 0.2
+batch_size_AR_default = 64  # Smaller batches (larger model)
+learning_rate_AR_default = 0.0005  # Lower LR for stability
+epochs_AR_default = 150  # More epochs (training once for all features)
+patience_AR_default = 40  # More patience
+
+
 # Feature ordering (for autoregressive prediction)
 # Features will be predicted in this order, each building on previous predictions
 feature_order_default = None  # Will use natural order if None
@@ -635,90 +652,90 @@ def attention_reconstruction_single(cfg, synth, targets, known_features, hidden_
 
     return targets_copy.astype(int)
 
-
-def attention_reconstruction_autoregressive_retrain(cfg, synth, targets, known_features,
-                                                    hidden_features, embedding_dim, num_heads,
-                                                    num_layers, feedforward_dim, dropout_rate,
-                                                    test_size, batch_size, learning_rate,
-                                                    epochs, patience, feature_order=None):
-    """
-    Autoregressive with retraining: trains separate model for each feature position.
-    Simpler but less efficient.
-    """
-    # Handle unseen categories ONCE for initial known features
-    targets_cleaned = handle_unseen_categories(targets, synth, known_features, verbose=True)
-    targets_copy = targets_cleaned.copy()
-    known_features_copy = known_features.copy()
-
-    # Determine order
-    if feature_order is None:
-        feature_order = hidden_features
-    else:
-        assert set(feature_order) == set(hidden_features)
-
-    print(f'\nAutoregressive prediction order: {feature_order}')
-    print(f'Training separate model for each position...\n')
-
-    for idx, hidden_feature in enumerate(feature_order):
-        print(f'\n=== Position {idx + 1}/{len(feature_order)}: Predicting {hidden_feature} ===')
-
-        # Encode features
-        all_features = known_features_copy.copy()
-        train_df = synth[all_features + [hidden_feature]].copy()
-
-        encoded_train, encoders, vocab_sizes = encode_features(train_df, all_features)
-        target_encoder = LabelEncoder()
-        y_train = target_encoder.fit_transform(train_df[hidden_feature].astype(str))
-
-        # Encode targets - check for new unseen categories in predicted features
-        encoded_targets = pd.DataFrame()
-        for col in all_features:
-            col_values = targets_copy[col].astype(str)
-            seen_cats = set(encoders[col].classes_)
-            unseen_mask = ~col_values.isin(seen_cats)
-
-            if unseen_mask.any():
-                most_common = train_df[col].astype(str).mode()[0]
-                col_values = col_values.where(~unseen_mask, most_common)
-
-            encoded_targets[col] = encoders[col].transform(col_values)
-
-        # Split, create datasets, train (same as single)
-        X_train, X_val, y_train_split, y_val = train_test_split(
-            encoded_train.values, y_train, test_size=test_size, random_state=42
-        )
-
-        train_dataset = TabularDataset(X_train, y_train_split)
-        val_dataset = TabularDataset(X_val, y_val)
-        target_dataset = TabularDataset(encoded_targets.values, np.zeros(len(encoded_targets)))
-
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size)
-        target_loader = DataLoader(target_dataset, batch_size=batch_size)
-
-        num_classes = len(target_encoder.classes_)
-        model = TabularAttentionModel(
-            vocab_sizes, num_classes, embedding_dim,
-            num_heads, num_layers, feedforward_dim, dropout_rate
-        )
-
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-        trained_model = train_model(
-            model, train_loader, val_loader, criterion, optimizer,
-            device, epochs, patience
-        )
-
-        predictions = predict(trained_model, target_loader, device)
-        original_predictions = target_encoder.inverse_transform(predictions)
-        targets_copy[hidden_feature] = original_predictions
-
-        # Add to known features for next iteration
-        known_features_copy.append(hidden_feature)
-
-    return targets_copy.astype(int)
+#
+# def attention_reconstruction_autoregressive_retrain(cfg, synth, targets, known_features,
+#                                                     hidden_features, embedding_dim, num_heads,
+#                                                     num_layers, feedforward_dim, dropout_rate,
+#                                                     test_size, batch_size, learning_rate,
+#                                                     epochs, patience, feature_order=None):
+#     """
+#     Autoregressive with retraining: trains separate model for each feature position.
+#     Simpler but less efficient.
+#     """
+#     # Handle unseen categories ONCE for initial known features
+#     targets_cleaned = handle_unseen_categories(targets, synth, known_features, verbose=True)
+#     targets_copy = targets_cleaned.copy()
+#     known_features_copy = known_features.copy()
+#
+#     # Determine order
+#     if feature_order is None:
+#         feature_order = hidden_features
+#     else:
+#         assert set(feature_order) == set(hidden_features)
+#
+#     print(f'\nAutoregressive prediction order: {feature_order}')
+#     print(f'Training separate model for each position...\n')
+#
+#     for idx, hidden_feature in enumerate(feature_order):
+#         print(f'\n=== Position {idx + 1}/{len(feature_order)}: Predicting {hidden_feature} ===')
+#
+#         # Encode features
+#         all_features = known_features_copy.copy()
+#         train_df = synth[all_features + [hidden_feature]].copy()
+#
+#         encoded_train, encoders, vocab_sizes = encode_features(train_df, all_features)
+#         target_encoder = LabelEncoder()
+#         y_train = target_encoder.fit_transform(train_df[hidden_feature].astype(str))
+#
+#         # Encode targets - check for new unseen categories in predicted features
+#         encoded_targets = pd.DataFrame()
+#         for col in all_features:
+#             col_values = targets_copy[col].astype(str)
+#             seen_cats = set(encoders[col].classes_)
+#             unseen_mask = ~col_values.isin(seen_cats)
+#
+#             if unseen_mask.any():
+#                 most_common = train_df[col].astype(str).mode()[0]
+#                 col_values = col_values.where(~unseen_mask, most_common)
+#
+#             encoded_targets[col] = encoders[col].transform(col_values)
+#
+#         # Split, create datasets, train (same as single)
+#         X_train, X_val, y_train_split, y_val = train_test_split(
+#             encoded_train.values, y_train, test_size=test_size, random_state=42
+#         )
+#
+#         train_dataset = TabularDataset(X_train, y_train_split)
+#         val_dataset = TabularDataset(X_val, y_val)
+#         target_dataset = TabularDataset(encoded_targets.values, np.zeros(len(encoded_targets)))
+#
+#         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+#         val_loader = DataLoader(val_dataset, batch_size=batch_size)
+#         target_loader = DataLoader(target_dataset, batch_size=batch_size)
+#
+#         num_classes = len(target_encoder.classes_)
+#         model = TabularAttentionModel(
+#             vocab_sizes, num_classes, embedding_dim,
+#             num_heads, num_layers, feedforward_dim, dropout_rate
+#         )
+#
+#         criterion = nn.CrossEntropyLoss()
+#         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+#         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#
+#         trained_model = train_model(
+#             model, train_loader, val_loader, criterion, optimizer,
+#             device, epochs, patience
+#         )
+#
+#         predictions = predict(trained_model, target_loader, device)
+#         original_predictions = target_encoder.inverse_transform(predictions)
+#         targets_copy[hidden_feature] = original_predictions
+#
+#         # Add to known features for next iteration
+#         known_features_copy.append(hidden_feature)
+#
+#     return targets_copy.astype(int)
 
 
 def attention_reconstruction_autoregressive_true(cfg, synth, targets, known_features,
@@ -877,16 +894,16 @@ def attention_autoregressive_reconstruction(cfg, synth, targets, known_features,
     os.makedirs(cfg["dataset"]["artifacts"], exist_ok=True)
     return attention_reconstruction_autoregressive_true(
         cfg, synth, targets, known_features, hidden_features,
-        cfg["attack_params"].get("embedding_dim", embedding_dim_default),
-        cfg["attack_params"].get("num_heads", num_heads_default),
-        cfg["attack_params"].get("num_layers", num_layers_default),
-        cfg["attack_params"].get("feedforward_dim", feedforward_dim_default),
-        cfg["attack_params"].get("dropout_rate", dropout_rate_default),
-        cfg["attack_params"].get("test_size", test_size_default),
-        cfg["attack_params"].get("batch_size", batch_size_default),
-        cfg["attack_params"].get("learning_rate", learning_rate_default),
-        cfg["attack_params"].get("epochs", epochs_default),
-        cfg["attack_params"].get("patience", patience_default),
+        cfg["attack_params"].get("embedding_dim", embedding_dim_AR_default),
+        cfg["attack_params"].get("num_heads", num_heads_AR_default),
+        cfg["attack_params"].get("num_layers", num_layers_AR_default),
+        cfg["attack_params"].get("feedforward_dim", feedforward_dim_AR_default),
+        cfg["attack_params"].get("dropout_rate", dropout_rate_AR_default),
+        cfg["attack_params"].get("test_size", test_size_AR_default),
+        cfg["attack_params"].get("batch_size", batch_size_AR_default),
+        cfg["attack_params"].get("learning_rate", learning_rate_AR_default),
+        cfg["attack_params"].get("epochs", epochs_AR_default),
+        cfg["attack_params"].get("patience", patience_AR_default),
         cfg["attack_params"].get("feature_order", feature_order_default)
     ), None, None
 #
