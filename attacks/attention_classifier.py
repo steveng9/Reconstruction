@@ -17,7 +17,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from sklearn.preprocessing import LabelEncoder
 
 from get_data import load_data
 from scoring import calculate_reconstruction_score
@@ -26,7 +26,7 @@ from scoring import calculate_reconstruction_score
 # DEFAULTS - ATTENTION MODEL
 # ============================================================================
 
-# Architecture
+# Architecture - one feature at a time prediction model
 num_heads_default = 4
 embedding_dim_default = 64  # Must be divisible by num_heads
 num_layers_default = 2
@@ -59,7 +59,7 @@ patience_AR_default = 40  # More patience
 
 # Feature ordering (for autoregressive prediction)
 # Features will be predicted in this order, each building on previous predictions
-feature_order_default = None  # Will use natural order if None
+feature_order_default = ['F23', 'F13', 'F11', 'F43', 'F36', 'F25', 'F18', 'F30', 'F5', 'F15', 'F33', 'F10', 'F12', 'F50', 'F1', 'F3', 'F9', 'F21']
 
 PLOT = False
 
@@ -93,48 +93,6 @@ def load_config(config_path):
         config = yaml.safe_load(f)
     return config
 
-
-"""
-Attention-based reconstruction for categorical tabular data.
-Inspired by transformer architecture but adapted for tabular reconstruction.
-
-This model uses multi-head self-attention to learn complex relationships between
-features and performs autoregressive reconstruction (like LLM next-token prediction).
-"""
-
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-
-# ============================================================================
-# DEFAULTS - ATTENTION MODEL
-# ============================================================================
-
-# Architecture
-num_heads_default = 4
-embedding_dim_default = 64  # Must be divisible by num_heads
-num_layers_default = 2
-feedforward_dim_default = 128
-dropout_rate_default = 0.2
-
-# Training
-test_size_default = 0.2
-batch_size_default = 128
-learning_rate_default = 0.001
-epochs_default = 100
-patience_default = 30
-
-# Feature ordering (for autoregressive prediction)
-feature_order_default = None  # Will use natural order if None
-
-PLOT = False
 
 
 # ============================================================================
