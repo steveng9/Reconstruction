@@ -2,7 +2,7 @@
 import os
 from get_data import get_meta_data_for_diffusion
 
-from tabddpm_reconstruction_attack import train_diffusion_for_reconstruction, reconstruct_data
+from tabddpm_reconstruction_attack import train_diffusion_for_reconstruction, reconstruct_data_categorical
 
 
 

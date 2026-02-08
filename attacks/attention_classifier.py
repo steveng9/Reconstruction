@@ -242,6 +242,10 @@ class MultiHeadTabularModel(nn.Module):
 
     def __init__(self, feature_vocab_sizes, num_classes_per_feature, embedding_dim,
                  num_heads, num_layers, feedforward_dim, dropout_rate):
+        if torch.cuda.is_available():
+            print("Using CUDA device :)")
+        else:
+            print("NOT Using CUDA!")
         super(MultiHeadTabularModel, self).__init__()
 
         self.num_features = len(feature_vocab_sizes)
@@ -768,7 +772,7 @@ def attention_reconstruction_autoregressive_true(cfg, synth, targets, known_feat
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    trained_model = train_multihead_model(cfg, 
+    trained_model = train_multihead_model(cfg,
         model, train_loaders, val_loaders, criterion, optimizer,
         device, epochs, patience
     )
