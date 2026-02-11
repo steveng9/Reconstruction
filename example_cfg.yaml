@@ -33,6 +33,14 @@ attack_params:
   # Each enhancement checks its own "enabled" flag and bypasses if disabled
   # ==========================================================================
 
+  # Ensembling: Combines multiple attack methods for improved predictions
+  ensembling:
+    enabled: false  # Set to true to enable ensembling
+    methods: ["RandomForest", "LightGBM", "KNN"]  # List of methods to ensemble
+    aggregation: "voting"  # Options: "voting", "soft_voting", "averaging", "median", "weighted"
+    include_primary: false  # Whether to include the primary attack_method in the ensemble
+    # weights: [1.0, 1.5, 0.8]  # Optional: weights for weighted aggregation
+
   # Chaining: Predicts features sequentially, adding each to known features
   chaining:
     enabled: false  # Set to true to enable chaining
@@ -42,56 +50,111 @@ attack_params:
     random_seed: 42  # Seed for "random" order_strategy
 
   # TODO: Future enhancements
-  # ensembling:
-  #   enabled: false
-  #   methods: ["random_forest", "lgboost", "knn"]
-  #   aggregation: "voting"  # or "weighted", "stacking"
-  #
   # auxiliary_data:
   #   enabled: false
   #   source: "public_dataset"
   #   augmentation_ratio: 0.5
 
-  # repaint params
-  num_epochs: 100_000
-  resamples: 5
-  jump: 10
-  num_timesteps: 1000
-  hidden_dims:
-    - 512
-    - 1024
-    - 1024
-    - 1024
-    - 512
-  dropout: 0.1
-  jump_fn: "jump_max10" # or "jump_threeQuarter"
+  # ==========================================================================
+  # METHOD-SPECIFIC PARAMETERS
+  # Parameters are automatically selected based on attack_method
+  # ==========================================================================
 
-  # linear model (regression) params
-  degree: 2
-  epsilon: 1.35
-  alpha: 1.0
-  alpha_sdg: 0.0001
-  l1_ratio: 0.5
-  penalty: 'l2'
-  max_iter: 100 # 1000 for 'sdg_regressor'
-  knn_k: 5
-  knn_use_weights: True
+  RePaint:
+    num_epochs: 100_000
+    resamples: 5
+    jump: 10
+    num_timesteps: 1000
+    hidden_dims:
+      - 512
+      - 1024
+      - 1024
+      - 1024
+      - 512
+    dropout: 0.1
+    jump_fn: "jump_max10"
 
-  # MLP params
-  test_size: 0.2
-  hidden_dims:
-    - 128
-    - 96
-    - 64
-  batch_size: 264
-  learning_rate: 0.0003
-  epochs: 250
-  patience: 200
-  dropout_rate: 0.2
+  TabDDPM:
+    retrain: true
+    num_epochs: 100_000
+    resamples: 10
+    num_timesteps: 500
+    hidden_dims:
+      - 1024
+      - 4096
+      - 4096
+      - 4096
+      - 1024
+    dropout: 0.0
+    jump_fn: "jump_max10"
+    batch_size: 2048
+    lr: 0.0006
 
-  # RF params
-  max_depth: 25
-  num_estimators: 25
+  RandomForest:
+    max_depth: 25
+    num_estimators: 25
+
+  MLP:
+    test_size: 0.2
+    hidden_dims:
+      - 128
+      - 96
+      - 64
+    batch_size: 264
+    learning_rate: 0.0003
+    epochs: 250
+    patience: 200
+    dropout_rate: 0.2
+
+  # Linear regression models
+  LinearRegression:
+    degree: 2
+    max_iter: 100
+
+  Ridge:
+    alpha: 1.0
+    max_iter: 100
+
+  Lasso:
+    alpha: 1.0
+    max_iter: 100
+
+  ElasticNet:
+    alpha: 1.0
+    l1_ratio: 0.5
+    max_iter: 100
+
+  SGDRegressor:
+    alpha: 0.0001
+    penalty: 'l2'
+    max_iter: 1000
+
+  KNN:
+    k: 5
+    use_weights: true
+
+  LightGBM:
+    num_estimators: 100
+    objective: 'multiclass'
+    metric: 'multi_logloss'
+    verbosity: -1
+
+  SVM:
+    kernel: 'rbf'
+    C: 1.0
+    epsilon: 1.35
+
+  Attention:
+    num_heads_AR: 4
+    embedding_dim_AR: 128
+    num_layers_AR: 2
+    feedforward_dim_AR: 512
+    dropout_rate_AR: 0.1
+    test_size_AR: 0.2
+    batch_size_AR: 32
+    learning_rate_AR: 0.0001
+    epochs_AR: 400
+    patience_AR: 240
 
 
 
@@ -217,4 +280,76 @@ random_seed: 42
 #   enabled: true
 #   order_strategy: "random"
 #   random_seed: 42
+#   log_intermediate: true
+
+
+# =============================================================================
+# ENSEMBLING EXAMPLES
+# =============================================================================
+# Below are example ensembling configurations for different use cases:
+#
+# Example 1: No ensembling (default behavior - single attack method)
+# ensembling:
+#   enabled: false
+#
+# Example 2: Simple majority voting ensemble (categorical data)
+# ensembling:
+#   enabled: true
+#   methods: ["RandomForest", "LightGBM", "KNN"]
+#   aggregation: "voting"
+#   include_primary: false  # methods list is exhaustive
+#
+# Example 3: Ensemble with primary method included (4 models total)
+# ensembling:
+#   enabled: true
+#   methods: ["LightGBM", "KNN", "SVM"]
+#   aggregation: "voting"
+#   include_primary: true  # primary attack_method is added to the ensemble
+#
+# Example 4: Weighted ensemble (give more weight to better models)
+# ensembling:
+#   enabled: true
+#   methods: ["RandomForest", "LightGBM", "MLP"]
+#   aggregation: "weighted"
+#   include_primary: false
+#   weights: [1.5, 2.0, 1.0]  # LightGBM gets 2x weight
+#
+# Example 5: Averaging ensemble (for continuous data)
+# ensembling:
+#   enabled: true
+#   methods: ["RandomForest", "Ridge", "KNN"]
+#   aggregation: "averaging"
+#   include_primary: false
+#
+# Example 6: Median ensemble (robust to outliers, continuous data)
+# ensembling:
+#   enabled: true
+#   methods: ["LinearRegression", "Ridge", "Lasso"]
+#   aggregation: "median"
+#   include_primary: true
+#
+# Example 7: Soft voting (probability-based, if available)
+# ensembling:
+#   enabled: true
+#   methods: ["RandomForest", "LightGBM", "MLP"]
+#   aggregation: "soft_voting"
+#   include_primary: false
+
+
+# =============================================================================
+# COMBINING ENHANCEMENTS: ENSEMBLING + CHAINING
+# =============================================================================
+# Enhancements are composable! You can use both ensembling and chaining together.
+# Order of application: Ensembling first (combines methods), then Chaining (sequential prediction)
+#
+# Example: Ensemble of 3 methods with mutual-info chaining
+# ensembling:
+#   enabled: true
+#   methods: ["RandomForest", "LightGBM"]
+#   aggregation: "voting"
+#   include_primary: true  # Total of 3 models if primary is different
+#
+# chaining:
+#   enabled: true
+#   order_strategy: "mutual_info"
 #   log_intermediate: true

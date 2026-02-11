@@ -12,9 +12,9 @@ import lightgbm as lgb
 
 
 
-from NN_regression import mlp_repression_reconstruction
+from .NN_regression import mlp_repression_reconstruction
 
-from attacks.baselines_continuous import *
+from .baselines_continuous import *
 from scoring import calculate_continuous_vals_reconstruction_score
 from get_data import map_with_interpolation
 

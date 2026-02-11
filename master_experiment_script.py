@@ -33,7 +33,7 @@ from scoring import calculate_reconstruction_score, calculate_continuous_vals_re
 from attacks import get_attack
 
 # Enhancement wrappers
-from enhancements import apply_chaining
+from enhancements import apply_chaining, apply_ensembling
 
 
 
@@ -77,16 +77,129 @@ def load_config(config_path):
     return config
 
 
+def _prepare_config(config):
+    """
+    Prepare config by merging method-specific parameters into attack_params.
+
+    This allows the config file to be organized by method (e.g., RandomForest: {params})
+    while attack functions can access params directly from attack_params.
+
+    Args:
+        config: Original config dict
+
+    Returns:
+        Modified config with method-specific params merged into attack_params
+    """
+    config = config.copy()  # Don't modify original
+    attack_method = config.get("attack_method")
+
+    if attack_method and attack_method in config.get("attack_params", {}):
+        # Get method-specific params
+        method_params = config["attack_params"][attack_method]
+
+        # Create new attack_params that merges method-specific params with enhancements
+        new_attack_params = {}
+
+        # First, copy over enhancement configs (chaining, etc.)
+        for key, value in config["attack_params"].items():
+            if isinstance(value, dict) and "enabled" in value:
+                # This is an enhancement config (has 'enabled' flag)
+                new_attack_params[key] = value
+
+        # Then merge in method-specific params
+        new_attack_params.update(method_params)
+
+        config["attack_params"] = new_attack_params
+
+    return config
+
+
+def _print_experiment_config(config):
+    """Print key configuration parameters in a clear, organized format."""
+    print("\n" + "=" * 70)
+    print("EXPERIMENT CONFIGURATION")
+    print("=" * 70)
+
+    # Dataset info
+    dataset = config.get("dataset", {})
+    print(f"\n📊 Dataset:")
+    print(f"   Name: {dataset.get('name', 'N/A')}")
+    print(f"   Size: {dataset.get('size', 'N/A'):,}")
+    print(f"   QI: {config.get('QI', 'N/A')}")
+
+    # SDG method
+    sdg_method = config.get("sdg_method", "N/A")
+    print(f"\n🔒 Synthetic Data Generation:")
+    print(f"   Method: {sdg_method}")
+    sdg_params = config.get("sdg_params", {})
+    if sdg_params:
+        for key, val in sdg_params.items():
+            print(f"   {key}: {val}")
+
+    # Attack configuration
+    attack_method = config.get("attack_method", "N/A")
+    data_type = config.get("data_type", "agnostic")
+    print(f"\n🎯 Reconstruction Attack:")
+    print(f"   Method: {attack_method}")
+    print(f"   Data Type: {data_type}")
+
+    # Ensembling status
+    ensembling = config.get("attack_params", {}).get("ensembling", {})
+    ensembling_enabled = ensembling.get("enabled", False)
+    print(f"\n🤝 Ensembling: {'✓ ENABLED' if ensembling_enabled else '✗ Disabled'}")
+    if ensembling_enabled:
+        methods = ensembling.get("methods", [])
+        print(f"   Methods: {', '.join(methods)}")
+        print(f"   Aggregation: {ensembling.get('aggregation', 'voting')}")
+        print(f"   Include Primary: {ensembling.get('include_primary', True)}")
+        if ensembling.get("weights"):
+            print(f"   Weights: {ensembling.get('weights')}")
+
+    # Chaining status
+    chaining = config.get("attack_params", {}).get("chaining", {})
+    chaining_enabled = chaining.get("enabled", False)
+    print(f"\n🔗 Chaining: {'✓ ENABLED' if chaining_enabled else '✗ Disabled'}")
+    if chaining_enabled:
+        print(f"   Order Strategy: {chaining.get('order_strategy', 'default')}")
+        if chaining.get("order_strategy") == "manual":
+            print(f"   Order: {chaining.get('order', [])}")
+        print(f"   Log Intermediate: {chaining.get('log_intermediate', True)}")
+
+    # Attack method parameters
+    attack_params = config.get("attack_params", {})
+    method_params = {k: v for k, v in attack_params.items()
+                     if k not in ["chaining"] and not (isinstance(v, dict) and "enabled" in v)}
+
+    if method_params:
+        print(f"\n⚙️  {attack_method} Parameters:")
+        for key, val in sorted(method_params.items()):
+            if isinstance(val, list):
+                print(f"   {key}: [{', '.join(map(str, val))}]")
+            else:
+                print(f"   {key}: {val}")
+
+    print("\n" + "=" * 70 + "\n")
+
+
 def run_single_experiment(config, run_id):
     train, synth, qi, hidden_features = load_data(config)
+
+    # Merge method-specific params into attack_params for easier access
+    config = _prepare_config(config)
+
+    # Print experiment configuration
+    if run_id == 0:  # Only print on first run to avoid repetition
+        _print_experiment_config(config)
 
     # Get base attack method from registry
     data_type = config.get("data_type", "agnostic")  # Default to agnostic (TabDDPM, RePaint)
     attack_method = get_attack(config["attack_method"], data_type)
 
-    # Apply enhancements (chaining, ensembling, etc.)
+    # Apply enhancements (composable wrappers)
     # Each enhancement wrapper checks its own config and bypasses if not enabled
-    reconstructed, _, _ = apply_chaining(attack_method, config, synth, train[qi], qi, hidden_features)
+    # Order matters: ensembling first (combines methods), then chaining (sequential prediction)
+    attack_method = apply_ensembling(attack_method, config)
+    reconstructed, _, _ = apply_chaining(attack_method, config, synth, train, qi, hidden_features)
 
     # Score based on dataset type (continuous vs categorical)
     dataset_type = config.get("dataset", {}).get("type", "categorical")
