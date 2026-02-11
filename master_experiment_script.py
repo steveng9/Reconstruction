@@ -29,11 +29,11 @@ import wandb
 from get_data import load_data
 from scoring import calculate_reconstruction_score
 
+# Attack registry (single source of truth for attack names)
+from attacks import get_attack
 
-from attacks.NN_classifier import mlp_classification_reconstruction
-from attacks.ML_classifiers import KNN_reconstruction, lgboost_reconstruction, SVM_classification_reconstruction
-from attacks.partialDiffusion import repaint_reconstruction, partial_tabddpm_reconstruction
-from attacks.attention_classifier import attention_reconstruction, attention_autoregressive_reconstruction
+# Enhancement wrappers
+from enhancements import apply_chaining
 
 
 
@@ -80,8 +80,14 @@ def load_config(config_path):
 def run_single_experiment(config, run_id):
     train, synth, qi, hidden_features = load_data(config)
 
-    attack_method = globals()[config["attack_params"]["method_ref"]]
-    reconstructed, _, _ = attack_method(config, synth, train[qi], qi, hidden_features)
+    # Get base attack method from registry
+    data_type = config.get("data_type", "agnostic")  # Default to agnostic (TabDDPM, RePaint)
+    attack_method = get_attack(config["attack_method"], data_type)
+
+    # Apply enhancements (chaining, ensembling, etc.)
+    # Each enhancement wrapper checks its own config and bypasses if not enabled
+    reconstructed, _, _ = apply_chaining(attack_method, config, synth, train[qi], qi, hidden_features)
+
     scores = calculate_reconstruction_score(train, reconstructed, hidden_features)
 
     results = {f"RA_{k}": v for k, v in zip(hidden_features, scores)}

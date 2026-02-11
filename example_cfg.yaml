@@ -20,11 +20,37 @@ sdg_params:
   eps: 10
   bins: 20
 
-# RePaint attack parameters
-attack_method: "TabDDPM+RePaint"
+# Attack selection
+attack_method: "RePaint"  # Name of the attack (see examples below)
+data_type: "agnostic"     # "categorical", "continuous", or "agnostic" (for TabDDPM/RePaint)
+
+# Attack parameters (specific to chosen attack)
 attack_params:
-#  method_ref: "partial_tabddpm_reconstruction"
-  method_ref: "repaint_reconstruction"
+
+  # ==========================================================================
+  # ATTACK ENHANCEMENTS (optional)
+  # These are composable wrappers that augment base attack methods
+  # Each enhancement checks its own "enabled" flag and bypasses if disabled
+  # ==========================================================================
+
+  # Chaining: Predicts features sequentially, adding each to known features
+  chaining:
+    enabled: false  # Set to true to enable chaining
+    order_strategy: "default"  # Options: "default", "manual", "correlation", "reverse_correlation", "mutual_info", "random"
+    # order: ["F23", "F13", "F11", "F43"]  # Only used if order_strategy is "manual"
+    log_intermediate: true  # Log per-feature accuracy during chaining
+    random_seed: 42  # Seed for "random" order_strategy
+
+  # TODO: Future enhancements
+  # ensembling:
+  #   enabled: false
+  #   methods: ["random_forest", "lgboost", "knn"]
+  #   aggregation: "voting"  # or "weighted", "stacking"
+  #
+  # auxiliary_data:
+  #   enabled: false
+  #   source: "public_dataset"
+  #   augmentation_ratio: 0.5
 
   # repaint params
   num_epochs: 100_000
@@ -72,3 +98,123 @@ attack_params:
 
 # Other experiment settings
 random_seed: 42
+
+
+# =============================================================================
+# ATTACK METHOD EXAMPLES
+# =============================================================================
+# Specify attack using attack_method + data_type (single source of truth)
+#
+# CATEGORICAL DATA (classification-based):
+#   attack_method: "RandomForest"
+#   data_type: "categorical"
+#
+#   attack_method: "LightGBM"
+#   data_type: "categorical"
+#
+#   attack_method: "KNN"
+#   data_type: "categorical"
+#
+#   attack_method: "SVM"
+#   data_type: "categorical"
+#
+#   attack_method: "LogisticRegression"
+#   data_type: "categorical"
+#
+#   attack_method: "NaiveBayes"
+#   data_type: "categorical"
+#
+#   attack_method: "MLP"
+#   data_type: "categorical"
+#
+#   attack_method: "Attention"
+#   data_type: "categorical"
+#
+#   attack_method: "Mode"  # baseline
+#   data_type: "categorical"
+#
+# CONTINUOUS DATA (regression-based):
+#   attack_method: "RandomForest"
+#   data_type: "continuous"
+#
+#   attack_method: "LightGBM"
+#   data_type: "continuous"
+#
+#   attack_method: "KNN"
+#   data_type: "continuous"
+#
+#   attack_method: "SVM"
+#   data_type: "continuous"
+#
+#   attack_method: "LinearRegression"
+#   data_type: "continuous"
+#
+#   attack_method: "Ridge"
+#   data_type: "continuous"
+#
+#   attack_method: "Lasso"
+#   data_type: "continuous"
+#
+#   attack_method: "MLP"
+#   data_type: "continuous"
+#
+#   attack_method: "Mean"  # baseline
+#   data_type: "continuous"
+#
+#   attack_method: "Median"  # baseline
+#   data_type: "continuous"
+#
+# DATA-TYPE AGNOSTIC (work on both categorical and continuous):
+#   attack_method: "TabDDPM"
+#   data_type: "agnostic"  # or omit data_type
+#
+#   attack_method: "RePaint"
+#   data_type: "agnostic"  # or omit data_type
+
+
+# =============================================================================
+# CHAINING EXAMPLES
+# =============================================================================
+# Below are example chaining configurations for different use cases:
+#
+# Example 1: No chaining (default behavior)
+# chaining:
+#   enabled: false
+#
+# Example 2: Chaining with default order (order in hidden_features list)
+# chaining:
+#   enabled: true
+#   order_strategy: "default"
+#   log_intermediate: true
+#
+# Example 3: Manual ordering (specify exact prediction order)
+# chaining:
+#   enabled: true
+#   order_strategy: "manual"
+#   order: ["F23", "F13", "F11", "F43", "F36", "F15", "F33", "F25"]
+#   log_intermediate: true
+#
+# Example 4: Correlation-based ordering (predict most correlated with QI first)
+# chaining:
+#   enabled: true
+#   order_strategy: "correlation"
+#   log_intermediate: true
+#
+# Example 5: Reverse correlation (predict least correlated with QI first)
+# chaining:
+#   enabled: true
+#   order_strategy: "reverse_correlation"
+#   log_intermediate: true
+#
+# Example 6: Mutual information ordering
+# chaining:
+#   enabled: true
+#   order_strategy: "mutual_info"
+#   log_intermediate: true
+#
+# Example 7: Random ordering (for baseline comparison)
+# chaining:
+#   enabled: true
+#   order_strategy: "random"
+#   random_seed: 42
+#   log_intermediate: true
