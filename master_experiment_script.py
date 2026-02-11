@@ -27,7 +27,7 @@ import numpy as np
 import wandb
 
 from get_data import load_data
-from scoring import calculate_reconstruction_score
+from scoring import calculate_reconstruction_score, calculate_continuous_vals_reconstruction_score
 
 # Attack registry (single source of truth for attack names)
 from attacks import get_attack
@@ -88,15 +88,21 @@ def run_single_experiment(config, run_id):
     # Each enhancement wrapper checks its own config and bypasses if not enabled
     reconstructed, _, _ = apply_chaining(attack_method, config, synth, train[qi], qi, hidden_features)
 
-    scores = calculate_reconstruction_score(train, reconstructed, hidden_features)
+    # Score based on dataset type (continuous vs categorical)
+    dataset_type = config.get("dataset", {}).get("type", "categorical")
+    if dataset_type == "continuous":
+        scores = calculate_continuous_vals_reconstruction_score(train, reconstructed, hidden_features)
+        scores = scores["normalized_rmse"].values
+    else:  # categorical
+        scores = calculate_reconstruction_score(train, reconstructed, hidden_features)
 
     results = {f"RA_{k}": v for k, v in zip(hidden_features, scores)}
     results["RA_mean"] = np.mean(scores)
-    wandb.log(results)
 
     scores = list(results.values())
     print(f"\n{np.array(scores[:-1])}")
     print(f"ave: {scores[-1]}\n{'=' * 50}")
+    wandb.log(results)
 
 
 if __name__ == "__main__":
