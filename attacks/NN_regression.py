@@ -307,3 +307,4 @@ def nn_regression_reconstruction(cfg, synth, targets, known_features, hidden_fea
         reconstructed_targets[hidden_feature] = original_predictions
 
     return reconstructed_targets
+

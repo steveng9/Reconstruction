@@ -79,13 +79,12 @@ def _development():
         # ransac_regressor_reconstruction,
         # polynomial_regressor_reconstruction,
         # MLPs
-        # mlp_repression_reconstruction,
-        # mlp_repression_128_96_64_reconstruction,
+        mlp_repression_reconstruction,
         # new models
-        KNN_reconstruction_continuous,
-        SVM_regression_reconstruction,
-        random_forest_regression_reconstruction,
-        lgboost_regression_reconstruction,
+        # KNN_reconstruction_continuous,
+        # SVM_regression_reconstruction,
+        # random_forest_regression_reconstruction,
+        # lgboost_regression_reconstruction,
     ]
 
     comparison_df = pd.DataFrame()

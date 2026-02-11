@@ -27,7 +27,7 @@ import numpy as np
 import wandb
 
 from get_data import load_data
-from scoring import calculate_reconstruction_score
+from scoring import calculate_reconstruction_score, calculate_continuous_vals_reconstruction_score
 
 
 from attacks.NN_classifier import mlp_classification_reconstruction
@@ -82,15 +82,19 @@ def run_single_experiment(config, run_id):
 
     attack_method = globals()[config["attack_params"]["method_ref"]]
     reconstructed, _, _ = attack_method(config, synth, train[qi], qi, hidden_features)
-    scores = calculate_reconstruction_score(train, reconstructed, hidden_features)
+    if config["dataset"]["type"] == "continuous":
+        scores = calculate_continuous_vals_reconstruction_score(train, reconstructed, hidden_features)
+        scores = scores["normalized_rmse"].values
+    elif config["dataset"]["type"] == "categorical":
+        scores = calculate_reconstruction_score(train, reconstructed, hidden_features)
 
     results = {f"RA_{k}": v for k, v in zip(hidden_features, scores)}
     results["RA_mean"] = np.mean(scores)
-    wandb.log(results)
 
     scores = list(results.values())
     print(f"\n{np.array(scores[:-1])}")
     print(f"ave: {scores[-1]}\n{'=' * 50}")
+    wandb.log(results)
 
 
 if __name__ == "__main__":
