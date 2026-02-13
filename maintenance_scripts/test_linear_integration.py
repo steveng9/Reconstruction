@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.expanduser('~/recon-synth'))
 recon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(recon_path, 'SOTA_attacks'))
 
-from linear_reconstruction import linear_reconstruction_attack
+from linear_reconstruction_debug import linear_reconstruction_attack
 
 
 def test_linear_attack():
