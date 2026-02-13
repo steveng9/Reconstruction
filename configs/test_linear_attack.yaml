@@ -1,0 +1,51 @@
+# Configuration for testing Linear Reconstruction SOTA attack
+# This attack only works on single binary features with smaller datasets
+
+wandb:
+  project: "tabular-reconstruction-attacks"
+  name: "linear-reconstruction-test"
+  group: "SOTA_attacks"
+  tags:
+    - "linear_reconstruction"
+    - "SOTA"
+    - "development"
+
+# Dataset settings
+dataset:
+  name: "nist_crc"
+  size: 1000  # Keep small for linear attack (memory constraints)
+  type: "categorical"
+  dir: "/home/golobs/data/NIST_CRC/dev_data"
+
+QI: "QI1"  # Use predefined QI from your dataset
+
+# Synthetic data generation
+sdg_method: "synth"  # Will use synth.csv from data directory
+sdg_params: {}
+
+# Attack selection
+attack_method: "LinearReconstruction"
+data_type: "categorical"  # Linear attack only works on categorical (binary) features
+
+# Attack parameters
+attack_params:
+
+  # Ensembling and chaining NOT recommended for LinearReconstruction
+  # (attack is designed for single features)
+  ensembling:
+    enabled: false
+
+  chaining:
+    enabled: false
+
+  # Linear Reconstruction specific parameters
+  LinearReconstruction:
+    k: 3  # k-way queries (default: 3)
+    n_procs: 4  # Number of processors for Gurobi solver
+
+# Notes:
+# - This attack only reconstructs ONE binary feature at a time
+# - hidden_features must have length 1
+# - The feature must be binary (2 unique values)
+# - Requires Gurobi license (academic license available)
+# - Memory usage grows with dataset size - keep n < 5000 for 3-way queries

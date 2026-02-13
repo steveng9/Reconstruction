@@ -55,6 +55,14 @@ from .baselines_continuous import (
 # Data-type agnostic attacks (work on both)
 from .partialDiffusion import repaint_reconstruction, partial_tabddpm_reconstruction
 
+# SOTA attacks from published papers
+import sys
+import os
+sota_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'SOTA_attacks')
+if sota_path not in sys.path:
+    sys.path.insert(0, sota_path)
+from linear_reconstruction import linear_reconstruction_attack
+
 
 # =============================================================================
 # ATTACK REGISTRY
@@ -81,6 +89,9 @@ ATTACK_REGISTRY = {
         "Random": random_baseline,
         "Mean": mean_baseline,
         "MeasureDeid": simply_measure_deid_itself_baseline,
+
+        # SOTA attacks (published methods)
+        "LinearReconstruction": linear_reconstruction_attack,
     },
 
     "continuous": {
