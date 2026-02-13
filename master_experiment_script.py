@@ -16,9 +16,15 @@ args = parser.parse_args()
 if args.on_server:
     sys.path.append('/home/golobs/MIA_on_diffusion/')
     sys.path.append('/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM')
+    sys.path.append('/home/golobs/recon-synth')
+    sys.path.append('/home/golobs/recon-synth/attacks')
+    sys.path.append('/home/golobs/recon-synth/attacks/solvers')
 else:
     sys.path.append('/Users/stevengolob/PycharmProjects/MIA_on_diffusion/')
     sys.path.append('/Users/stevengolob/PycharmProjects/MIA_on_diffusion/midst_models/single_table_TabDDPM')
+    sys.path.append('/Users/stevengolob/PycharmProjects/recon-synth')
+    sys.path.append('/Users/stevengolob/PycharmProjects/recon-synth/attacks')
+    sys.path.append('/Users/stevengolob/PycharmProjects/recon-synth/attacks/solvers')
 
 CONFIG_PATH_default = "/home/golobs/data/NIST_CRC/dev_data/dev_config.yaml" if args.on_server else "/Users/stevengolob/Documents/school/PhD/reconstruction_project/configs/dev_config.yaml"
 
@@ -93,23 +99,22 @@ def _prepare_config(config):
     config = config.copy()  # Don't modify original
     attack_method = config.get("attack_method")
 
-    if attack_method and attack_method in config.get("attack_params", {}):
-        # Get method-specific params
-        method_params = config["attack_params"][attack_method]
+    # Get method-specific params
+    method_params = config["attack_params"].get(attack_method, {})
 
-        # Create new attack_params that merges method-specific params with enhancements
-        new_attack_params = {}
+    # Create new attack_params that merges method-specific params with enhancements
+    new_attack_params = {}
 
-        # First, copy over enhancement configs (chaining, etc.)
-        for key, value in config["attack_params"].items():
-            if isinstance(value, dict) and "enabled" in value:
-                # This is an enhancement config (has 'enabled' flag)
-                new_attack_params[key] = value
+    # First, copy over enhancement configs (chaining, etc.)
+    for key, value in config["attack_params"].items():
+        if isinstance(value, dict) and "enabled" in value:
+            # This is an enhancement config (has 'enabled' flag)
+            new_attack_params[key] = value
 
-        # Then merge in method-specific params
-        new_attack_params.update(method_params)
+    # Then merge in method-specific params
+    new_attack_params.update(method_params)
 
-        config["attack_params"] = new_attack_params
+    config["attack_params"] = new_attack_params
 
     return config
 

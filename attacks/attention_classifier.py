@@ -41,20 +41,19 @@ epochs_default = 100
 patience_default = 30
 
 
-# Architecture - True Autoregressive (single model, multiple heads)
-# Generally needs more capacity and regularization
-num_heads_AR_default = 8  # More heads to learn different feature relationships
-embedding_dim_AR_default = 128  # Larger embeddings (must be divisible by num_heads)
-num_layers_AR_default = 3  # Deeper network
-feedforward_dim_AR_default = 256  # Wider FFN
-dropout_rate_AR_default = 0.3  # More dropout to prevent overfitting
+# Architecture - True Autoregressive (causal transformer, LLM-style)
+num_heads_AR_default = 4
+embedding_dim_AR_default = 64  # Must be divisible by num_heads
+num_layers_AR_default = 2
+feedforward_dim_AR_default = 128
+dropout_rate_AR_default = 0.15
 
 # Training - True Autoregressive
 test_size_AR_default = 0.2
-batch_size_AR_default = 64  # Smaller batches (larger model)
-learning_rate_AR_default = 0.0005  # Lower LR for stability
-epochs_AR_default = 150  # More epochs (training once for all features)
-patience_AR_default = 40  # More patience
+batch_size_AR_default = 64
+learning_rate_AR_default = 0.001
+epochs_AR_default = 200
+patience_AR_default = 30
 
 
 # Feature ordering (for autoregressive prediction)
@@ -111,6 +110,20 @@ class TabularDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
+
+
+class AutoregressiveDataset(Dataset):
+    """Dataset for autoregressive training: X is full sequence, Y is all hidden targets."""
+
+    def __init__(self, X, Y):
+        self.X = torch.tensor(X, dtype=torch.long)
+        self.Y = torch.tensor(Y, dtype=torch.long)
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.Y[idx]
 
 
 # ============================================================================
@@ -234,25 +247,33 @@ class TabularAttentionModel(nn.Module):
         return x
 
 
-class MultiHeadTabularModel(nn.Module):
+class AutoregressiveTabularModel(nn.Module):
     """
-    TRUE autoregressive model with separate output heads for each feature.
-    Trains once, predicts sequentially.
+    True autoregressive transformer for tabular data with causal attention masking.
+    Like an LLM: each position can only attend to itself and prior positions.
+
+    Input sequence: [QI_0, ..., QI_{n-1}, H_0, ..., H_{m-1}]
+    To predict H_k, uses the representation at position (num_qi - 1 + k),
+    which has only attended to QI features + H_0..H_{k-1} (via causal mask).
     """
 
-    def __init__(self, feature_vocab_sizes, num_classes_per_feature, embedding_dim,
-                 num_heads, num_layers, feedforward_dim, dropout_rate):
+    def __init__(self, feature_vocab_sizes, num_qi, num_classes_per_hidden,
+                 embedding_dim, num_heads, num_layers, feedforward_dim, dropout_rate):
+        super().__init__()
         if torch.cuda.is_available():
             print("Using CUDA device :)")
         else:
             print("NOT Using CUDA!")
-        super(MultiHeadTabularModel, self).__init__()
 
         self.num_features = len(feature_vocab_sizes)
-        self.num_output_features = len(num_classes_per_feature)
+        self.num_qi = num_qi
+        self.num_hidden = len(num_classes_per_hidden)
 
-        # Shared encoder
-        self.feature_embedding = FeatureEmbedding(feature_vocab_sizes, embedding_dim)
+        # +1 per feature for PAD token (index = original vocab_size)
+        self.pad_indices = list(feature_vocab_sizes)
+        padded_vocab_sizes = [vs + 1 for vs in feature_vocab_sizes]
+
+        self.feature_embedding = FeatureEmbedding(padded_vocab_sizes, embedding_dim)
         self.pos_encoding = PositionalEncoding(self.num_features, embedding_dim)
 
         self.transformer_blocks = nn.ModuleList([
@@ -260,40 +281,39 @@ class MultiHeadTabularModel(nn.Module):
             for _ in range(num_layers)
         ])
 
-        # Shared intermediate projection
-        self.intermediate = nn.Sequential(
-            nn.Linear(embedding_dim * self.num_features, feedforward_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate)
-        )
-
-        # Separate output head for each feature to predict
+        # Output head k: takes representation at position (num_qi - 1 + k) to predict H_k
         self.output_heads = nn.ModuleList([
-            nn.Linear(feedforward_dim, n_classes)
-            for n_classes in num_classes_per_feature
+            nn.Linear(embedding_dim, n_classes)
+            for n_classes in num_classes_per_hidden
         ])
 
-    def forward(self, x, target_feature_idx=None):
+    def _causal_mask(self, seq_len, device):
+        """Causal mask: position i can attend to positions 0..i only."""
+        return torch.triu(torch.ones(seq_len, seq_len, device=device), diagonal=1).bool()
+
+    def forward(self, x):
         """
         Args:
-            x: (batch_size, num_features)
-            target_feature_idx: which feature to predict (0 to num_output_features-1)
+            x: (batch_size, num_features) — full sequence (QI + hidden/PAD values)
+        Returns:
+            List of (batch_size, num_classes_k) logits, one per hidden feature
         """
-        x = self.feature_embedding(x)
-        x = self.pos_encoding(x)
+        emb = self.feature_embedding(x)
+        emb = self.pos_encoding(emb)
 
+        mask = self._causal_mask(self.num_features, emb.device)
+
+        h = emb
         for block in self.transformer_blocks:
-            x = block(x)
+            h = block(h, mask=mask)
 
-        x = x.flatten(start_dim=1)
-        x = self.intermediate(x)
+        # Output at position (num_qi - 1 + k) predicts hidden feature k
+        outputs = []
+        for k in range(self.num_hidden):
+            pos = self.num_qi - 1 + k
+            outputs.append(self.output_heads[k](h[:, pos, :]))
 
-        if target_feature_idx is not None:
-            # Predict specific feature
-            return self.output_heads[target_feature_idx](x)
-        else:
-            # Return all predictions (for training)
-            return [head(x) for head in self.output_heads]
+        return outputs
 
 
 # ============================================================================
@@ -393,13 +413,12 @@ def train_model(cfg, model, train_loader, val_loader, criterion, optimizer, devi
     return model
 
 
-def train_multihead_model(cfg, model, train_loaders, val_loaders, criterion, optimizer,
-                          device, epochs, early_stopping_patience):
-    """Train the multi-head autoregressive model."""
+def train_autoregressive_model(cfg, model, train_loader, val_loader, criterion, optimizer,
+                               device, epochs, early_stopping_patience, num_hidden):
+    """Train the autoregressive model on full sequences with causal masking."""
     model.to(device)
     best_val_loss = float('inf')
     patience_counter = 0
-    num_features = len(train_loaders)
 
     for epoch in range(epochs):
         # Training phase
@@ -407,21 +426,21 @@ def train_multihead_model(cfg, model, train_loaders, val_loaders, criterion, opt
         train_loss = 0.0
         total_samples = 0
 
-        for feature_idx in range(num_features):
-            for inputs, labels in train_loaders[feature_idx]:
-                inputs, labels = inputs.to(device), labels.to(device)
+        for X_batch, Y_batch in train_loader:
+            X_batch, Y_batch = X_batch.to(device), Y_batch.to(device)
 
-                optimizer.zero_grad()
-                outputs = model(inputs, target_feature_idx=feature_idx)
-                loss = criterion(outputs, labels)
+            optimizer.zero_grad()
+            outputs = model(X_batch)  # list of (batch, num_classes_k)
 
-                loss.backward()
-                optimizer.step()
+            loss = sum(criterion(outputs[k], Y_batch[:, k]) for k in range(num_hidden))
 
-                train_loss += loss.item() * inputs.size(0)
-                total_samples += inputs.size(0)
+            loss.backward()
+            optimizer.step()
 
-        train_loss = train_loss / total_samples
+            train_loss += loss.item() * X_batch.size(0)
+            total_samples += X_batch.size(0)
+
+        train_loss /= total_samples
 
         # Validation phase
         model.eval()
@@ -430,20 +449,19 @@ def train_multihead_model(cfg, model, train_loaders, val_loaders, criterion, opt
         total = 0
 
         with torch.no_grad():
-            for feature_idx in range(num_features):
-                for inputs, labels in val_loaders[feature_idx]:
-                    inputs, labels = inputs.to(device), labels.to(device)
+            for X_batch, Y_batch in val_loader:
+                X_batch, Y_batch = X_batch.to(device), Y_batch.to(device)
+                outputs = model(X_batch)
 
-                    outputs = model(inputs, target_feature_idx=feature_idx)
-                    loss = criterion(outputs, labels)
+                loss = sum(criterion(outputs[k], Y_batch[:, k]) for k in range(num_hidden))
+                val_loss += loss.item() * X_batch.size(0)
 
-                    val_loss += loss.item() * inputs.size(0)
+                for k in range(num_hidden):
+                    _, preds = torch.max(outputs[k], 1)
+                    total += Y_batch.size(0)
+                    correct += (preds == Y_batch[:, k]).sum().item()
 
-                    _, predicted = torch.max(outputs, 1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
-
-        val_loss = val_loss / total
+        val_loss /= len(val_loader.dataset)
         val_accuracy = correct / total
 
         if epoch % 10 == 0:
@@ -456,14 +474,14 @@ def train_multihead_model(cfg, model, train_loaders, val_loaders, criterion, opt
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
-            torch.save(model.state_dict(), os.path.join(cfg["dataset"]["artifacts"], 'best_multihead_attention_model.pth'))
+            torch.save(model.state_dict(), os.path.join(cfg["dataset"]["artifacts"], 'best_autoregressive_model.pth'))
         else:
             patience_counter += 1
             if patience_counter >= early_stopping_patience:
                 print(f'Early stopping triggered after {epoch + 1} epochs')
                 break
 
-    model.load_state_dict(torch.load(os.path.join(cfg["dataset"]["artifacts"], 'best_multihead_attention_model.pth')))
+    model.load_state_dict(torch.load(os.path.join(cfg["dataset"]["artifacts"], 'best_autoregressive_model.pth')))
     return model
 
 
@@ -706,123 +724,101 @@ def attention_reconstruction_autoregressive_true(cfg, synth, targets, known_feat
                                                  test_size, batch_size, learning_rate,
                                                  epochs, patience, feature_order=None):
     """
-    TRUE autoregressive: Train ONE model with multiple heads, predict sequentially.
-    More efficient, truly LLM-like.
+    TRUE autoregressive reconstruction with causal attention masking.
+    Like an LLM: trains on full sequences with teacher forcing and causal mask,
+    then predicts hidden features one at a time at inference.
     """
     # Handle unseen categories ONCE
     targets_cleaned = handle_unseen_categories(targets, synth, known_features, verbose=True)
     targets_copy = targets_cleaned.copy()
 
-    # Determine order
+    # Determine prediction order
     if feature_order is None:
         feature_order = list(hidden_features)
     else:
         assert set(feature_order) == set(hidden_features)
 
     print(f'\nAutoregressive prediction order: {feature_order}')
-    print(f'Training SINGLE multi-head model for all positions...\n')
+    print(f'Training causal transformer on full sequences...\n')
 
-    # Prepare ALL features for encoding
+    # Encode ALL features (QI + hidden in prediction order)
     all_features = known_features + feature_order
     train_df = synth[all_features].copy()
     encoded_all, encoders, vocab_sizes = encode_features(train_df, all_features)
 
-    # Get number of classes for each hidden feature
-    num_classes_per_feature = [len(encoders[f].classes_) for f in feature_order]
+    num_qi = len(known_features)
+    num_hidden = len(feature_order)
+    num_classes_per_hidden = [len(encoders[f].classes_) for f in feature_order]
 
-    # Create training data for each position
-    train_loaders = []
-    val_loaders = []
+    # Training data: full sequences with teacher forcing
+    X_full = encoded_all.values  # (n_synth, num_qi + num_hidden)
+    Y_hidden = encoded_all[feature_order].values  # (n_synth, num_hidden)
 
-    for idx, target_feature in enumerate(feature_order):
-        # Features available at this position
-        available_features = known_features + feature_order[:idx]
-        available_indices = [all_features.index(f) for f in available_features]
-        target_idx = all_features.index(target_feature)
-
-        X = encoded_all.iloc[:, available_indices].values
-        y = encoded_all.iloc[:, target_idx].values
-
-        # Pad to max length
-        max_len = len(all_features)
-        if X.shape[1] < max_len:
-            pad_width = max_len - X.shape[1]
-            padding = np.zeros((X.shape[0], pad_width), dtype=X.dtype)
-            X = np.hstack([X, padding])
-
-        X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=test_size, random_state=42)
-
-        train_dataset = TabularDataset(X_train, y_train)
-        val_dataset = TabularDataset(X_val, y_val)
-
-        train_loaders.append(DataLoader(train_dataset, batch_size=batch_size, shuffle=True))
-        val_loaders.append(DataLoader(val_dataset, batch_size=batch_size))
-
-    # Create multi-head model
-    # Pad vocab sizes for potential zeros
-    vocab_sizes_padded = [vs + 1 for vs in vocab_sizes]
-
-    model = MultiHeadTabularModel(
-        vocab_sizes_padded, num_classes_per_feature, embedding_dim,
-        num_heads, num_layers, feedforward_dim, dropout_rate
+    X_train, X_val, Y_train, Y_val = train_test_split(
+        X_full, Y_hidden, test_size=test_size, random_state=42
     )
 
-    # Train
+    train_dataset = AutoregressiveDataset(X_train, Y_train)
+    val_dataset = AutoregressiveDataset(X_val, Y_val)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size)
+
+    # Create model
+    model = AutoregressiveTabularModel(
+        vocab_sizes, num_qi, num_classes_per_hidden,
+        embedding_dim, num_heads, num_layers, feedforward_dim, dropout_rate
+    )
+
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    trained_model = train_multihead_model(cfg,
-        model, train_loaders, val_loaders, criterion, optimizer,
-        device, epochs, patience
+    trained_model = train_autoregressive_model(
+        cfg, model, train_loader, val_loader, criterion, optimizer,
+        device, epochs, patience, num_hidden
     )
 
-    # Autoregressive prediction
-    print('\n\nPerforming autoregressive prediction on targets...')
+    # Autoregressive inference on targets
+    print('\nPerforming autoregressive inference on targets...')
 
-    for idx, hidden_feature in enumerate(feature_order):
-        print(f'\nPredicting: {hidden_feature}')
+    # Encode QI features of targets
+    encoded_target_qi = pd.DataFrame()
+    for col in known_features:
+        col_values = targets_copy[col].astype(str)
+        seen_cats = set(encoders[col].classes_)
+        unseen_mask = ~col_values.isin(seen_cats)
+        if unseen_mask.any():
+            most_common = train_df[col].astype(str).mode()[0]
+            col_values = col_values.where(~unseen_mask, most_common)
+        encoded_target_qi[col] = encoders[col].transform(col_values)
 
-        available_features = known_features + feature_order[:idx]
+    # Initialize sequence: QI values + PAD tokens for hidden features
+    n_targets = len(targets_copy)
+    X_inference = np.zeros((n_targets, len(all_features)), dtype=np.int64)
+    X_inference[:, :num_qi] = encoded_target_qi.values
+    for k in range(num_hidden):
+        X_inference[:, num_qi + k] = vocab_sizes[num_qi + k]  # PAD index
 
-        # Encode available features
-        encoded_targets = pd.DataFrame()
-        for col in available_features:
-            col_values = targets_copy[col].astype(str)
-            seen_cats = set(encoders[col].classes_)
-            unseen_mask = ~col_values.isin(seen_cats)
+    # Predict hidden features one at a time, filling in each before the next
+    trained_model.eval()
+    with torch.no_grad():
+        for k, hidden_feature in enumerate(feature_order):
+            print(f'  Predicting: {hidden_feature} ({k + 1}/{num_hidden})')
 
-            if unseen_mask.any():
-                most_common = train_df[col].astype(str).mode()[0]
-                col_values = col_values.where(~unseen_mask, most_common)
-
-            encoded_targets[col] = encoders[col].transform(col_values)
-
-        # Pad
-        X_target = encoded_targets.values
-        max_len = len(all_features)
-        if X_target.shape[1] < max_len:
-            pad_width = max_len - X_target.shape[1]
-            padding = np.zeros((X_target.shape[0], pad_width), dtype=X_target.dtype)
-            X_target = np.hstack([X_target, padding])
-
-        # Predict
-        target_dataset = TabularDataset(X_target, np.zeros(len(X_target)))
-        target_loader = DataLoader(target_dataset, batch_size=batch_size)
-
-        model.eval()
-        predictions = []
-        with torch.no_grad():
-            for inputs, _ in target_loader:
-                inputs = inputs.to(device)
-                outputs = model(inputs, target_feature_idx=idx)
-                _, preds = torch.max(outputs, 1)
+            predictions = []
+            for start in range(0, n_targets, batch_size):
+                end = min(start + batch_size, n_targets)
+                X_batch = torch.tensor(X_inference[start:end], dtype=torch.long).to(device)
+                outputs = trained_model(X_batch)
+                _, preds = torch.max(outputs[k], 1)
                 predictions.extend(preds.cpu().numpy())
 
-        predictions = np.array(predictions)
-        target_encoder = encoders[hidden_feature]
-        original_predictions = target_encoder.inverse_transform(predictions)
-        targets_copy[hidden_feature] = original_predictions
+            predictions = np.array(predictions)
+            # Fill in prediction for next autoregressive step
+            X_inference[:, num_qi + k] = predictions
+
+            # Decode back to original values
+            targets_copy[hidden_feature] = encoders[hidden_feature].inverse_transform(predictions)
 
     return targets_copy.astype(int)
 

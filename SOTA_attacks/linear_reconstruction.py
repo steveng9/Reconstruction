@@ -20,14 +20,8 @@ import numpy as np
 import pandas as pd
 import warnings
 
-# Add recon-synth to path
-RECON_SYNTH_PATH = os.path.expanduser('~/recon-synth')
-if RECON_SYNTH_PATH not in sys.path:
-    sys.path.insert(0, RECON_SYNTH_PATH)
-
-# Import recon-synth attack components
-from attacks import query_attack
-from attacks.simple_kway_queries import gen_all_simple_kway, get_result_simple_kway, simple_kway
+from l1_solve import l1_solve as query_attack
+from simple_kway_queries import gen_all_simple_kway, get_result_simple_kway, simple_kway
 from load_data import process_data
 
 
@@ -54,6 +48,7 @@ def linear_reconstruction_attack(cfg, synth, targets, qi, hidden_features):
     Raises:
         ValueError: If hidden_features is not length 1 or if feature is not binary
     """
+
     # Validate: only works for single features
     if len(hidden_features) != 1:
         raise ValueError(

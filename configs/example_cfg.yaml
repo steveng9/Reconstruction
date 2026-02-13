@@ -145,16 +145,28 @@ attack_params:
     epsilon: 1.35
 
   Attention:
+    num_heads: 4
+    embedding_dim: 64
+    num_layers: 2
+    feedforward_dim: 128
+    dropout_rate: 0.2
+    test_size: 0.2
+    batch_size: 128
+    learning_rate: 0.001
+    epochs: 100
+    patience: 30
+
+  AttentionAutoregressive:
     num_heads_AR: 4
-    embedding_dim_AR: 128
+    embedding_dim_AR: 64
     num_layers_AR: 2
-    feedforward_dim_AR: 512
-    dropout_rate_AR: 0.1
+    feedforward_dim_AR: 128
+    dropout_rate_AR: 0.15
     test_size_AR: 0.2
-    batch_size_AR: 32
-    learning_rate_AR: 0.0001
-    epochs_AR: 400
-    patience_AR: 240
+    batch_size_AR: 64
+    learning_rate_AR: 0.001
+    epochs_AR: 200
+    patience_AR: 30
 
 
 
