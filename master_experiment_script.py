@@ -186,8 +186,26 @@ def _print_experiment_config(config):
     print("\n" + "=" * 70 + "\n")
 
 
+def _score_reconstruction(original, reconstructed, hidden_features, dataset_type):
+    """Score a reconstruction against original data. Returns list of per-feature scores."""
+    if dataset_type == "continuous":
+        scores_df = calculate_continuous_vals_reconstruction_score(original, reconstructed, hidden_features)
+        return scores_df["normalized_rmse"].values.tolist()
+    else:
+        return calculate_reconstruction_score(original, reconstructed, hidden_features)
+
+
+def _run_attack(config, synth, targets, qi, hidden_features):
+    """Run the full attack pipeline (get method, apply enhancements) on given targets."""
+    data_type = config.get("data_type", "agnostic")
+    attack_method = get_attack(config["attack_method"], data_type)
+    attack_method = apply_ensembling(attack_method, config)
+    reconstructed, _, _ = apply_chaining(attack_method, config, synth, targets, qi, hidden_features)
+    return reconstructed
+
+
 def run_single_experiment(config, run_id):
-    train, synth, qi, hidden_features = load_data(config)
+    train, synth, qi, hidden_features, holdout = load_data(config)
 
     # Merge method-specific params into attack_params for easier access
     config = _prepare_config(config)
@@ -196,30 +214,47 @@ def run_single_experiment(config, run_id):
     if run_id == 0:  # Only print on first run to avoid repetition
         _print_experiment_config(config)
 
-    # Get base attack method from registry
-    data_type = config.get("data_type", "agnostic")  # Default to agnostic (TabDDPM, RePaint)
-    attack_method = get_attack(config["attack_method"], data_type)
-
-    # Apply enhancements (composable wrappers)
-    # Each enhancement wrapper checks its own config and bypasses if not enabled
-    # Order matters: ensembling first (combines methods), then chaining (sequential prediction)
-    attack_method = apply_ensembling(attack_method, config)
-    reconstructed, _, _ = apply_chaining(attack_method, config, synth, train, qi, hidden_features)
-
-    # Score based on dataset type (continuous vs categorical)
     dataset_type = config.get("dataset", {}).get("type", "categorical")
-    if dataset_type == "continuous":
-        scores = calculate_continuous_vals_reconstruction_score(train, reconstructed, hidden_features)
-        scores = scores["normalized_rmse"].values
-    else:  # categorical
-        scores = calculate_reconstruction_score(train, reconstructed, hidden_features)
+    mem_test = config.get("memorization_test", {}).get("enabled", False)
 
-    results = {f"RA_{k}": v for k, v in zip(hidden_features, scores)}
-    results["RA_mean"] = np.mean(scores)
+    # --- Attack on training data (always) ---
+    print(f"\n--- Reconstructing training data targets ---")
+    reconstructed_train = _run_attack(config, synth, train, qi, hidden_features)
+    train_scores = _score_reconstruction(train, reconstructed_train, hidden_features, dataset_type)
 
-    scores = list(results.values())
-    print(f"\n{np.array(scores[:-1])}")
-    print(f"ave: {scores[-1]}\n{'=' * 50}")
+    if mem_test and holdout is not None:
+        # --- Attack on non-training (holdout) data ---
+        print(f"\n--- Reconstructing non-training data targets ---")
+        reconstructed_holdout = _run_attack(config, synth, holdout, qi, hidden_features)
+        holdout_scores = _score_reconstruction(holdout, reconstructed_holdout, hidden_features, dataset_type)
+
+        # Log dual metrics + delta
+        results = {}
+        for feat, ts, hs in zip(hidden_features, train_scores, holdout_scores):
+            results[f"RA_train_{feat}"] = ts
+            results[f"RA_nontraining_{feat}"] = hs
+            results[f"RA_delta_{feat}"] = round(ts - hs, 2)
+
+        results["RA_train_mean"] = round(np.mean(train_scores), 2)
+        results["RA_nontraining_mean"] = round(np.mean(holdout_scores), 2)
+        results["RA_delta_mean"] = round(results["RA_train_mean"] - results["RA_nontraining_mean"], 2)
+
+        print(f"\n{'='*60}")
+        print(f"MEMORIZATION COMPARISON")
+        print(f"{'='*60}")
+        print(f"  Train mean:        {results['RA_train_mean']}")
+        print(f"  Non-training mean: {results['RA_nontraining_mean']}")
+        print(f"  Delta (gap):       {results['RA_delta_mean']}")
+        print(f"{'='*60}")
+    else:
+        # Current behavior (unchanged metric names)
+        results = {f"RA_{k}": v for k, v in zip(hidden_features, train_scores)}
+        results["RA_mean"] = np.mean(train_scores)
+
+        scores = list(results.values())
+        print(f"\n{np.array(scores[:-1])}")
+        print(f"ave: {scores[-1]}\n{'=' * 50}")
+
     wandb.log(results)
 
 

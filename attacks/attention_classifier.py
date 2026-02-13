@@ -71,7 +71,7 @@ def _development():
 
     print(f"\n\n{'=' * 50}")
 
-    train, synth, qi, hidden_features = load_data(config)
+    train, synth, qi, hidden_features, _ = load_data(config)
     hidden_features = hidden_features[:2]
     print("hidden_features = ", hidden_features)
 

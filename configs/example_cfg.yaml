@@ -20,6 +20,12 @@ sdg_params:
   eps: 10
   bins: 20
 
+# Memorization comparison: run attack on both train and holdout targets
+# When enabled, logs RA_train_*, RA_nontraining_*, and RA_delta_* (gap) metrics
+# Requires holdout.csv in the dataset directory (same schema, records NOT used to train SDG)
+memorization_test:
+  enabled: false
+
 # Attack selection
 attack_method: "RePaint"  # Name of the attack (see examples below)
 data_type: "agnostic"     # "categorical", "continuous", or "agnostic" (for TabDDPM/RePaint)

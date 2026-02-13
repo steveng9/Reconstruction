@@ -52,7 +52,10 @@ def load_data(config):
     qi = QIs[config["dataset"]["name"]][config["QI"]]
     hidden_features = minus_QIs[config["dataset"]["name"]][config["QI"]]
 
-    return train, synth, qi, hidden_features
+    holdout_path = data_dir / 'holdout.csv'
+    holdout = pd.read_csv(holdout_path) if holdout_path.exists() else None
+
+    return train, synth, qi, hidden_features, holdout
 
 
 
