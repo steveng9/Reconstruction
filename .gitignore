@@ -1,3 +1,5 @@
 __pycache__/
 wandb/
 out*.txt
+.DS_Store
+.idea/
