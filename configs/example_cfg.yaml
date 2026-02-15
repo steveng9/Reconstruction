@@ -11,7 +11,7 @@ wandb:
 dataset:
   name: "nist_arizona_data"
   size: 10_000
-  dir: "/Users/stevengolob/Documents/school/PhD/"
+  dir: "/home/golobs/data/reconstruction_data/adult/size_1k/sample_00"
 QI: "QI1"
 
 # Synthetic data generation
@@ -20,11 +20,12 @@ sdg_params:
   eps: 10
   bins: 20
 
-# Memorization comparison: run attack on both train and holdout targets
+# Memorization comparison: run attack on both training and non-training targets
 # When enabled, logs RA_train_*, RA_nontraining_*, and RA_delta_* (gap) metrics
-# Requires holdout.csv in the dataset directory (same schema, records NOT used to train SDG)
+# Point holdout_dir at a different disjoint sample (its train.csv is used as holdout)
 memorization_test:
   enabled: false
+  # holdout_dir: "/home/golobs/data/reconstruction_data/adult/size_1k/sample_01"
 
 # Attack selection
 attack_method: "RePaint"  # Name of the attack (see examples below)

@@ -7,6 +7,7 @@ Wraps the pipeline from MIA_on_diffusion to match the sdg/ interface.
 import sys
 import os
 import json
+import shutil
 import tempfile
 import pickle
 
@@ -38,16 +39,23 @@ _DEFAULT_CONFIG = {
         "clustering_method": "both",
     },
     "diffusion": {
-        "d_layers": [512, 1024, 1024, 1024, 1024, 512],
-        "dropout": 0.1,
-        "num_timesteps": 1000,
+        "d_layers": [
+            512,
+            1024,
+            1024,
+            1024,
+            1024,
+            512
+        ],
+        "dropout": 0.0,
+        "num_timesteps": 2000,
         "model_type": "mlp",
-        "iterations": 10000,
+        "iterations": 200000,
         "batch_size": 4096,
         "lr": 0.0006,
         "gaussian_loss_type": "mse",
         "weight_decay": 1e-05,
-        "scheduler": "cosine",
+        "scheduler": "cosine"
     },
     "classifier": {
         "d_layers": [128, 256, 512, 1024, 512, 256, 128],
@@ -184,5 +192,9 @@ def tabddpm_generate(train_df, meta, **config):
                     syn_df[col] = pd.to_numeric(syn_df[col], errors="coerce").fillna(0.0)
             except (ValueError, TypeError):
                 pass
+
+    # Clean up temp workspace
+    if use_tempdir:
+        shutil.rmtree(workspace_dir, ignore_errors=True)
 
     return syn_df

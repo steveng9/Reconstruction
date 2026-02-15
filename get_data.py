@@ -47,13 +47,26 @@ minus_QIs = {
 
 def load_data(config):
     data_dir = Path(config["dataset"]["dir"])
-    synth = pd.read_csv(data_dir / 'synth.csv')
     train = pd.read_csv(data_dir / 'train.csv')
+
+    # synth.csv lives in a subdirectory derived from sdg_method + sdg_params
+    sdg_method = config.get("sdg_method")
+    if sdg_method:
+        from sdg import sdg_dirname
+        dirname = sdg_dirname(sdg_method, config.get("sdg_params", {}))
+        synth = pd.read_csv(data_dir / dirname / 'synth.csv')
+    else:
+        synth = pd.read_csv(data_dir / 'synth.csv')
+
     qi = QIs[config["dataset"]["name"]][config["QI"]]
     hidden_features = minus_QIs[config["dataset"]["name"]][config["QI"]]
 
-    holdout_path = data_dir / 'holdout.csv'
-    holdout = pd.read_csv(holdout_path) if holdout_path.exists() else None
+    # Memorization test: load holdout from a separate directory (e.g. a different disjoint sample)
+    mem_cfg = config.get("memorization_test", {})
+    holdout = None
+    if mem_cfg.get("enabled", False) and mem_cfg.get("holdout_dir"):
+        holdout_dir = Path(mem_cfg["holdout_dir"])
+        holdout = pd.read_csv(holdout_dir / 'train.csv')
 
     return train, synth, qi, hidden_features, holdout
 

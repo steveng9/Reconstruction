@@ -65,4 +65,20 @@ def list_sdg():
     return sorted(SDG_REGISTRY.keys())
 
 
-__all__ = ["SDG_REGISTRY", "get_sdg", "list_sdg"]
+def sdg_dirname(method, params=None):
+    """Derive the canonical directory name for an SDG method + params.
+
+    Examples:
+        sdg_dirname("MST", {"epsilon": 1.0})   -> "MST_eps1"
+        sdg_dirname("MST", {"epsilon": 0.1})   -> "MST_eps0.1"
+        sdg_dirname("TVAE")                     -> "TVAE"
+        sdg_dirname("TVAE", {})                 -> "TVAE"
+    """
+    params = params or {}
+    eps = params.get("epsilon") or params.get("eps")
+    if eps is not None:
+        return f"{method}_eps{eps:g}"
+    return method
+
+
+__all__ = ["SDG_REGISTRY", "get_sdg", "list_sdg", "sdg_dirname"]

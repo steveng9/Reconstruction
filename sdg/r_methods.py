@@ -37,7 +37,7 @@ def _to_factor(r_df, col):
     """Convert a column to factor in an R dataframe."""
     return ro.r(f'''
         (function(df) {{
-            df${col} <- as.factor(df${col})
+            df$`{col}` <- as.factor(df$`{col}`)
             df
         }})
     ''')(r_df)
@@ -47,7 +47,7 @@ def _to_numeric(r_df, col):
     """Convert a column to numeric in an R dataframe."""
     return ro.r(f'''
         (function(df) {{
-            df${col} <- as.numeric(as.character(df${col}))
+            df$`{col}` <- as.numeric(as.character(df$`{col}`))
             df
         }})
     ''')(r_df)
