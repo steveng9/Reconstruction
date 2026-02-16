@@ -97,9 +97,9 @@ SDG_JOBS = [
     }),
 ]
 
-#SDG_JOBS = [
-#    ("TabDDPM", {}),
-#]
+SDG_JOBS = [
+    ("TabDDPM", {}),
+]
 
 # Environment variables to suppress noisy warnings in subprocesses
 _QUIET_ENV = {
