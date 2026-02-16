@@ -25,6 +25,21 @@ python -m sdg.test_sdg MST TVAE     # specific methods
 
 There is no formal test suite (no pytest). Test/debug scripts live in `maintenance_scripts/`.
 
+### SDG Data Generation & Evaluation
+
+```bash
+# Generate synthetic data (configure DATASET, SAMPLE_SIZE, SDG_JOBS at top of script)
+python sdg/generate_synth.py sample        # Step 1: create disjoint training samples
+python sdg/generate_synth.py sdg           # Step 2: generate synthetic data
+python sdg/generate_synth.py count         # Count all generated synth.csv files
+python sdg/generate_synth.py count adult   # Count for a specific dataset
+
+# Evaluate synthetic data quality
+python sdg/evaluate_synth.py               # all datasets
+python sdg/evaluate_synth.py adult         # one dataset
+python sdg/evaluate_synth.py --verbose adult  # per-column detail
+```
+
 ## Architecture
 
 ### Execution Flow

@@ -66,6 +66,11 @@ def load_data(config):
     holdout = None
     if mem_cfg.get("enabled", False) and mem_cfg.get("holdout_dir"):
         holdout_dir = Path(mem_cfg["holdout_dir"])
+        if (holdout_dir / "NO_HOLDOUT").exists():
+            raise ValueError(
+                f"Holdout dir {holdout_dir} is marked NO_HOLDOUT — this sample "
+                f"overlaps with other training samples and cannot be used as holdout."
+            )
         holdout = pd.read_csv(holdout_dir / 'train.csv')
 
     return train, synth, qi, hidden_features, holdout

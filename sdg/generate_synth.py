@@ -4,16 +4,16 @@ Generate synthetic datasets for reconstruction attack experiments.
 
 Two-step usage:
     Step 1 — Sample training data:
-        python generate_synth.py sample
+        python sdg/generate_synth.py sample
 
     Step 2 — Generate synthetic data (after verifying samples):
-        python generate_synth.py sdg
+        python sdg/generate_synth.py sdg
 
     Runs in background by default, logging to sdg_log.txt in the dataset's size dir.
     Tail progress with:  tail -f /home/golobs/data/reconstruction_data/adult/size_1000/sdg_log.txt
 
 Single-job mode (called internally by sdg step):
-    python generate_synth.py --job <method> <train_csv> <output_csv> <meta_json> <config_json>
+    python sdg/generate_synth.py --job <method> <train_csv> <output_csv> <meta_json> <config_json>
 """
 
 import os
@@ -33,7 +33,10 @@ from datetime import datetime
 # ============================================================
 
 DATA_ROOT = Path("/home/golobs/data/reconstruction_data")
-DATASET = "adult"
+#DATASET = "adult"
+#DATASET = "match2-2017"
+DATASET = "cdc_diabetes"
+#DATASET = "california"
 
 SAMPLE_SIZE = 1000
 NUM_SAMPLES = 10       # total disjoint training samples to create
@@ -43,10 +46,11 @@ RANDOM_SEED = 42
 # First batch: range(5). Later: range(5, 10).
 #SAMPLES_TO_GENERATE = range(1,5)
 SAMPLES_TO_GENERATE = range(5)
+#SAMPLES_TO_GENERATE = [4]
 
 # Max parallel SDG jobs per sample.
 # GPU methods (TVAE, CTGAN, ARF, TabDDPM) share GPU memory — tune accordingly.
-MAX_WORKERS = 1
+MAX_WORKERS = 8
 
 # Column metadata — loaded from meta.json next to full_data.csv
 META_PATH = DATA_ROOT / DATASET / "meta.json"
@@ -63,29 +67,39 @@ SDG_JOBS = [
     ("MST",  {"epsilon": 100.0}),
     ("MST",  {"epsilon": 1000.0}),
     ("AIM",  {"epsilon": 1.0}),
+    ("AIM",  {"epsilon": 10.0}),
 
     # Deep generative models
     ("TVAE",    {}),
     ("CTGAN",   {}),
     ("ARF",     {}),
-    ("TabDDPM", {}),
+    #("TabDDPM", {}),
 
     # R-based / de-identification
     ("Synthpop",        {}),
     ("RankSwap",        {
-        "swap_features": ["age", "fnlwgt", "education-num",
-                          "capital-gain", "capital-loss", "hours-per-week"],
+        # ADULT data
+        #"swap_features": ["age", "fnlwgt", "education-num","capital-gain", "capital-loss", "hours-per-week"],
+        # match2-2017 data
+        #"swap_features":["Location - Lng", "Location - Lat", "Number of Alarms", "Unit sequence in call dispatch"],
+        # cdc_diabetes data
+        "swap_features": ["BMI", "MentHlth", "PhysHlth"],
     }),
     ("CellSuppression", {
+        # ADULT data
         #"key_vars": ["age", "workclass", "education", "sex", "race", "native-country"],
-        "key_vars": ["age", "sex", "race"],
+        #"key_vars": ["age", "sex", "race"],
+        # match2-2017 data
+        # "key_vars": ["Zipcode of Incident", "Station Area", "Battalion", "Supervisor District"],
+        # cdc_diabetes data
+        "key_vars": ["Sex", "Age", "Income", "Education"],
         "k": 5,
     }),
 ]
 
-SDG_JOBS = [
-    ("TabDDPM", {}),
-]
+#SDG_JOBS = [
+#    ("TabDDPM", {}),
+#]
 
 # Environment variables to suppress noisy warnings in subprocesses
 _QUIET_ENV = {
@@ -267,6 +281,42 @@ def launch_sdg_jobs(sample_idx):
 
 
 # ============================================================
+#  COUNT
+# ============================================================
+
+def do_count(args):
+    """Count generated synth.csv files, optionally filtered by dataset name."""
+    datasets = args if args else sorted(d.name for d in DATA_ROOT.iterdir() if d.is_dir())
+
+    total = 0
+    for ds in datasets:
+        ds_dir = DATA_ROOT / ds
+        if not ds_dir.is_dir():
+            print(f"[SKIP] {ds}: not found")
+            continue
+        print(f"\n{ds}/")
+        ds_total = 0
+        for size_dir in sorted(ds_dir.glob("size_*")):
+            samples = sorted(size_dir.glob("sample_*"))
+            methods = {}
+            for sample_dir in samples:
+                for synth in sample_dir.glob("*/synth.csv"):
+                    method = synth.parent.name
+                    methods[method] = methods.get(method, 0) + 1
+            if not methods:
+                continue
+            n = sum(methods.values())
+            ds_total += n
+            print(f"  {size_dir.name}: {n} files across {len(samples)} samples")
+            for m in sorted(methods):
+                print(f"    {m}: {methods[m]}")
+        print(f"  total: {ds_total}")
+        total += ds_total
+
+    print(f"\nGrand total: {total} synth.csv files")
+
+
+# ============================================================
 #  LOGGING
 # ============================================================
 
@@ -289,13 +339,16 @@ def log(msg):
 if __name__ == "__main__":
     if "--job" in sys.argv:
         run_single_job(sys.argv)
+    elif len(sys.argv) >= 2 and sys.argv[1] == "count":
+        do_count(sys.argv[2:])
     elif len(sys.argv) < 2 or sys.argv[1] not in ("sample", "sdg"):
         print("Usage:")
-        print("  python generate_synth.py sample   # Step 1: create disjoint training samples")
-        print("  python generate_synth.py sdg      # Step 2: generate synthetic data")
+        print("  python sdg/generate_synth.py sample          # Step 1: create disjoint training samples")
+        print("  python sdg/generate_synth.py sdg             # Step 2: generate synthetic data")
+        print("  python sdg/generate_synth.py count [dataset]  # Count generated synth.csv files")
         print()
         print("To run in background:")
-        print("  nohup python generate_synth.py sdg &")
+        print("  nohup python sdg/generate_synth.py sdg &")
         base = DATA_ROOT / DATASET / f"size_{SAMPLE_SIZE}"
         print(f"  tail -f {base}/sdg_log.txt")
         sys.exit(1)
