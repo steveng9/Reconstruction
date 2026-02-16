@@ -176,20 +176,40 @@ def evaluate_one(train_df, synth_df, meta):
     return results, col_df
 
 
-def evaluate_baseline(train_df, meta):
-    """Split train in half and evaluate one half against the other.
+def compute_baselines(train_cache, meta):
+    """Compare each sample's train.csv against another sample's train.csv.
 
-    This gives a "natural variation" baseline — the expected metric values
-    when comparing two genuine samples from the same distribution.
+    Uses round-robin pairing (sample_00 vs sample_01, sample_01 vs sample_02, ...
+    last vs sample_00) so both sides are the same size — a fair comparison to
+    synthetic data. Returns a dict of {(dataset, size, sample): results}.
+
+    Requires at least 2 samples per (dataset, size) group.
     """
-    n = len(train_df)
-    half = n // 2
-    shuffled = train_df.sample(frac=1, random_state=0).reset_index(drop=True)
-    a = shuffled.iloc[:half]
-    b = shuffled.iloc[half:2*half]
-    results, _ = evaluate_one(a, b, meta)
-    results["n_rows_synth"] = len(b)
-    return results
+    from collections import defaultdict
+
+    # Group train paths by (dataset, size)
+    groups = defaultdict(list)  # (ds, sz) -> [(sample, train_path), ...]
+    for tp, df in train_cache.items():
+        parts = tp.parts
+        # .../dataset/size_N/sample_XX/train.csv
+        sample = parts[-2]
+        size = parts[-3]
+        dataset = parts[-4]
+        groups[(dataset, size)].append((sample, tp, df))
+
+    baselines = {}
+    for (ds, sz), items in groups.items():
+        items.sort()  # sort by sample name
+        if len(items) < 2:
+            continue
+        for i, (sample, tp, df_a) in enumerate(items):
+            # Pair with the next sample (wrap around)
+            _, _, df_b = items[(i + 1) % len(items)]
+            results, _ = evaluate_one(df_a, df_b, meta)
+            results["n_rows_synth"] = len(df_b)
+            baselines[(ds, sz, sample)] = results
+
+    return baselines
 
 
 # ============================================================
@@ -214,20 +234,16 @@ def main():
     rows = []
     col_detail_rows = []  # for verbose per-column output
 
-    # Cache train data to avoid re-reading and to compute baseline once per sample
-    train_cache = {}      # train_path -> train_df
-    baseline_cache = {}   # (dataset, size, sample) -> baseline_results
+    # Cache train data to avoid re-reading
+    train_cache = {}  # train_path -> train_df
+    meta_cache = {}   # dataset -> meta
 
     for entry in entries:
         tp = entry["train_path"]
         if tp not in train_cache:
             train_cache[tp] = pd.read_csv(tp)
         train_df = train_cache[tp]
-
-        # Compute baseline once per sample
-        key = (entry["dataset"], entry["size"], entry["sample"])
-        if key not in baseline_cache:
-            baseline_cache[key] = evaluate_baseline(train_df, entry["meta"])
+        meta_cache[entry["dataset"]] = entry["meta"]
 
         synth_df = pd.read_csv(entry["synth_path"])
         metrics, col_df = evaluate_one(train_df, synth_df, entry["meta"])
@@ -249,11 +265,14 @@ def main():
             col_df["method"] = entry["method"]
             col_detail_rows.append(col_df)
 
-    # Add baseline rows
-    for (ds, sz, samp), bl in baseline_cache.items():
-        row = {"dataset": ds, "size": sz, "sample": samp, "method": "~train_baseline"}
-        row.update(bl)
-        rows.append(row)
+    # Compute baselines: compare each sample against a different sample (same size)
+    for ds, meta in meta_cache.items():
+        ds_trains = {tp: df for tp, df in train_cache.items() if tp.parts[-4] == ds}
+        baselines = compute_baselines(ds_trains, meta)
+        for (bds, sz, samp), bl in baselines.items():
+            row = {"dataset": bds, "size": sz, "sample": samp, "method": "~train_baseline"}
+            row.update(bl)
+            rows.append(row)
 
     df = pd.DataFrame(rows)
 
