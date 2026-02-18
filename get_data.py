@@ -77,6 +77,46 @@ def load_data(config):
 
 
 
+def load_mia_data(config):
+    """Load all data needed for MIA: train, synth, holdout, and meta.json."""
+    import json
+    data_dir = Path(config["dataset"]["dir"])
+
+    train = pd.read_csv(data_dir / "train.csv")
+
+    sdg_method = config.get("sdg_method")
+    if sdg_method:
+        from sdg import sdg_dirname
+        dirname = sdg_dirname(sdg_method, config.get("sdg_params", {}))
+        synth = pd.read_csv(data_dir / dirname / "synth.csv")
+    else:
+        synth = pd.read_csv(data_dir / "synth.csv")
+
+    # Holdout is required for MIA (non-member targets)
+    holdout_dir = config.get("memorization_test", {}).get("holdout_dir")
+    if not holdout_dir:
+        raise ValueError(
+            "MIA mode requires memorization_test.holdout_dir in the config "
+            "(path to a disjoint sample directory to use as non-members)."
+        )
+    holdout_path = Path(holdout_dir)
+    if (holdout_path / "NO_HOLDOUT").exists():
+        raise ValueError(
+            f"holdout_dir '{holdout_dir}' is marked NO_HOLDOUT — this sample "
+            "overlaps with other training samples and cannot be used as MIA holdout."
+        )
+    holdout = pd.read_csv(holdout_path / "train.csv")
+
+    # meta.json lives two levels above the sample dir: .../dataset_name/meta.json
+    meta_path = data_dir.parent.parent / "meta.json"
+    if not meta_path.exists():
+        raise FileNotFoundError(f"meta.json not found at {meta_path}")
+    with open(meta_path) as f:
+        meta = json.load(f)
+
+    return train, synth, holdout, meta
+
+
 def get_meta_data_for_diffusion(cfg):
     if cfg["dataset"]["name"] == "nist_arizona_data":
         meta = {"relation_order": [[None, "crc_data"]], "tables": {"crc_data": {"children": [], "parents": []}}}

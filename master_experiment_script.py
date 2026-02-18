@@ -10,6 +10,8 @@ parser = argparse.ArgumentParser()
 argparse.ArgumentParser(description="Run tabular Reconstruction experiments")
 parser.add_argument("--n_runs", type=int, default=N_RUNS_default, help="Number of runs to average over")
 parser.add_argument("--on_server", type=bool, default=False, help="changes directories depending on which machine running on")
+parser.add_argument("--mode", type=str, default="reconstruction", choices=["reconstruction", "mia"],
+                    help="Experiment mode: 'reconstruction' (default) or 'mia' (membership inference)")
 args = parser.parse_args()
 
 # Set path BEFORE importing other modules
@@ -32,11 +34,11 @@ import yaml
 import numpy as np
 import wandb
 
-from get_data import load_data
+from get_data import load_data, load_mia_data
 from scoring import calculate_reconstruction_score, calculate_continuous_vals_reconstruction_score
 
 # Attack registry (single source of truth for attack names)
-from attacks import get_attack
+from attacks import get_attack, get_mia_attack
 
 # Enhancement wrappers
 from enhancements import apply_chaining, apply_ensembling
@@ -186,6 +188,24 @@ def _print_experiment_config(config):
     print("\n" + "=" * 70 + "\n")
 
 
+def _print_mia_config(config):
+    """Print MIA experiment configuration."""
+    print("\n" + "=" * 70)
+    print("MIA EXPERIMENT CONFIGURATION")
+    print("=" * 70)
+    ds = config.get("dataset", {})
+    print(f"\n  Dataset : {ds.get('name')} / {ds.get('size')}")
+    sdg_params = config.get("sdg_params", {})
+    sdg_str = f"{config.get('sdg_method')}  {sdg_params}" if sdg_params else config.get('sdg_method')
+    print(f"  SDG     : {sdg_str}")
+    mia_params = config.get("mia_params", {})
+    mia_str = f"{config.get('mia_method')}  {mia_params}" if mia_params else config.get('mia_method')
+    print(f"  MIA     : {mia_str}")
+    holdout_dir = config.get("memorization_test", {}).get("holdout_dir", "NOT SET")
+    print(f"  Holdout : {holdout_dir}")
+    print("=" * 70 + "\n")
+
+
 def _score_reconstruction(original, reconstructed, hidden_features, dataset_type):
     """Score a reconstruction against original data. Returns list of per-feature scores."""
     if dataset_type == "continuous":
@@ -205,6 +225,23 @@ def _run_attack(config, synth, targets, qi, hidden_features):
 
 
 def run_single_experiment(config, run_id):
+    # ── MIA mode ──────────────────────────────────────────────────────────────
+    if args.mode == "mia":
+        if run_id == 0:
+            _print_mia_config(config)
+
+        train, synth, holdout, meta = load_mia_data(config)
+        mia_fn  = get_mia_attack(config["mia_method"])
+        results = mia_fn(config, synth, train, holdout, meta)
+
+        print(f"\n  MIA results:")
+        for k, v in results.items():
+            print(f"    {k}: {v}")
+        print(f"{'=' * 50}")
+        wandb.log(results)
+        return
+
+    # ── Reconstruction mode (original flow) ───────────────────────────────────
     train, synth, qi, hidden_features, holdout = load_data(config)
 
     # Merge method-specific params into attack_params for easier access

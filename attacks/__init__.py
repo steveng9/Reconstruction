@@ -55,6 +55,9 @@ from .baselines_continuous import (
 # Data-type agnostic attacks (work on both)
 from .partialDiffusion import repaint_reconstruction, partial_tabddpm_reconstruction
 
+# Membership Inference Attacks
+from .mia import MIA_REGISTRY, synth_distance_mia, nndr_mia
+
 # SOTA attacks from published papers
 import sys
 import os
@@ -172,6 +175,15 @@ def get_attack(attack_name, data_type="agnostic"):
     )
 
 
+def get_mia_attack(name: str):
+    """Get a MIA attack function by name from MIA_REGISTRY."""
+    if name not in MIA_REGISTRY:
+        raise KeyError(
+            f"MIA attack '{name}' not found. Available: {sorted(MIA_REGISTRY)}"
+        )
+    return MIA_REGISTRY[name]
+
+
 def list_attacks(data_type=None):
     """
     Return list of available attack names.
@@ -197,6 +209,8 @@ def list_attacks(data_type=None):
 
 __all__ = [
     'ATTACK_REGISTRY',
+    'MIA_REGISTRY',
     'get_attack',
+    'get_mia_attack',
     'list_attacks',
 ]
