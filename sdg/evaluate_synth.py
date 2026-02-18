@@ -87,6 +87,26 @@ def build_sdv_metadata(meta, columns):
 #  Metrics
 # ============================================================
 
+def normalize_cat_dtypes(df, cat_cols):
+    """Cast categorical columns to a consistent str representation.
+
+    Handles type mismatches between train and synth:
+    - SDG methods may output int (1) for columns the original CSV stores as float (1.0)
+    - astype(str) alone produces "1" vs "1.0" — different keys, causing NaNs in
+      proportion tables and near-zero SDV scores.
+    - The regex strips the trailing ".0" from integer-valued floats so both
+      representations map to the same string: "1.0" → "1", "2.0" → "2".
+    - Non-integer floats ("1.5"), strings ("A"), and NaN representations are unchanged.
+    """
+    if not cat_cols:
+        return df
+    df = df.copy()
+    for col in cat_cols:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.replace(r'^(-?\d+)\.0$', r'\1', regex=True)
+    return df
+
+
 def evaluate_one(train_df, synth_df, meta):
     """Compute quality metrics comparing synth_df to train_df.
 
@@ -94,6 +114,10 @@ def evaluate_one(train_df, synth_df, meta):
     """
     cat_cols = [c for c in meta.get("categorical", []) if c in train_df.columns and c in synth_df.columns]
     num_cols = [c for c in meta.get("continuous", []) if c in train_df.columns and c in synth_df.columns]
+
+    # Normalize categorical dtypes to str — handles SDG methods that output int codes
+    train_df = normalize_cat_dtypes(train_df, cat_cols)
+    synth_df = normalize_cat_dtypes(synth_df, cat_cols)
 
     results = {}
     col_rows = []  # per-column detail rows
@@ -310,6 +334,15 @@ def main():
         meta_cache[entry["dataset"]] = entry["meta"]
 
         synth_df = pd.read_csv(entry["synth_path"])
+
+        # Normalize categorical dtypes at load time so the marginal records
+        # section below gets correct value_counts keys (not just evaluate_one).
+        cat_cols_all = entry["meta"].get("categorical", [])
+        train_df = normalize_cat_dtypes(train_df, cat_cols_all)
+        synth_df = normalize_cat_dtypes(synth_df, cat_cols_all)
+        # Keep the normalized train in cache so compute_baselines also benefits
+        train_cache[tp] = train_df
+
         metrics, col_df = evaluate_one(train_df, synth_df, entry["meta"])
 
         # Collect per-value proportions for low-cardinality categorical columns
@@ -383,9 +416,10 @@ def main():
 
         summary = group.groupby("method")[metric_cols].mean()
 
-        # Put baseline first, then sort the rest
+        # Put baseline first (if present), then sort the rest
         methods = sorted([m for m in summary.index if m != "~train_baseline"])
-        summary = summary.loc[["~train_baseline"] + methods]
+        baseline_row = ["~train_baseline"] if "~train_baseline" in summary.index else []
+        summary = summary.loc[baseline_row + methods]
 
         show_cols = []
         if "mean_tvd" in summary.columns:

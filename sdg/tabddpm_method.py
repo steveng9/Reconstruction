@@ -125,6 +125,8 @@ def tabddpm_generate(train_df, meta, **config):
         configs["diffusion"]["num_timesteps"] = config["num_timesteps"]
     if "batch_size" in config:
         configs["diffusion"]["batch_size"] = config["batch_size"]
+    if "d_layers" in config:
+        configs["diffusion"]["d_layers"] = config["d_layers"]
 
     # Workspace dir for model artifacts
     workspace_dir = config.get("workspace_dir", None)

@@ -65,6 +65,11 @@ def load_data(config):
     mem_cfg = config.get("memorization_test", {})
     holdout = None
     if mem_cfg.get("enabled", False) and mem_cfg.get("holdout_dir"):
+        if (data_dir / "NO_HOLDOUT").exists():
+            raise ValueError(
+                f"Train dir {data_dir} is marked NO_HOLDOUT — this training sample was "
+                f"drawn non-disjointly and may overlap any holdout set."
+            )
         holdout_dir = Path(mem_cfg["holdout_dir"])
         if (holdout_dir / "NO_HOLDOUT").exists():
             raise ValueError(
@@ -98,6 +103,11 @@ def load_mia_data(config):
         raise ValueError(
             "MIA mode requires memorization_test.holdout_dir in the config "
             "(path to a disjoint sample directory to use as non-members)."
+        )
+    if (data_dir / "NO_HOLDOUT").exists():
+        raise ValueError(
+            f"Train dir {data_dir} is marked NO_HOLDOUT — this training sample was "
+            f"drawn non-disjointly and may overlap any holdout set."
         )
     holdout_path = Path(holdout_dir)
     if (holdout_path / "NO_HOLDOUT").exists():

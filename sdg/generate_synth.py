@@ -36,16 +36,22 @@ DATA_ROOT = Path("/home/golobs/data/reconstruction_data")
 #DATASET = "adult"
 #DATASET = "match2-2017"
 #DATASET = "cdc_diabetes"
-DATASET = "california"
+#DATASET = "california"
+DATASET = "nist_sbo"
 
-SAMPLE_SIZE = 1000
-NUM_SAMPLES = 10       # total disjoint training samples to create
+SAMPLE_SIZE = 1_000
+NUM_SAMPLES = 5       # total training samples to create
+
+# Whether samples must be disjoint (non-overlapping).
+# Set False when XxN exceeds total available data, or when samples won't be used as holdout sets.
+# Non-disjoint sampling writes a NO_HOLDOUT marker in each sample dir.
+DISJOINT = True
+
 RANDOM_SEED = 42
 
 # Which samples to generate SDG for (0-indexed).
-# First batch: range(5). Later: range(5, 10).
-#SAMPLES_TO_GENERATE = range(1,5)
 SAMPLES_TO_GENERATE = range(5)
+#SAMPLES_TO_GENERATE = range(5, 10)
 #SAMPLES_TO_GENERATE = [4]
 
 # Max parallel SDG jobs per sample.
@@ -57,58 +63,124 @@ META_PATH = DATA_ROOT / DATASET / "meta.json"
 with open(META_PATH) as f:
     META = json.load(f)
 
-# SDG jobs: (method_name, config_kwargs)
-# Directory names are derived automatically via sdg_dirname(method, config).
-# To add more epsilon settings, just add another tuple.
-SDG_JOBS = [
-    # Differentially private — vary epsilon
-    ("MST",  {"epsilon": 1.0}),
-    ("MST",  {"epsilon": 10.0}),
-    ("MST",  {"epsilon": 100.0}),
-    ("MST",  {"epsilon": 1000.0}),
-    ("AIM",  {"epsilon": 1.0}),
-    ("AIM",  {"epsilon": 10.0}),
 
-    # Deep generative models
-    ("TVAE",    {}),
-    ("CTGAN",   {}),
-    ("ARF",     {}),
-    #("TabDDPM", {}),
+# ============================================================
+#  SDG JOBS — per-dataset configs
+#
+#  Each dataset entry is a list of (method, config_kwargs) tuples.
+#  Directory names are derived automatically via sdg_dirname(method, config).
+#  Changing DATASET above auto-selects the right job list.
+# ============================================================
 
-    # R-based / de-identification
-    ("Synthpop",        {}),
-    ("RankSwap",        {
-        # ADULT data
-        #"swap_features": ["age", "fnlwgt", "education-num","capital-gain", "capital-loss", "hours-per-week"],
-        # match2-2017 data
-        #"swap_features": ["Location - Lng", "Location - Lat", "Number of Alarms", "Unit sequence in call dispatch"],
-        # cdc_diabetes data
-        #"swap_features": ["BMI", "MentHlth", "PhysHlth"],
-        # nist_sbo data — all 5 continuous columns
-        #"swap_features": ["TABWGT", "EMPLOYMENT_NOISY", "PAYROLL_NOISY", "RECEIPTS_NOISY", "PCT1"],
-        # california data — all 9 columns (dataset is entirely continuous)
-        "swap_features": ["MedInc", "HouseAge", "AveRooms", "AveBedrms", "Population", "AveOccup", "Latitude", "Longitude", "MedHouseVal"],
-    }),
-    #("CellSuppression", {
-        # ADULT data
-        #"key_vars": ["age", "workclass", "education", "sex", "race", "native-country"],
-        #"key_vars": ["age", "sex", "race"],
-        # match2-2017 data
-        #"key_vars": ["Zipcode of Incident", "Station Area", "Battalion", "Supervisor District"],
-        # cdc_diabetes data
-        #"key_vars": ["Sex", "Age", "Income", "Education"],
-        # nist_sbo data — geographic + industry + owner demographics; RACE1 excluded (too many combo codes)
-    #    "key_vars": ["FIPST", "SECTOR", "ETH1", "SEX1", "AGE1"],
-        # NOTE: omit CellSuppression entirely from SDG_JOBS for purely continuous datasets
-        # (california). k-anonymity suppression requires categorical quasi-identifiers.
-    #    "k": 5,
-    #}),
-]
+_SDG_JOBS_BY_DATASET = {
 
+    "adult": [
+        # Differentially private — vary epsilon
+        ("MST",  {"epsilon": 0.1}),
+        ("MST",  {"epsilon": 1.0}),
+        ("MST",  {"epsilon": 10.0}),
+        ("MST",  {"epsilon": 100.0}),
+        ("MST",  {"epsilon": 1000.0}),
+        ("AIM",  {"epsilon": 1.0}),
+        ("AIM",  {"epsilon": 10.0}),
+        # Deep generative models
+        ("TVAE",    {}),
+        ("CTGAN",   {}),
+        ("ARF",     {}),
+        ("TabDDPM", {}),
+        # R-based / de-identification
+        ("Synthpop",        {}),
+        ("RankSwap",        {"swap_features": ["age", "fnlwgt", "education-num", "capital-gain", "capital-loss", "hours-per-week"]}),
+        ("CellSuppression", {"key_vars": ["age", "workclass", "education", "sex", "race", "native-country"]}),
+    ],
 
-SDG_JOBS = [
-    ("TabDDPM", {}),
-]
+    "cdc_diabetes": [
+        ("MST",  {"epsilon": 0.1}),
+        ("MST",  {"epsilon": 1.0}),
+        ("MST",  {"epsilon": 10.0}),
+        ("MST",  {"epsilon": 100.0}),
+        ("MST",  {"epsilon": 1000.0}),
+        ("AIM",  {"epsilon": 1.0}),
+        ("AIM",  {"epsilon": 10.0}),
+        ("TVAE",    {}),
+        ("CTGAN",   {}),
+        ("ARF",     {}),
+        ("TabDDPM", {}),
+        ("Synthpop",        {}),
+        ("RankSwap",        {"swap_features": ["BMI", "MentHlth", "PhysHlth"]}),
+        ("CellSuppression", {"key_vars": ["Sex", "Age", "Income", "Education"]}),
+    ],
+
+    "california": [
+        ("MST",  {"epsilon": 1.0}),
+        ("MST",  {"epsilon": 10.0}),
+        ("MST",  {"epsilon": 100.0}),
+        ("MST",  {"epsilon": 1000.0}),
+        ("AIM",  {"epsilon": 1.0}),
+        ("AIM",  {"epsilon": 10.0}),
+        ("TVAE",    {}),
+        ("CTGAN",   {}),
+        ("ARF",     {}),
+        ("TabDDPM", {}),
+        ("Synthpop",        {}),
+        # All 9 columns are continuous — swap all
+        ("RankSwap", {"swap_features": ["MedInc", "HouseAge", "AveRooms", "AveBedrms", "Population", "AveOccup", "Latitude", "Longitude", "MedHouseVal"]}),
+        # CellSuppression requires categorical QI columns — omit for purely continuous datasets
+    ],
+
+    "nist_sbo": [
+        # Deep generative models
+        # TabDDPM: wider network for 130-column dataset (one-hot expands to 500+ features).
+        # Bump middle layers to 2048 and train longer.
+        ("TabDDPM", {
+            "d_layers": [1024, 2048, 2048, 2048, 1024],
+            "iterations": 300000,
+        }),
+        ("TVAE",    {}),
+        ("CTGAN",   {}),
+        ("ARF",     {}),
+        # Differentially private
+        # NOTE: AIM is computationally infeasible for 130 columns — omitted.
+        # bin_continuous_as_ordinal=True: pre-bins the 5 continuous columns before fitting,
+        # bypassing SmartNoise's private BinTransformer bound estimation. With small epsilon
+        # (e.g. 0.1), preprocessor_eps=0.03 is too small for approx_bounds to work on
+        # skewed financial data (range 0–140k). MST bins continuous data internally anyway —
+        # pre-binning with actual data bounds is equivalent and gives the full epsilon to synthesis.
+        ("MST",  {"epsilon": 0.1,    "bin_continuous_as_ordinal": True}),
+        ("MST",  {"epsilon": 1.0,    "bin_continuous_as_ordinal": True}),
+        ("MST",  {"epsilon": 10.0,   "bin_continuous_as_ordinal": True}),
+        ("MST",  {"epsilon": 100.0,  "bin_continuous_as_ordinal": True}),
+        ("MST",  {"epsilon": 1000.0, "bin_continuous_as_ordinal": True}),
+        # R-based / de-identification
+        ("Synthpop",        {}),
+        # 5 continuous columns
+        ("RankSwap",        {"swap_features": ["TABWGT", "EMPLOYMENT_NOISY", "PAYROLL_NOISY", "RECEIPTS_NOISY", "PCT1"]}),
+        # Geographic + industry + owner demographics as QI
+        ("CellSuppression", {"key_vars": ["FIPST", "SECTOR", "ETH1", "SEX1", "AGE1"]}),
+    ],
+
+    "match2-2017": [
+        ("MST",  {"epsilon": 1.0}),
+        ("MST",  {"epsilon": 10.0}),
+        ("TVAE",    {}),
+        ("CTGAN",   {}),
+        ("ARF",     {}),
+        ("TabDDPM", {}),
+        ("Synthpop",        {}),
+        ("RankSwap",        {"swap_features": ["Location - Lng", "Location - Lat", "Number of Alarms", "Unit sequence in call dispatch"]}),
+        ("CellSuppression", {"key_vars": ["Zipcode of Incident", "Station Area", "Battalion", "Supervisor District"]}),
+    ],
+
+}
+
+if DATASET not in _SDG_JOBS_BY_DATASET:
+    raise ValueError(
+        f"No SDG job config found for dataset '{DATASET}'. "
+        f"Add an entry to _SDG_JOBS_BY_DATASET in generate_synth.py."
+    )
+
+SDG_JOBS = _SDG_JOBS_BY_DATASET[DATASET]
+
 
 # Environment variables to suppress noisy warnings in subprocesses
 _QUIET_ENV = {
@@ -156,7 +228,12 @@ def run_single_job(argv):
 # ============================================================
 
 def do_sample():
-    """Load full dataset, clean it, create and save disjoint samples."""
+    """Load full dataset, clean it, create and save training samples.
+
+    When DISJOINT=True (default), samples are non-overlapping slices.
+    When DISJOINT=False, each sample is drawn independently (may overlap);
+    a NO_HOLDOUT marker is written to each sample dir.
+    """
     full_path = DATA_ROOT / DATASET / "full_data.csv"
     df = pd.read_csv(full_path)
 
@@ -173,24 +250,48 @@ def do_sample():
 
     print(f"Full dataset: {len(df)} rows after cleaning")
 
-    # Shuffle deterministically
-    rng = np.random.RandomState(RANDOM_SEED)
-    df = df.sample(frac=1, random_state=rng).reset_index(drop=True)
-
-    needed = NUM_SAMPLES * SAMPLE_SIZE
-    if needed > len(df):
-        raise ValueError(f"Need {needed} rows but only have {len(df)}")
-
     base = DATA_ROOT / DATASET / f"size_{SAMPLE_SIZE}"
-    for i in range(NUM_SAMPLES):
-        start = i * SAMPLE_SIZE
-        end = start + SAMPLE_SIZE
-        sample_df = df.iloc[start:end]
 
-        sample_dir = base / f"sample_{i:02d}"
-        sample_dir.mkdir(parents=True, exist_ok=True)
-        sample_df.to_csv(sample_dir / "train.csv", index=False)
-        print(f"  sample_{i:02d}/train.csv — {len(sample_df)} rows")
+    if DISJOINT:
+        # Non-overlapping sequential slices from a shuffled dataset
+        needed = NUM_SAMPLES * SAMPLE_SIZE
+        if needed > len(df):
+            raise ValueError(
+                f"DISJOINT=True requires {needed} rows ({NUM_SAMPLES} x {SAMPLE_SIZE}) "
+                f"but only {len(df)} available. Use DISJOINT=False for overlapping samples."
+            )
+        rng = np.random.RandomState(RANDOM_SEED)
+        df = df.sample(frac=1, random_state=rng).reset_index(drop=True)
+
+        for i in range(NUM_SAMPLES):
+            start = i * SAMPLE_SIZE
+            end = start + SAMPLE_SIZE
+            sample_df = df.iloc[start:end]
+
+            sample_dir = base / f"sample_{i:02d}"
+            sample_dir.mkdir(parents=True, exist_ok=True)
+            sample_df.to_csv(sample_dir / "train.csv", index=False)
+            print(f"  sample_{i:02d}/train.csv — {len(sample_df)} rows  [disjoint]")
+
+    else:
+        # Independent random draws — samples may overlap each other
+        if SAMPLE_SIZE > len(df):
+            raise ValueError(
+                f"SAMPLE_SIZE={SAMPLE_SIZE} exceeds available rows ({len(df)})."
+            )
+
+        for i in range(NUM_SAMPLES):
+            sample_df = df.sample(n=SAMPLE_SIZE, replace=False, random_state=RANDOM_SEED + i)
+            sample_df = sample_df.reset_index(drop=True)
+
+            sample_dir = base / f"sample_{i:02d}"
+            sample_dir.mkdir(parents=True, exist_ok=True)
+            sample_df.to_csv(sample_dir / "train.csv", index=False)
+
+            # Mark as non-holdout-eligible — these samples may overlap each other
+            # and therefore cannot be used as membership inference holdout sets.
+            (sample_dir / "NO_HOLDOUT").touch()
+            print(f"  sample_{i:02d}/train.csv — {len(sample_df)} rows  [non-disjoint, NO_HOLDOUT marked]")
 
     print(f"\nSaved {NUM_SAMPLES} samples to {base}/")
     print(f"Meta: {META_PATH}")
@@ -372,7 +473,7 @@ if __name__ == "__main__":
         do_count(sys.argv[2:])
     elif len(sys.argv) < 2 or sys.argv[1] not in ("sample", "sdg"):
         print("Usage:")
-        print("  python sdg/generate_synth.py sample          # Step 1: create disjoint training samples")
+        print("  python sdg/generate_synth.py sample          # Step 1: create training samples")
         print("  python sdg/generate_synth.py sdg             # Step 2: generate synthetic data")
         print("  python sdg/generate_synth.py count [dataset]  # Count generated synth.csv files")
         print()
