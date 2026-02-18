@@ -140,9 +140,14 @@ def cellsuppression_generate(train_df, meta, **config):
     sdcMicro = _ensure_r_package("sdcMicro")
 
     key_vars = config.get("key_vars")
-    if key_vars is None:
-        raise ValueError("key_vars must be specified for CellSuppression (list of QI columns)")
+    if not key_vars:
+        raise ValueError(
+            "key_vars must be a non-empty list of categorical QI columns for CellSuppression. "
+            "For purely continuous datasets, omit CellSuppression from SDG_JOBS entirely."
+        )
     key_vars = [c for c in key_vars if c in train_df.columns]
+    if not key_vars:
+        raise ValueError(f"None of the specified key_vars exist in the training data columns.")
     k = config.get("k", 6)
 
     df = train_df.copy()

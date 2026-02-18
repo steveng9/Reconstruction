@@ -35,8 +35,8 @@ from datetime import datetime
 DATA_ROOT = Path("/home/golobs/data/reconstruction_data")
 #DATASET = "adult"
 #DATASET = "match2-2017"
-DATASET = "cdc_diabetes"
-#DATASET = "california"
+#DATASET = "cdc_diabetes"
+DATASET = "california"
 
 SAMPLE_SIZE = 1000
 NUM_SAMPLES = 10       # total disjoint training samples to create
@@ -81,21 +81,30 @@ SDG_JOBS = [
         # ADULT data
         #"swap_features": ["age", "fnlwgt", "education-num","capital-gain", "capital-loss", "hours-per-week"],
         # match2-2017 data
-        #"swap_features":["Location - Lng", "Location - Lat", "Number of Alarms", "Unit sequence in call dispatch"],
+        #"swap_features": ["Location - Lng", "Location - Lat", "Number of Alarms", "Unit sequence in call dispatch"],
         # cdc_diabetes data
-        "swap_features": ["BMI", "MentHlth", "PhysHlth"],
+        #"swap_features": ["BMI", "MentHlth", "PhysHlth"],
+        # nist_sbo data — all 5 continuous columns
+        #"swap_features": ["TABWGT", "EMPLOYMENT_NOISY", "PAYROLL_NOISY", "RECEIPTS_NOISY", "PCT1"],
+        # california data — all 9 columns (dataset is entirely continuous)
+        "swap_features": ["MedInc", "HouseAge", "AveRooms", "AveBedrms", "Population", "AveOccup", "Latitude", "Longitude", "MedHouseVal"],
     }),
-    ("CellSuppression", {
+    #("CellSuppression", {
         # ADULT data
         #"key_vars": ["age", "workclass", "education", "sex", "race", "native-country"],
         #"key_vars": ["age", "sex", "race"],
         # match2-2017 data
-        # "key_vars": ["Zipcode of Incident", "Station Area", "Battalion", "Supervisor District"],
+        #"key_vars": ["Zipcode of Incident", "Station Area", "Battalion", "Supervisor District"],
         # cdc_diabetes data
-        "key_vars": ["Sex", "Age", "Income", "Education"],
-        "k": 5,
-    }),
+        #"key_vars": ["Sex", "Age", "Income", "Education"],
+        # nist_sbo data — geographic + industry + owner demographics; RACE1 excluded (too many combo codes)
+    #    "key_vars": ["FIPST", "SECTOR", "ETH1", "SEX1", "AGE1"],
+        # NOTE: omit CellSuppression entirely from SDG_JOBS for purely continuous datasets
+        # (california). k-anonymity suppression requires categorical quasi-identifiers.
+    #    "k": 5,
+    #}),
 ]
+
 
 SDG_JOBS = [
     ("TabDDPM", {}),
@@ -151,9 +160,15 @@ def do_sample():
     full_path = DATA_ROOT / DATASET / "full_data.csv"
     df = pd.read_csv(full_path)
 
-    # Clean Adult-specific issues
+    # Dataset-specific cleaning
     if DATASET == "adult":
         df["income"] = df["income"].str.strip().str.rstrip(".")
+        df = df.dropna().reset_index(drop=True)
+
+    if DATASET == "nist_sbo":
+        # 23% of rows are partial respondents with 116/130 columns blank (structural skip pattern).
+        # They're a fundamentally different kind of record — drop them for clean SDG input.
+        # Leaves ~123,892 fully-complete rows out of 161,079.
         df = df.dropna().reset_index(drop=True)
 
     print(f"Full dataset: {len(df)} rows after cleaning")
