@@ -126,6 +126,20 @@ def evaluate_one(train_df, synth_df, meta):
         results["mean_tvd"] = np.mean(tvds)
         results["mean_jsd"] = np.mean(jsd_vals)
 
+    # --- Pairwise TVD (2-way joint marginals, all categorical column pairs) ---
+    if len(cat_cols) >= 2:
+        pair_tvds = []
+        for i in range(len(cat_cols)):
+            for j in range(i + 1, len(cat_cols)):
+                c1, c2 = cat_cols[i], cat_cols[j]
+                real_j = train_df[[c1, c2]].dropna().groupby([c1, c2]).size() / len(train_df)
+                synth_j = synth_df[[c1, c2]].dropna().groupby([c1, c2]).size() / len(synth_df)
+                all_keys = real_j.index.union(synth_j.index)
+                rv = real_j.reindex(all_keys, fill_value=0.0).values
+                sv = synth_j.reindex(all_keys, fill_value=0.0).values
+                pair_tvds.append(0.5 * np.abs(rv - sv).sum())
+        results["pairwise_tvd"] = np.mean(pair_tvds)
+
     # --- Continuous columns ---
     mean_errs, std_errs = [], []
     for col in num_cols:
@@ -213,6 +227,55 @@ def compute_baselines(train_cache, meta):
 
 
 # ============================================================
+#  Value distribution display
+# ============================================================
+
+MAX_CAT_VALS = 8  # skip columns with more unique values in the marginal table
+
+METRIC_ARROWS = {
+    "mean_tvd":       "mean_tvd↓",
+    "mean_jsd":       "mean_jsd↓",
+    "pairwise_tvd":   "pairwise_tvd↓",
+    "mean_mean_err%": "mean_mean_err%↓",
+    "mean_std_err%":  "mean_std_err%↓",
+    "corr_diff":      "corr_diff↓",
+    "sdv_col_shapes": "sdv_col_shapes↑",
+    "sdv_col_pairs":  "sdv_col_pairs↑",
+    "n_rows_synth":   "n_rows_synth",
+}
+
+
+def print_value_distributions(mdf, ds, sz, meta):
+    """Print compact real-vs-synth proportion table for low-cardinality categorical columns."""
+    grp = mdf[(mdf["dataset"] == ds) & (mdf["size"] == sz)]
+    if grp.empty:
+        return
+
+    # Average train proportions across samples (train is the same per sample regardless of method)
+    train_props = grp.groupby(["column", "value"])["real_prop"].mean()
+
+    # Average synth proportions per method across samples
+    synth_pivot = grp.pivot_table(
+        index=["column", "value"],
+        columns="method",
+        values="synth_prop",
+        aggfunc="mean",
+    )
+    synth_pivot.insert(0, "train", train_props)
+    synth_pivot.columns.name = None
+
+    n_all_cat = len(meta.get("categorical", []))
+    n_shown = synth_pivot.index.get_level_values("column").nunique()
+    note = (
+        f"  ({n_shown}/{n_all_cat} categorical cols shown; >{MAX_CAT_VALS} values skipped)"
+        if n_shown < n_all_cat else ""
+    )
+    print(f"  Value proportions{note}:")
+    print(synth_pivot.round(3).to_string())
+    print()
+
+
+# ============================================================
 #  Main
 # ============================================================
 
@@ -233,6 +296,7 @@ def main():
 
     rows = []
     col_detail_rows = []  # for verbose per-column output
+    marginal_records = []  # for value-proportion display
 
     # Cache train data to avoid re-reading
     train_cache = {}  # train_path -> train_df
@@ -247,6 +311,30 @@ def main():
 
         synth_df = pd.read_csv(entry["synth_path"])
         metrics, col_df = evaluate_one(train_df, synth_df, entry["meta"])
+
+        # Collect per-value proportions for low-cardinality categorical columns
+        for col in entry["meta"].get("categorical", []):
+            if col not in train_df.columns:
+                continue
+            all_vals = sorted(
+                set(train_df[col].dropna().unique()) | set(synth_df[col].dropna().unique()),
+                key=str,
+            )
+            if len(all_vals) > MAX_CAT_VALS:
+                continue
+            real_vc = train_df[col].value_counts(normalize=True)
+            synth_vc = synth_df[col].value_counts(normalize=True)
+            for val in all_vals:
+                marginal_records.append({
+                    "dataset": entry["dataset"],
+                    "size": entry["size"],
+                    "sample": entry["sample"],
+                    "method": entry["method"],
+                    "column": col,
+                    "value": str(val),
+                    "real_prop": float(real_vc.get(val, 0.0)),
+                    "synth_prop": float(synth_vc.get(val, 0.0)),
+                })
 
         row = {
             "dataset": entry["dataset"],
@@ -275,6 +363,7 @@ def main():
             rows.append(row)
 
     df = pd.DataFrame(rows)
+    mdf_global = pd.DataFrame(marginal_records) if marginal_records else None
 
     # Print summary grouped by dataset/size
     pd.set_option("display.max_columns", 30)
@@ -289,6 +378,9 @@ def main():
         print(f"  {ds} / {sz}  ({n_samples} samples)")
         print(f"{'='*90}")
 
+        if mdf_global is not None:
+            print_value_distributions(mdf_global, ds, sz, meta_cache[ds])
+
         summary = group.groupby("method")[metric_cols].mean()
 
         # Put baseline first, then sort the rest
@@ -298,6 +390,8 @@ def main():
         show_cols = []
         if "mean_tvd" in summary.columns:
             show_cols += ["mean_tvd", "mean_jsd"]
+        if "pairwise_tvd" in summary.columns:
+            show_cols += ["pairwise_tvd"]
         if "mean_mean_err%" in summary.columns:
             show_cols += ["mean_mean_err%", "mean_std_err%"]
         if "corr_diff" in summary.columns:
@@ -306,7 +400,7 @@ def main():
             show_cols += ["sdv_col_shapes", "sdv_col_pairs"]
         show_cols += ["n_rows_synth"]
 
-        print(summary[show_cols].to_string())
+        print(summary[show_cols].rename(columns=METRIC_ARROWS).to_string())
         print()
 
     # Verbose: compact per-column tables, one per (dataset, size, method)

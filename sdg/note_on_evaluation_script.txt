@@ -1,0 +1,40 @@
+ Usage:
+
+  python evaluate_synth.py                  # all datasets with meta.json
+  python evaluate_synth.py adult            # just adult
+  python evaluate_synth.py adult california # multiple
+  python evaluate_synth.py --verbose adult  # per-column breakdown
+
+
+● Metric explanations (computed per synth.csv vs its train.csv):
+  - mean_tvd: Average Total Variation Distance across categorical columns — measures how different the category frequency
+  distributions are (0 = identical, 1 = completely different)                                                                      
+  - mean_jsd: Average Jensen-Shannon Divergence — similar to TVD but smoother, information-theoretic (0 = identical, 1 = maximally
+  different)                                                                                                                       
+  - mean_mean_err%: Average relative error in column means across continuous columns (e.g., 20% means synth means are ~20% off from
+   real means on average)
+  - mean_std_err%: Same but for standard deviations
+  - mean_corr_diff: Average absolute difference in pairwise correlations between continuous columns (0 = correlations perfectly
+  preserved)
+  - sdv_col_shapes: Per-column distributional similarity. Uses KS-complement for continuous columns (1 minus the              
+  Kolmogorov-Smirnov statistic) and TV-complement for categorical columns (1 minus TVD). So it's essentially the inverse of
+  our mean_tvd for categoricals.                                                                                              
+  - sdv_col_pairs: Pairwise correlation preservation between all column pairs. 1 means the synthetic data perfectly reproduces
+   the real data's correlation structure.
+
+  One thing worth noting in the results: the ~train_baseline row has a surprisingly low sdv_col_pairs (~0.45) despite being
+  real data. That's because the baseline splits the training set in half (500 or 5000 rows), and with fewer rows, pairwise
+  correlations are noisier. The synthetic methods get the full sample size, so they have an inherent advantage on that metric.
+   Something to keep in mind when interpreting it.
+
+
+
+
+  Summary table is grouped by dataset/size, averaged across samples. --verbose adds per-column detail.
+
+  Some quick observations from the adult results:
+  - RankSwap has perfect TVD/JSD (0.0) because it only swaps values within columns, preserving marginals exactly
+  - TabDDPM and Synthpop are strong all-around (low TVD, low mean/std error, low correlation diff)
+  - MST at high epsilon (100, 1000) has excellent marginals (TVD ~0) but very high continuous mean errors (~130-150%) —
+   likely an issue with how it handles numeric columns
+  - TVAE has notably high TVD at size_1000, improving at size_10000

@@ -294,7 +294,21 @@ def do_count(args):
         if not ds_dir.is_dir():
             print(f"[SKIP] {ds}: not found")
             continue
-        print(f"\n{ds}/")
+        meta_path = ds_dir / "meta.json"
+        if meta_path.exists():
+            with open(meta_path) as f:
+                ds_meta = json.load(f)
+            n_cat  = len(ds_meta.get("categorical", []))
+            n_cont = len(ds_meta.get("continuous", []))
+            n_ord  = len(ds_meta.get("ordinal", []))
+            total_cols = n_cat + n_cont + n_ord
+            parts = [f"{n_cat} categorical", f"{n_cont} continuous"]
+            if n_ord:
+                parts.append(f"{n_ord} ordinal")
+            col_info = f"  [{total_cols} cols: {', '.join(parts)}]"
+        else:
+            col_info = "  [no meta.json]"
+        print(f"\n{ds}/{col_info}")
         ds_total = 0
         for size_dir in sorted(ds_dir.glob("size_*")):
             samples = sorted(size_dir.glob("sample_*"))
