@@ -85,14 +85,14 @@ def simply_measure_deid_itself_baseline(cfg, deid, targets, qi, hidden_features)
 
     reconstructed_targets[hidden_features] = pd.concat(result_parts, ignore_index=True)[hidden_features]
 
-    return reconstructed_targets
+    return reconstructed_targets, None, None
 
 
 def random_baseline(cfg, deid, targets, qi, hidden_features):
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         reconstructed_targets[hidden_feature] = deid[hidden_feature].sample().values[0]
-    return reconstructed_targets
+    return reconstructed_targets, None, None
 
 
 def mean_baseline(cfg, deid, targets, qi, hidden_features):
@@ -100,7 +100,7 @@ def mean_baseline(cfg, deid, targets, qi, hidden_features):
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         reconstructed_targets[hidden_feature] = deid[hidden_feature].mean()
-    return reconstructed_targets
+    return reconstructed_targets, None, None
 
 
 def slightly_better_mean_baseline(cfg, deid, targets, qi, hidden_features):
@@ -122,14 +122,14 @@ def slightly_better_mean_baseline(cfg, deid, targets, qi, hidden_features):
     for feature in hidden_features:
         recon[feature] = recon[feature].astype(int) #ro match with types
 
-    return recon
+    return recon, None, None
 
 
 def mode_baseline(cfg, deid, targets, qi, hidden_features):
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         reconstructed_targets[hidden_feature] = deid[hidden_feature].mode()[0]
-    return reconstructed_targets
+    return reconstructed_targets, None, None
 
 
 

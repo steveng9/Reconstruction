@@ -30,7 +30,7 @@ def mlp_repression_reconstruction(cfg, synth, targets, known_features, hidden_fe
     cfg["dataset"]["artifacts"] = cfg["dataset"]["dir"] + "/mlp_continuous_artifacts"
     os.makedirs(cfg["dataset"]["artifacts"], exist_ok=True)
     return nn_regression_reconstruction(
-        synth, targets, known_features, hidden_features,
+        cfg, synth, targets, known_features, hidden_features,
         cfg["attack_params"].get("test_size", test_size_default),
         cfg["attack_params"].get("hidden_dims", hidden_dims_default),
         cfg["attack_params"].get("batch_size", batch_size_default),

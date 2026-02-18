@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from os.path import join
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
@@ -148,12 +148,20 @@ def random_forest_reconstruction(cfg, deid, targets, qi, hidden_features):
     reconstructed_targets = targets.copy()
     probas = []
     classes_ = []
+
+    # Encode QI features as ordinal integers so sklearn handles string-valued
+    # categorical columns (e.g. adult dataset). Safe for numeric columns too —
+    # RF is invariant to monotone input transformations.
+    enc = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
+    X_train = enc.fit_transform(deid[qi])
+    X_targets = enc.transform(targets[qi])
+
     for hidden_feature in hidden_features:
         model = RandomForestClassifier(n_estimators=num_estimators, max_depth=max_depth)
-        model.fit(deid[qi], deid[hidden_feature])
+        model.fit(X_train, deid[hidden_feature])
 
-        reconstructed_targets[hidden_feature] = model.predict(targets[qi])
-        probas.append(model.predict_proba(targets[qi]))
+        reconstructed_targets[hidden_feature] = model.predict(X_targets)
+        probas.append(model.predict_proba(X_targets))
         classes_.append(model.classes_)
 
     return reconstructed_targets, probas, classes_

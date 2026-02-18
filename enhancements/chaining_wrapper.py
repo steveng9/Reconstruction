@@ -50,8 +50,13 @@ def apply_chaining(attack_fn, cfg, synth, targets, qi, hidden_features):
     print(f"  Order: {order}")
     print(f"{'='*60}\n")
 
-    # Get feature type information (continuous vs discrete)
-    _, domain = get_meta_data_for_diffusion(cfg)
+    # Get feature type information (continuous vs discrete) — only needed for
+    # intermediate logging, so skip the call when log_intermediate is False.
+    log_intermediate = chaining_cfg.get("log_intermediate", True)
+    if log_intermediate:
+        _, domain = get_meta_data_for_diffusion(cfg)
+    else:
+        domain = {}
 
     # Initialize reconstruction
     reconstructed = targets.copy()

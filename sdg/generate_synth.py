@@ -33,19 +33,19 @@ from datetime import datetime
 # ============================================================
 
 DATA_ROOT = Path("/home/golobs/data/reconstruction_data")
-#DATASET = "adult"
+DATASET = "adult"
 #DATASET = "match2-2017"
 #DATASET = "cdc_diabetes"
 #DATASET = "california"
-DATASET = "nist_sbo"
+#DATASET = "nist_sbo"
 
-SAMPLE_SIZE = 1_000
+SAMPLE_SIZE = 20_000
 NUM_SAMPLES = 5       # total training samples to create
 
 # Whether samples must be disjoint (non-overlapping).
 # Set False when XxN exceeds total available data, or when samples won't be used as holdout sets.
 # Non-disjoint sampling writes a NO_HOLDOUT marker in each sample dir.
-DISJOINT = True
+DISJOINT = False
 
 RANDOM_SEED = 42
 
@@ -75,6 +75,11 @@ with open(META_PATH) as f:
 _SDG_JOBS_BY_DATASET = {
 
     "adult": [
+        # Deep generative models
+        ("TabDDPM", {}),
+        ("TVAE",    {}),
+        ("CTGAN",   {}),
+        ("ARF",     {}),
         # Differentially private — vary epsilon
         ("MST",  {"epsilon": 0.1}),
         ("MST",  {"epsilon": 1.0}),
@@ -83,11 +88,6 @@ _SDG_JOBS_BY_DATASET = {
         ("MST",  {"epsilon": 1000.0}),
         ("AIM",  {"epsilon": 1.0}),
         ("AIM",  {"epsilon": 10.0}),
-        # Deep generative models
-        ("TVAE",    {}),
-        ("CTGAN",   {}),
-        ("ARF",     {}),
-        ("TabDDPM", {}),
         # R-based / de-identification
         ("Synthpop",        {}),
         ("RankSwap",        {"swap_features": ["age", "fnlwgt", "education-num", "capital-gain", "capital-loss", "hours-per-week"]}),
@@ -424,7 +424,13 @@ def do_count(args):
             col_info = f"  [{total_cols} cols: {', '.join(parts)}]"
         else:
             col_info = "  [no meta.json]"
-        print(f"\n{ds}/{col_info}")
+        full_data_path = ds_dir / "full_data.csv"
+        if full_data_path.exists():
+            n_rows = sum(1 for _ in open(full_data_path)) - 1  # subtract header
+            row_info = f"  [{n_rows:,} rows in full_data.csv]"
+        else:
+            row_info = "  [no full_data.csv]"
+        print(f"\n{ds}/{col_info}{row_info}")
         ds_total = 0
         for size_dir in sorted(ds_dir.glob("size_*")):
             samples = sorted(size_dir.glob("sample_*"))

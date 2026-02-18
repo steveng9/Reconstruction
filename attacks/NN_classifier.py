@@ -368,4 +368,4 @@ def nn_classification_reconstruction(cfg, synth, targets, known_features, hidden
         original_predictions = label_encoder.inverse_transform(predictions)
         reconstructed_targets[hidden_feature] = original_predictions
 
-    return reconstructed_targets.astype(int)
+    return reconstructed_targets

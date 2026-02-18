@@ -6,9 +6,39 @@ import pickle
 import pandas as pd
 
 
+def _sdg_dirname(method, params=None):
+    """Local copy of sdg.sdg_dirname — avoids importing the full sdg package in recon_ env."""
+    params = params or {}
+    eps = params.get("epsilon") or params.get("eps")
+    if eps is not None:
+        return f"{method}_eps{eps:g}"
+    return method
+
+
 
 
 QIs = {
+    # Adult (census income): demographic background knowledge as QI
+    # Story: given public demographic info, reconstruct employment & income
+    "adult": {
+        "QI1": ["age", "sex", "race", "native-country", "education", "marital-status"],
+        # All features except target income — for single-feature reconstruction comparison
+        "QI_linear": ["age", "workclass", "fnlwgt", "education", "education-num",
+                      "marital-status", "occupation", "relationship", "race", "sex",
+                      "capital-gain", "capital-loss", "hours-per-week", "native-country"],
+    },
+    "cdc_diabetes": {
+        # All features except target Diabetes_binary — for single-feature reconstruction comparison
+        "QI_linear": ["HighBP", "HighChol", "CholCheck", "BMI", "Smoker", "Stroke",
+                      "HeartDiseaseorAttack", "PhysActivity", "Fruits", "Veggies",
+                      "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost", "GenHlth",
+                      "MentHlth", "PhysHlth", "DiffWalk", "Sex", "Age", "Education", "Income"],
+    },
+    # California Housing: geographic + structural features as QI
+    # Story: given publicly observable location/age/population, reconstruct economic features
+    "california": {
+        "QI1": ["Latitude", "Longitude", "HouseAge", "Population"],
+    },
     "nist_arizona_data": {
         "QI1": ['F37', 'F41', 'F2', 'F17', 'F22', 'F32', 'F47'],
         "QI2": ['F37', 'F41', 'F3', 'F13', 'F18', 'F23', 'F30'],
@@ -19,6 +49,17 @@ QIs = {
     }
 }
 minus_QIs = {
+    "adult": {
+        "QI1":      ["workclass", "fnlwgt", "education-num", "occupation", "relationship",
+                     "capital-gain", "capital-loss", "hours-per-week", "income"],
+        "QI_linear": ["income"],
+    },
+    "cdc_diabetes": {
+        "QI_linear": ["Diabetes_binary"],
+    },
+    "california": {
+        "QI1": ["MedInc", "AveRooms", "AveBedrms", "AveOccup", "MedHouseVal"],
+    },
     "nist_arizona_data": {
         "QI1": ['F23', 'F13', 'F11', 'F43', 'F36', 'F15', 'F33', 'F25', 'F18', 'F5', 'F30', 'F10', 'F12', 'F50', 'F3', 'F1', 'F9', 'F21'],
         "QI2": ['F11', 'F43', 'F5', 'F36', 'F25', 'F47', 'F32', 'F15', 'F33', 'F17', 'F10', 'F12', 'F2', 'F1', 'F50', 'F22', 'F9', 'F21'],
@@ -52,8 +93,7 @@ def load_data(config):
     # synth.csv lives in a subdirectory derived from sdg_method + sdg_params
     sdg_method = config.get("sdg_method")
     if sdg_method:
-        from sdg import sdg_dirname
-        dirname = sdg_dirname(sdg_method, config.get("sdg_params", {}))
+        dirname = _sdg_dirname(sdg_method, config.get("sdg_params", {}))
         synth = pd.read_csv(data_dir / dirname / 'synth.csv')
     else:
         synth = pd.read_csv(data_dir / 'synth.csv')
@@ -91,8 +131,7 @@ def load_mia_data(config):
 
     sdg_method = config.get("sdg_method")
     if sdg_method:
-        from sdg import sdg_dirname
-        dirname = sdg_dirname(sdg_method, config.get("sdg_params", {}))
+        dirname = _sdg_dirname(sdg_method, config.get("sdg_params", {}))
         synth = pd.read_csv(data_dir / dirname / "synth.csv")
     else:
         synth = pd.read_csv(data_dir / "synth.csv")
