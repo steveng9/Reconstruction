@@ -53,6 +53,12 @@ def _to_numeric(r_df, col):
     ''')(r_df)
 
 
+def _r_safe_name(name):
+    """Replace R-problematic characters (hyphens, spaces, etc.) with underscores."""
+    import re
+    return re.sub(r'[^a-zA-Z0-9_.]', '_', name)
+
+
 def _restore_int_cols(result_df, original_df):
     """Convert columns back to int where the original was integer-typed."""
     for col in result_df.columns:
@@ -154,15 +160,23 @@ def cellsuppression_generate(train_df, meta, **config):
     for col in df.columns:
         df[col] = df[col].astype(str)
 
+    # sdcMicro evaluates column names as R expressions — hyphens become subtraction operators.
+    # Rename to R-safe names before passing to R, then restore afterward.
+    col_map = {col: _r_safe_name(col) for col in df.columns}
+    reverse_map = {v: orig for orig, v in col_map.items()}
+    df = df.rename(columns=col_map)
+    safe_key_vars = [col_map.get(kv, kv) for kv in key_vars]
+
     r_df = _py2rpy(df)
     for col in df.columns:
         r_df = _to_factor(r_df, col)
 
-    r_key_vars = ro.StrVector(key_vars)
+    r_key_vars = ro.StrVector(safe_key_vars)
     sdc_obj = sdcMicro.createSdcObj(dat=r_df, keyVars=r_key_vars)
     sdc_obj = sdcMicro.localSuppression(sdc_obj, k=k)
     anon_r = sdcMicro.extractManipData(sdc_obj)
     anon_df = _rpy2py(anon_r)
+    anon_df = anon_df.rename(columns=reverse_map)
 
     # Remove rows with NAs (suppressed cells)
     anon_df = anon_df.dropna().reset_index(drop=True)
