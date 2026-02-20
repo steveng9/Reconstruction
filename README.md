@@ -107,6 +107,29 @@ Memorization tests compare attack performance on training members vs. held-out n
 
 `get_data.py` enforces safety: if **either** the train dir or the holdout dir contains a `NO_HOLDOUT` marker, loading raises a `ValueError`. This prevents accidentally using overlapping samples as holdout.
 
+## partialDiffusion Attacks
+
+Three attacks based on training a diffusion model on the synthetic data, then using it to impute hidden features conditioned on a target's known QI values. They vary along two independent axes:
+
+|  | Standard training | QI-conditioned training |
+|---|---|---|
+| **TabDDPM sampling** | *(not used)* | `TabDDPM` |
+| **RePaint sampling** | `RePaint` | `ConditionedRePaint` |
+
+- **Training axis** — whether QI values replace the noisy features during the forward diffusion process, directly conditioning the model on QI structure.
+- **Sampling axis** — whether reconstruction uses straight diffusion sampling (TabDDPM) or RePaint's back-and-forth resampling, which iteratively re-noises the known QI values and denoises, improving coherence between QI and imputed hidden features.
+
+Each attack saves model artifacts to its own subdirectory of the sample folder (`partial_tabddpm_artifacts/`, `repaint_artifacts/`, `conditioned_repaint_artifacts/`), so all three can coexist and be run with `--retrain` independently.
+
+Run with `experiment_scripts/run_partial_diffusion_adult.py`:
+```bash
+# First run: train diffusion models
+python experiment_scripts/run_partial_diffusion_adult.py --retrain
+
+# Subsequent runs: tune reconstruction params without retraining
+python experiment_scripts/run_partial_diffusion_adult.py
+```
+
 ## Architecture Overview
 
 See `CLAUDE.md` for full architecture details (attack registry, config structure, scoring, external dependencies).

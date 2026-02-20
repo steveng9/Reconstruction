@@ -28,3 +28,15 @@ def repaint_reconstruction(cfg, synth, targets, qi, hidden_features):
     reconstruction = reconstruct_data_categorical(cfg, targets, qi, hidden_features, reconstruct_method_RePaint=True)
     return reconstruction, None, None
 
+
+def conditioned_repaint_reconstruction(cfg, synth, targets, qi, hidden_features):
+    """Hybrid: QI conditioning during training (like TabDDPM) + RePaint sampling."""
+    cfg["dataset"]["artifacts"] = cfg["dataset"]["dir"] + "/conditioned_repaint_artifacts"
+    os.makedirs(cfg["dataset"]["artifacts"], exist_ok=True)
+    meta, domain = get_meta_data_for_diffusion(cfg)
+    if cfg["attack_params"]["retrain"]:
+        # reconstruct_method_RePaint=False → not False = True → conditioning ON during training
+        train_diffusion_for_reconstruction(cfg, meta, domain, synth, qi, hidden_features, reconstruct_method_RePaint=False)
+    reconstruction = reconstruct_data_categorical(cfg, targets, qi, hidden_features, reconstruct_method_RePaint=True)
+    return reconstruction, None, None
+

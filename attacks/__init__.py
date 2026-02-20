@@ -53,7 +53,7 @@ from .baselines_continuous import (
 )
 
 # Data-type agnostic attacks (work on both)
-from .partialDiffusion import repaint_reconstruction, partial_tabddpm_reconstruction
+from .partialDiffusion import repaint_reconstruction, partial_tabddpm_reconstruction, conditioned_repaint_reconstruction
 
 # Membership Inference Attacks
 from .mia import MIA_REGISTRY, synth_distance_mia, nndr_mia
@@ -129,6 +129,7 @@ ATTACK_REGISTRY = {
     "agnostic": {
         "TabDDPM": partial_tabddpm_reconstruction,
         "RePaint": repaint_reconstruction,
+        "ConditionedRePaint": conditioned_repaint_reconstruction,
     }
 }
 

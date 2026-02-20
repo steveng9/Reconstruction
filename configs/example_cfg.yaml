@@ -68,6 +68,7 @@ attack_params:
   # ==========================================================================
 
   RePaint:
+    retrain: true
     num_epochs: 100_000
     resamples: 5
     jump: 10
@@ -80,6 +81,22 @@ attack_params:
       - 512
     dropout: 0.1
     jump_fn: "jump_max10"
+
+  ConditionedRePaint:
+    retrain: true
+    num_epochs: 100_000
+    resamples: 10
+    num_timesteps: 1000
+    hidden_dims:
+      - 512
+      - 1024
+      - 1024
+      - 1024
+      - 512
+    dropout: 0.0
+    jump_fn: "jump_max10"
+    batch_size: 2048
+    lr: 0.0006
 
   TabDDPM:
     retrain: true
@@ -251,6 +268,9 @@ random_seed: 42
 #   data_type: "agnostic"  # or omit data_type
 #
 #   attack_method: "RePaint"
+#   data_type: "agnostic"  # or omit data_type
+#
+#   attack_method: "ConditionedRePaint"  # QI-conditioned training + RePaint sampling
 #   data_type: "agnostic"  # or omit data_type
 
 
