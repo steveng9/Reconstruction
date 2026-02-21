@@ -34,8 +34,16 @@ import yaml
 import numpy as np
 import wandb
 
+import os
+from pathlib import Path
+
 from get_data import load_data, load_mia_data
-from scoring import calculate_reconstruction_score, calculate_continuous_vals_reconstruction_score
+from scoring import (
+    calculate_reconstruction_score,
+    calculate_continuous_vals_reconstruction_score,
+    calculate_row_level_scores,
+    compute_outlier_scores,
+)
 
 # Attack registry (single source of truth for attack names)
 from attacks import get_attack, get_mia_attack
@@ -215,6 +223,104 @@ def _score_reconstruction(original, reconstructed, hidden_features, dataset_type
         return calculate_reconstruction_score(original, reconstructed, hidden_features)
 
 
+def _sdg_dirname(method, params=None):
+    """Return the SDG subdirectory name (e.g. 'MST_eps1') for a method/params pair."""
+    params = params or {}
+    eps = params.get("epsilon") or params.get("eps")
+    return f"{method}_eps{eps:g}" if eps is not None else method
+
+
+def _build_row_score_path(config, run_id, is_training):
+    """
+    Return the output path for a row-level score CSV.
+
+    Pattern:
+        {data_dir}/{sdg_dir}/row_scores/{attack_method}__{qi}__{split}_run{run_id}.csv
+    """
+    data_dir      = Path(config["dataset"]["dir"])
+    sdg_method    = config.get("sdg_method", "unknown")
+    sdg_params    = config.get("sdg_params") or {}
+    sdg_dir       = _sdg_dirname(sdg_method, sdg_params)
+    attack_method = config.get("attack_method", "unknown")
+    qi_name       = config.get("QI", "QI")
+    split         = "train" if is_training else "holdout"
+    filename      = f"{attack_method}__{qi_name}__{split}_run{run_id}.csv"
+    return data_dir / sdg_dir / "row_scores" / filename
+
+
+def _save_row_scores(config, targets, reconstructed, hidden_features, qi,
+                     dataset_type, run_id, is_training):
+    """
+    Compute row-level RA scores, optionally add outlier flags, save CSV, and log to WandB.
+
+    The output CSV contains:
+      qi_cols | true_{feat}... | recon_{feat}... | RA_row_{feat}... | RA_row_mean
+      [ | outlier_score | is_outlier ]  (if compute_outliers enabled)
+      | is_training | run_id
+    """
+    row_cfg = config.get("row_level_analysis", {})
+
+    # Compute per-row scores
+    row_scores = calculate_row_level_scores(targets, reconstructed, hidden_features, dataset_type)
+
+    # Build output DataFrame
+    out = pd.DataFrame(index=targets.index)
+    for col in qi:
+        if col in targets.columns:
+            out[col] = targets[col].values
+    for feat in hidden_features:
+        out[f"true_{feat}"]  = targets[feat].values
+        out[f"recon_{feat}"] = reconstructed[feat].values
+    for col in row_scores.columns:
+        out[col] = row_scores[col].values
+
+    # Optional outlier analysis
+    if row_cfg.get("compute_outliers", False):
+        outlier_method = row_cfg.get("outlier_method", "isolation_forest")
+        outlier_pct    = row_cfg.get("outlier_percentile", 90)
+        # Infer cat/num split from dtype (float64 → continuous, otherwise → categorical)
+        qi_cat = [c for c in qi if targets[c].dtype != np.float64]
+        qi_num = [c for c in qi if targets[c].dtype == np.float64]
+        try:
+            o_scores, o_flags = compute_outlier_scores(
+                targets, qi, qi_cat, qi_num,
+                method=outlier_method, percentile=outlier_pct
+            )
+            out["outlier_score"] = o_scores.values
+            out["is_outlier"]    = o_flags.values
+        except Exception as e:
+            print(f"  WARNING: outlier scoring failed ({e}), skipping.")
+
+    out["is_training"] = is_training
+    out["run_id"]      = run_id
+
+    # Save CSV
+    out_path = _build_row_score_path(config, run_id, is_training)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(out_path, index=False)
+    print(f"  Row-level scores saved → {out_path}")
+
+    # Log to WandB
+    ra_col = "RA_row_mean"
+    mean_scores = out[ra_col].values
+    suffix = "train" if is_training else "holdout"
+    wandb.log({
+        f"RA_row_{suffix}_p10": round(float(np.percentile(mean_scores, 10)), 4),
+        f"RA_row_{suffix}_p50": round(float(np.percentile(mean_scores, 50)), 4),
+        f"RA_row_{suffix}_p90": round(float(np.percentile(mean_scores, 90)), 4),
+    })
+    if "outlier_score" in out.columns:
+        outlier_mask     = out["is_outlier"].values
+        non_outlier_mask = ~outlier_mask
+        if outlier_mask.any():
+            wandb.log({
+                f"RA_row_{suffix}_outlier_mean":     round(float(mean_scores[outlier_mask].mean()), 4),
+                f"RA_row_{suffix}_non_outlier_mean": round(float(mean_scores[non_outlier_mask].mean()), 4),
+            })
+    wandb.log({f"RA_row_{suffix}_hist": wandb.Histogram(mean_scores)})
+    wandb.config.update({f"row_scores_{suffix}_path": str(out_path)}, allow_val_change=True)
+
+
 def _run_attack(config, synth, targets, qi, hidden_features):
     """Run the full attack pipeline (get method, apply enhancements) on given targets."""
     data_type = config.get("data_type", "agnostic")
@@ -252,18 +358,28 @@ def run_single_experiment(config, run_id):
         _print_experiment_config(config)
 
     dataset_type = config.get("dataset", {}).get("type", "categorical")
-    mem_test = config.get("memorization_test", {}).get("enabled", False)
+    mem_test     = config.get("memorization_test", {}).get("enabled", False)
+    row_cfg      = config.get("row_level_analysis", {})
+    row_enabled  = row_cfg.get("enabled", False)
 
     # --- Attack on training data (always) ---
     print(f"\n--- Reconstructing training data targets ---")
     reconstructed_train = _run_attack(config, synth, train, qi, hidden_features)
     train_scores = _score_reconstruction(train, reconstructed_train, hidden_features, dataset_type)
 
+    if row_enabled:
+        _save_row_scores(config, train, reconstructed_train, hidden_features, qi,
+                         dataset_type, run_id, is_training=True)
+
     if mem_test and holdout is not None:
         # --- Attack on non-training (holdout) data ---
         print(f"\n--- Reconstructing non-training data targets ---")
         reconstructed_holdout = _run_attack(config, synth, holdout, qi, hidden_features)
         holdout_scores = _score_reconstruction(holdout, reconstructed_holdout, hidden_features, dataset_type)
+
+        if row_enabled:
+            _save_row_scores(config, holdout, reconstructed_holdout, hidden_features, qi,
+                             dataset_type, run_id, is_training=False)
 
         # Log dual metrics + delta
         results = {}

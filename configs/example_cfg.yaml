@@ -27,6 +27,27 @@ memorization_test:
   enabled: false
   # holdout_dir: "/home/golobs/data/reconstruction_data/adult/size_1k/sample_01"
 
+# Row-level RA scores: save per-record reconstruction accuracy to CSV
+# Enables subgroup / outlier / demographic analysis downstream.
+# When enabled, saves a CSV to {data_dir}/{sdg_dir}/row_scores/ and logs
+# distribution percentiles (p10/p50/p90) + a histogram to WandB.
+# compute_outliers: also flags records that are outliers in QI feature space,
+# and logs the mean score gap between outlier and non-outlier records.
+row_level_analysis:
+  enabled: false
+  compute_outliers: false
+  outlier_method: "isolation_forest"  # or "gower_knn"
+  outlier_percentile: 90              # top-N% = outlier
+
+# MIA (Membership Inference Attack) settings
+# Only used when running: python master_experiment_script.py --mode mia
+# mia_method options: "SynthDistance", "NNDR"
+# For RA-as-MIA comparison, use experiment_scripts/compare_mia_ra.py instead.
+mia_method: "SynthDistance"
+mia_params:
+  n_targets: 500    # records sampled from each of train and holdout; omit (or ~) for all rows
+  seed: 42
+
 # Attack selection
 attack_method: "RePaint"  # Name of the attack (see examples below)
 data_type: "agnostic"     # "categorical", "continuous", or "agnostic" (for TabDDPM/RePaint)

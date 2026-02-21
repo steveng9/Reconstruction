@@ -127,28 +127,43 @@ def _mia_metrics(scores: np.ndarray, labels: np.ndarray) -> dict:
 # ── Shared setup ──────────────────────────────────────────────────────────────
 
 def _setup(synth_df, train_df, holdout_df, meta, cfg):
-    """Resolve columns, ranges, and balanced target sample."""
+    """Resolve columns, ranges, and balanced target sample.
+
+    If mia_params.n_targets is None, uses the full train and holdout DataFrames
+    (no sampling).  Otherwise samples n_targets rows from each (balanced).
+    """
     cat_cols = [c for c in meta.get("categorical", []) if c in synth_df.columns]
     num_cols = [c for c in meta.get("continuous", [])  if c in synth_df.columns]
     ranges   = _col_ranges(train_df, num_cols)
 
     n_each = cfg.get("mia_params", {}).get("n_targets", 500)
-    n_each = min(n_each, len(train_df), len(holdout_df))
     seed   = cfg.get("mia_params", {}).get("seed", 42)
 
-    train_tgts   = train_df.sample(n=n_each,   random_state=seed).reset_index(drop=True)
-    holdout_tgts = holdout_df.sample(n=n_each, random_state=seed).reset_index(drop=True)
-    labels = np.array([1] * n_each + [0] * n_each)
+    if n_each is None:
+        train_tgts   = train_df.reset_index(drop=True)
+        holdout_tgts = holdout_df.reset_index(drop=True)
+    else:
+        n_each       = min(n_each, len(train_df), len(holdout_df))
+        train_tgts   = train_df.sample(n=n_each,   random_state=seed).reset_index(drop=True)
+        holdout_tgts = holdout_df.sample(n=n_each, random_state=seed).reset_index(drop=True)
+
+    labels = np.array([1] * len(train_tgts) + [0] * len(holdout_tgts))
 
     return cat_cols, num_cols, ranges, train_tgts, holdout_tgts, labels
 
 
 # ── Attack functions ──────────────────────────────────────────────────────────
 
-def synth_distance_mia(cfg, synth_df, train_df, holdout_df, meta):
+def synth_distance_mia(cfg, synth_df, train_df, holdout_df, meta, return_raw=False):
     """
     SynthDistance MIA.
     Score = -min_dist(target, synth).  Higher → closer to synth → more likely member.
+
+    Parameters
+    ----------
+    return_raw : bool
+        If True, returns (metrics_dict, scores, labels, all_targets_df) instead of
+        just metrics_dict.  Default False for backward compatibility.
     """
     cat_cols, num_cols, ranges, train_tgts, holdout_tgts, labels = \
         _setup(synth_df, train_df, holdout_df, meta, cfg)
@@ -159,14 +174,23 @@ def synth_distance_mia(cfg, synth_df, train_df, holdout_df, meta):
 
     print(f"  [SynthDistance] d_synth  members: {d_synth[:len(train_tgts)].mean():.4f}"
           f"  non-members: {d_synth[len(train_tgts):].mean():.4f}")
-    return _mia_metrics(scores, labels)
+    metrics = _mia_metrics(scores, labels)
+    if return_raw:
+        return metrics, scores, labels, all_tgts
+    return metrics
 
 
-def nndr_mia(cfg, synth_df, train_df, holdout_df, meta):
+def nndr_mia(cfg, synth_df, train_df, holdout_df, meta, return_raw=False):
     """
     NNDR MIA.
     Score = dist(target, train_LOO) / dist(target, synth).
     Higher → closer to synth relative to training distribution → more likely member.
+
+    Parameters
+    ----------
+    return_raw : bool
+        If True, returns (metrics_dict, scores, labels, all_targets_df) instead of
+        just metrics_dict.  Default False for backward compatibility.
     """
     cat_cols, num_cols, ranges, train_tgts, holdout_tgts, labels = \
         _setup(synth_df, train_df, holdout_df, meta, cfg)
@@ -183,7 +207,95 @@ def nndr_mia(cfg, synth_df, train_df, holdout_df, meta):
 
     print(f"  [NNDR] ratio  members: {scores[:len(train_tgts)].mean():.4f}"
           f"  non-members: {scores[len(train_tgts):].mean():.4f}")
-    return _mia_metrics(scores, labels)
+    metrics = _mia_metrics(scores, labels)
+    if return_raw:
+        return metrics, scores, labels, all_tgts
+    return metrics
+
+
+def ra_as_mia(attack_fn, cfg, synth_df, train_df, holdout_df, qi, hidden_features,
+              n_targets=500, seed=42):
+    """
+    RA-as-MIA: use reconstruction accuracy as the membership inference signal.
+
+    The hypothesis: the synthetic data reconstructs hidden features better for
+    training members (the model memorised them) than for holdout non-members.
+    Higher reconstruction quality → higher membership score.
+
+    Parameters
+    ----------
+    attack_fn       : callable with signature (cfg, synth, targets, qi, hidden)
+                      → (reconstructed_df, probas, classes)
+    cfg             : experiment config dict
+    synth_df        : synthetic data DataFrame
+    train_df        : training records (members, label=1)
+    holdout_df      : holdout records (non-members, label=0)
+    qi              : list of quasi-identifier column names
+    hidden_features : list of hidden feature column names
+    n_targets       : number of records to sample from each group
+    seed            : random seed for reproducible sampling
+
+    Returns
+    -------
+    metrics    : dict with keys RA_as_MIA_{auc,advantage,tpr_at_fpr0001,balanced_acc}
+    scores     : np.ndarray of per-record membership scores (higher = more likely member)
+    labels     : np.ndarray of ground-truth labels (1=member, 0=non-member)
+    all_targets: pd.DataFrame of sampled records (train first, then holdout)
+    """
+    if n_targets is None:
+        train_tgts   = train_df.reset_index(drop=True)
+        holdout_tgts = holdout_df.reset_index(drop=True)
+    else:
+        n_each       = min(n_targets, len(train_df), len(holdout_df))
+        train_tgts   = train_df.sample(n=n_each,   random_state=seed).reset_index(drop=True)
+        holdout_tgts = holdout_df.sample(n=n_each, random_state=seed).reset_index(drop=True)
+    all_targets  = pd.concat([train_tgts, holdout_tgts], ignore_index=True)
+    labels       = np.array([1] * len(train_tgts) + [0] * len(holdout_tgts))
+
+    # Run the reconstruction attack on all targets
+    reconstructed, _, _ = attack_fn(cfg, synth_df, all_targets, qi, hidden_features)
+
+    # Compute per-row membership score inline (no scoring.py import to stay portable)
+    dataset_type = cfg.get("dataset", {}).get("type", "categorical")
+
+    if dataset_type == "continuous":
+        # Per-row mean normalized abs error; negate so higher = better reconstruction = member
+        per_row_errors = []
+        for feat in hidden_features:
+            real = all_targets[feat].values.astype(float)
+            pred = reconstructed[feat].values.astype(float)
+            rng = float(real.max() - real.min())
+            if rng == 0:
+                per_row_errors.append(np.zeros(len(real)))
+            else:
+                per_row_errors.append(np.abs(real - pred) / rng)
+        mean_err = np.mean(np.stack(per_row_errors, axis=1), axis=1)
+        scores   = -mean_err  # negate: lower error = higher membership score
+    else:
+        # Rarity-weighted correctness; already higher = better = more likely member
+        n_total = len(train_df)  # use full train for rarity estimation
+        weighted_sum = np.zeros(len(all_targets))
+        total_weight = np.zeros(len(all_targets))
+
+        for feat in hidden_features:
+            counts  = train_df[feat].value_counts()
+            rarity  = (n_total / counts).to_dict()
+            r_vals  = np.array([rarity.get(v, 1.0) for v in all_targets[feat]])
+            correct = (all_targets[feat].values == reconstructed[feat].values).astype(float)
+            weighted_sum += correct * r_vals
+            total_weight += r_vals
+
+        denom  = np.where(total_weight > 0, total_weight, 1.0)
+        scores = weighted_sum / denom
+
+    print(f"  [RA-as-MIA] score  members: {scores[:n_each].mean():.4f}"
+          f"  non-members: {scores[n_each:].mean():.4f}")
+
+    raw_metrics = _mia_metrics(scores, labels)
+    # Re-prefix keys as RA_as_MIA_*
+    metrics = {k.replace("MIA_", "RA_as_MIA_"): v for k, v in raw_metrics.items()}
+
+    return metrics, scores, labels, all_targets
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────

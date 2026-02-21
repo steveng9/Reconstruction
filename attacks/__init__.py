@@ -56,7 +56,7 @@ from .baselines_continuous import (
 from .partialDiffusion import repaint_reconstruction, partial_tabddpm_reconstruction, conditioned_repaint_reconstruction
 
 # Membership Inference Attacks
-from .mia import MIA_REGISTRY, synth_distance_mia, nndr_mia
+from .mia import MIA_REGISTRY, synth_distance_mia, nndr_mia, ra_as_mia
 
 # SOTA attacks from published papers
 import sys
@@ -214,4 +214,5 @@ __all__ = [
     'get_attack',
     'get_mia_attack',
     'list_attacks',
+    'ra_as_mia',
 ]
