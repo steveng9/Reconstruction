@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 """
-Sweep: partialDiffusion (TabDDPM + RePaint) reconstruction attacks on adult data.
+Sweep: partialDiffusion (TabDDPM + RePaint) reconstruction attacks on california data.
 
 Both attacks train a diffusion model on the synthetic data, then use it to
 reconstruct hidden features. The key workflow for tuning RePaint is:
 
   1. First run (train diffusion models and reconstruct):
-         python experiment_scripts/run_partial_diffusion_adult.py --retrain
+         python experiment_scripts/run_partial_diffusion_cali.py --retrain
 
   2. Subsequent runs (tune reconstruction params without retraining):
-         python experiment_scripts/run_partial_diffusion_adult.py
+         python experiment_scripts/run_partial_diffusion_cali.py
 
 Artifacts are saved under:
   {SAMPLE_DIR}/partial_tabddpm_artifacts/    (TabDDPM)
@@ -20,7 +20,7 @@ SDG methods with --retrain, each overwrites the previous model for that sample.
 Run one SDG at a time (comment others out in SDG_METHODS) to avoid this.
 
 Results logged to WandB under project "tabular-reconstruction-attacks",
-group "adult_partialDiffusion".
+group "cali_partialDiffusion".
 """
 
 import sys
@@ -60,11 +60,11 @@ def sdg_dirname(method, params=None):
 
 # ── Data paths ────────────────────────────────────────────────────────────────
 
-SAMPLE_SIZE      = 10_000
-DATA_ROOT        = f"/home/golobs/data/reconstruction_data/adult/size_{SAMPLE_SIZE}"
+SAMPLE_SIZE      = 1_000
+DATA_ROOT        = f"/home/golobs/data/reconstruction_data/california/size_{SAMPLE_SIZE}"
 SAMPLE_DIR       = f"{DATA_ROOT}/sample_00"
 HOLDOUT_DIR      = f"{DATA_ROOT}/sample_01"   # disjoint sample for memorization test
-MEMORIZATION_TEST = False   # set True to also reconstruct holdout targets
+MEMORIZATION_TEST = True   # set True to also reconstruct holdout targets
 
 
 # ── SDG methods ───────────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ SDG_METHODS = [
 
 TABDDPM_PARAMS = {
     "retrain":       _args.retrain,
-    "num_epochs":    200_000,
+    "num_epochs":    50_000,
     "resamples":     50,
     "num_timesteps": 2000,
     "hidden_dims":   [512, 1024, 1024, 1024, 512],
@@ -119,7 +119,7 @@ REPAINT_PARAMS = {
 
 CONDITIONED_REPAINT_PARAMS = {
     "retrain":       _args.retrain,
-    "num_epochs":    200_000,
+    "num_epochs":    50_000,
     "resamples":     50,
     "num_timesteps": 1000,
     "hidden_dims":   [512, 1024, 1024, 1024, 512],
@@ -130,7 +130,7 @@ CONDITIONED_REPAINT_PARAMS = {
 }
 
 ATTACKS = [
-    #("TabDDPM",          TABDDPM_PARAMS),
+    ("TabDDPM",          TABDDPM_PARAMS),
     #("RePaint",            REPAINT_PARAMS),
     ("ConditionedRePaint", CONDITIONED_REPAINT_PARAMS),
 ]
@@ -141,10 +141,10 @@ ATTACKS = [
 def make_config(sdg_method, sdg_params, attack_method, attack_specific_params) -> dict:
     return {
         "dataset": {
-            "name": "adult",
+            "name": "california",
             "dir":  SAMPLE_DIR,
             "size": SAMPLE_SIZE,
-            "type": "categorical",
+            "type": "continuous",
         },
         "QI":            "QI1",
         "data_type":     "agnostic",
@@ -182,8 +182,8 @@ def run_experiment(sdg_method, sdg_params, attack_method, attack_specific_params
         project="tabular-reconstruction-attacks",
         name=run_name,
         config=cfg,
-        tags=["adult", f"size_{SAMPLE_SIZE}", "partialDiffusion", attack_method],
-        group="adult_partialDiffusion",
+        tags=["california", "size_10000", "partialDiffusion", attack_method],
+        group="cali_partialDiffusion",
         reinit=True,
     )
 
@@ -192,7 +192,7 @@ def run_experiment(sdg_method, sdg_params, attack_method, attack_specific_params
 
         print("  Reconstructing training targets...")
         recon_train  = _run_attack(prepared, synth, train, qi, hidden_features)
-        train_scores = _score_reconstruction(train, recon_train, hidden_features, "categorical")
+        train_scores = _score_reconstruction(train, recon_train, hidden_features, "continuous")
         train_mean   = round(float(np.mean(train_scores)), 2)
 
         results = {f"RA_train_{f}": s for f, s in zip(hidden_features, train_scores)}
@@ -201,7 +201,7 @@ def run_experiment(sdg_method, sdg_params, attack_method, attack_specific_params
         if MEMORIZATION_TEST:
             print("  Reconstructing holdout (non-training) targets...")
             recon_holdout  = _run_attack(prepared, synth, holdout, qi, hidden_features)
-            holdout_scores = _score_reconstruction(holdout, recon_holdout, hidden_features, "categorical")
+            holdout_scores = _score_reconstruction(holdout, recon_holdout, hidden_features, "continuous")
             holdout_mean   = round(float(np.mean(holdout_scores)), 2)
             delta_mean     = round(train_mean - holdout_mean, 2)
 
@@ -245,13 +245,13 @@ def run_random_baseline(sdg_method, sdg_params):
     """Run the Random attack once and return the mean train score."""
     cfg = {
         "dataset": {
-            "name": "adult",
+            "name": "california",
             "dir":  SAMPLE_DIR,
             "size": SAMPLE_SIZE,
-            "type": "categorical",
+            "type": "continuous",
         },
         "QI":            "QI1",
-        "data_type":     "categorical",
+        "data_type":     "continuous",
         "attack_method": "Random",
         "sdg_method":    sdg_method,
         "sdg_params":    sdg_params or None,
@@ -265,7 +265,7 @@ def run_random_baseline(sdg_method, sdg_params):
     prepared = _prepare_config(cfg)
     train, synth, qi, hidden_features, _ = load_data(prepared)
     recon   = _run_attack(prepared, synth, train, qi, hidden_features)
-    scores  = _score_reconstruction(train, recon, hidden_features, "categorical")
+    scores  = _score_reconstruction(train, recon, hidden_features, "continuous")
     return round(float(np.mean(scores)), 2)
 
 
@@ -297,7 +297,7 @@ def print_summary_table(rows):
     sep = "  " + "-" * (w_sdg + w_atk + 7 + cw * 4 + 14)
 
     print(f"\n\n{'='*70}")
-    print(f"  SWEEP SUMMARY  —  partialDiffusion on adult size_{SAMPLE_SIZE}/sample_00")
+    print(f"  SWEEP SUMMARY  —  partialDiffusion on california size_{SAMPLE_SIZE}/sample_00")
     print(f"  QI1: age, sex, race, native-country, education, marital-status")
     print(f"  Hidden: workclass, fnlwgt, education-num, occupation, relationship,")
     print(f"          capital-gain, capital-loss, hours-per-week, income")
@@ -328,7 +328,7 @@ def print_summary_table(rows):
 
 if __name__ == "__main__":
     retrain = _args.retrain
-    print(f"\npartialDiffusion sweep on adult  |  retrain={retrain}")
+    print(f"\npartialDiffusion sweep on california  |  retrain={retrain}")
     print(f"  SDG methods : {[sdg_dirname(m, p) for m, p in SDG_METHODS]}")
     print(f"  Attacks     : {[a for a, _ in ATTACKS]}")
     if not retrain:

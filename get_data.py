@@ -189,18 +189,18 @@ def get_meta_data_for_diffusion(cfg):
     elif cfg["dataset"]["name"] == "nist_arizona_data":
         meta = {"relation_order": [[None, "crc_data"]], "tables": {"crc_data": {"children": [], "parents": []}}}
         domain = {"F1": {"size": 101, "type": "discrete"}, "F2": {"size": 36, "type": "discrete"}, "F3": {"size": 114, "type": "discrete"}, "F5": {"size": 5, "type": "discrete"}, "F9": {"size": 924, "type": "discrete"}, "F10": {"size": 13, "type": "discrete"}, "F11": {"size": 3, "type": "discrete"}, "F12": {"size": 24, "type": "discrete"}, "F13": {"size": 2, "type": "discrete"}, "F15": {"size": 5, "type": "discrete"}, "F17": {"size": 7, "type": "discrete"}, "F18": {"size": 5, "type": "discrete"}, "F21": {"size": 7511, "type": "continuous"}, "F22": {"size": 128, "type": "discrete"}, "F23": {"size": 3, "type": "discrete"}, "F25": {"size": 5, "type": "discrete"}, "F30": {"size": 5, "type": "discrete"}, "F32": {"size": 30, "type": "discrete"}, "F33": {"size": 6, "type": "discrete"}, "F36": {"size": 3, "type": "discrete"}, "F37": {"size": 6, "type": "discrete"}, "F41": {"size": 2, "type": "discrete"}, "F43": {"size": 2, "type": "discrete"}, "F47": {"size": 4, "type": "discrete"}, "F50": {"size": 53, "type": "discrete"}, "F4": {"size": 19, "type": "discrete"}, "F6": {"size": 3, "type": "discrete"}, "F7": {"size": 4, "type": "discrete"}, "F8": {"size": 14, "type": "discrete"}, "F14": {"size": 102, "type": "continuous"}, "F16": {"size": 8, "type": "discrete"}, "F19": {"size": 94, "type": "continuous"}, "F20": {"size": 3, "type": "discrete"}, "F24": {"size": 4, "type": "discrete"}, "F26": {"size": 103, "type": "continuous"}, "F27": {"size": 2, "type": "discrete"}, "F28": {"size": 3, "type": "discrete"}, "F29": {"size": 313, "type": "continuous"}, "F31": {"size": 5, "type": "discrete"}, "F34": {"size": 6, "type": "discrete"}, "F35": {"size": 211, "type": "continuous"}, "F38": {"size": 161, "type": "continuous"}, "F39": {"size": 3, "type": "discrete"}, "F40": {"size": 2, "type": "discrete"}, "F42": {"size": 3, "type": "discrete"}, "F44": {"size": 338, "type": "continuous"}, "F45": {"size": 5, "type": "discrete"}, "F46": {"size": 8, "type": "discrete"}, "F48": {"size": 2, "type": "discrete"}, "F49": {"size": 7, "type": "discrete"}}
-    elif cfg["dataset"]["name"] == "california_housing_data":
+    elif cfg["dataset"]["name"] in ("california", "california_housing_data"):
         meta = {"relation_order": [[None, "cali_data"]], "tables": {"cali_data": {"children": [], "parents": []}}}
         domain = {
-            "0": {"size": 12928, "type": "continuous"},
-            "1": {"size": 52, "type": "continuous"},
-            "2": {"size": 19392, "type": "continuous"},
-            "3": {"size": 14233, "type": "continuous"},
-            "4": {"size": 3888, "type": "continuous"},
-            "5": {"size": 18841, "type": "continuous"},
-            "6": {"size": 862, "type": "continuous"},
-            "7": {"size": 844, "type": "continuous"},
-            "8": {"size": 3842, "type": "continuous"},
+            "MedInc":      {"size": 937,  "type": "continuous"},
+            "HouseAge":    {"size": 51,   "type": "continuous"},
+            "AveRooms":    {"size": 998,  "type": "continuous"},
+            "AveBedrms":   {"size": 967,  "type": "continuous"},
+            "Population":  {"size": 817,  "type": "continuous"},
+            "AveOccup":    {"size": 994,  "type": "continuous"},
+            "Latitude":    {"size": 370,  "type": "continuous"},
+            "Longitude":   {"size": 404,  "type": "continuous"},
+            "MedHouseVal": {"size": 795,  "type": "continuous"},
         }
 
     return meta, domain
