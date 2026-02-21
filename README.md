@@ -107,6 +107,34 @@ Memorization tests compare attack performance on training members vs. held-out n
 
 `get_data.py` enforces safety: if **either** the train dir or the holdout dir contains a `NO_HOLDOUT` marker, loading raises a `ValueError`. This prevents accidentally using overlapping samples as holdout.
 
+## Row-Level RA Scores
+
+Enable per-record reconstruction accuracy output for downstream subgroup, outlier, or demographic analysis:
+
+```yaml
+row_level_analysis:
+  enabled: true
+  compute_outliers: true        # flag QI-space outliers via IsolationForest
+  outlier_method: "isolation_forest"   # or "gower_knn"
+  outlier_percentile: 90
+```
+
+When enabled, a CSV is saved to `{data_dir}/{sdg_dir}/row_scores/{attack}__{QI}__{split}_run{N}.csv` containing QI values, true and reconstructed feature values, per-cell scores (`RA_row_{feat}`), a rarity-weighted mean (`RA_row_mean`), and optional outlier flags. WandB receives p10/p50/p90 percentiles and a score histogram.
+
+## MIA and RA-as-MIA
+
+**Standalone MIA mode** (SynthDistance or NNDR):
+```bash
+python master_experiment_script.py --mode mia --n_runs 1 --on_server T
+```
+Configure via `mia_method` and `mia_params` in the YAML. Set `n_targets: ~` (null) to use the full train + holdout rather than sampling.
+
+**MIA vs RA-as-MIA comparison** — tests whether reconstruction accuracy is itself a membership signal and compares it against SynthDistance and NNDR:
+```bash
+python experiment_scripts/compare_mia_ra.py
+```
+Configure `SDG_METHODS`, `RA_METHOD`, `N_TARGETS` (None = full set), and `HOLDOUT_DIR` at the top of the script. Output includes per-method AUC/Advantage/TPR@FPR0.1%, quadrant analysis (where methods agree/disagree on training records), Spearman correlation between signal scores, and outlier intersection analysis (do high-scoring records cluster among QI-space outliers?).
+
 ## partialDiffusion Attacks
 
 Three attacks based on training a diffusion model on the synthetic data, then using it to impute hidden features conditioned on a target's known QI values. They vary along two independent axes:
