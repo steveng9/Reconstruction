@@ -22,7 +22,7 @@ Gower distance — per-column values in [0, 1], then averaged:
 
 Metrics reported
 ----------------
-MIA_auc, MIA_advantage, MIA_tpr_at_fpr0001, MIA_balanced_acc
+MIA_auc, MIA_advantage, MIA_tpr_at_fpr001, MIA_balanced_acc
 """
 
 import numpy as np
@@ -110,8 +110,8 @@ def _mia_metrics(scores: np.ndarray, labels: np.ndarray) -> dict:
 
     advantage = float(np.max(tprs - fprs))
 
-    # TPR at the highest threshold where FPR ≤ 0.1 %
-    valid = np.where(fprs <= 0.001)[0]
+    # TPR at the highest threshold where FPR ≤ 1%
+    valid = np.where(fprs <= 0.01)[0]
     tpr_at_low_fpr = float(tprs[valid[-1]]) if len(valid) > 0 else 0.0
 
     balanced_acc = float(np.max((tprs + (1 - fprs)) / 2))
@@ -119,7 +119,7 @@ def _mia_metrics(scores: np.ndarray, labels: np.ndarray) -> dict:
     return {
         "MIA_auc":            round(auc, 4),
         "MIA_advantage":      round(advantage, 4),
-        "MIA_tpr_at_fpr0001": round(tpr_at_low_fpr, 4),
+        "MIA_tpr_at_fpr001":  round(tpr_at_low_fpr, 4),
         "MIA_balanced_acc":   round(balanced_acc, 4),
     }
 
@@ -172,8 +172,9 @@ def synth_distance_mia(cfg, synth_df, train_df, holdout_df, meta, return_raw=Fal
     d_synth  = _min_gower_dist(all_tgts, synth_df, cat_cols, num_cols, ranges)
     scores   = -d_synth
 
-    print(f"  [SynthDistance] d_synth  members: {d_synth[:len(train_tgts)].mean():.4f}"
-          f"  non-members: {d_synth[len(train_tgts):].mean():.4f}")
+    n_train = len(train_tgts)
+    print(f"  [SynthDistance] score (↑=member)  members: {scores[:n_train].mean():.4f}"
+          f"  non-members: {scores[n_train:].mean():.4f}")
     metrics = _mia_metrics(scores, labels)
     if return_raw:
         return metrics, scores, labels, all_tgts
@@ -205,8 +206,9 @@ def nndr_mia(cfg, synth_df, train_df, holdout_df, meta, return_raw=False):
 
     scores = d_train / np.maximum(d_synth, 1e-10)
 
-    print(f"  [NNDR] ratio  members: {scores[:len(train_tgts)].mean():.4f}"
-          f"  non-members: {scores[len(train_tgts):].mean():.4f}")
+    n_train = len(train_tgts)
+    print(f"  [NNDR] score (↑=member)  members: {scores[:n_train].mean():.4f}"
+          f"  non-members: {scores[n_train:].mean():.4f}")
     metrics = _mia_metrics(scores, labels)
     if return_raw:
         return metrics, scores, labels, all_tgts
@@ -272,13 +274,17 @@ def ra_as_mia(attack_fn, cfg, synth_df, train_df, holdout_df, qi, hidden_feature
         mean_err = np.mean(np.stack(per_row_errors, axis=1), axis=1)
         scores   = -mean_err  # negate: lower error = higher membership score
     else:
-        # Rarity-weighted correctness; already higher = better = more likely member
-        n_total = len(train_df)  # use full train for rarity estimation
+        # Rarity-weighted correctness; already higher = better = more likely member.
+        # Rarity is computed from all_targets (both members and non-members) so that
+        # both groups use the same map — avoiding the asymmetry that arises when
+        # member values are in train_df with their true rarity while holdout values
+        # fall back to an arbitrary default.
+        n_total = len(all_targets)
         weighted_sum = np.zeros(len(all_targets))
         total_weight = np.zeros(len(all_targets))
 
         for feat in hidden_features:
-            counts  = train_df[feat].value_counts()
+            counts  = all_targets[feat].value_counts()
             rarity  = (n_total / counts).to_dict()
             r_vals  = np.array([rarity.get(v, 1.0) for v in all_targets[feat]])
             correct = (all_targets[feat].values == reconstructed[feat].values).astype(float)
@@ -288,8 +294,9 @@ def ra_as_mia(attack_fn, cfg, synth_df, train_df, holdout_df, qi, hidden_feature
         denom  = np.where(total_weight > 0, total_weight, 1.0)
         scores = weighted_sum / denom
 
-    print(f"  [RA-as-MIA] score  members: {scores[:n_each].mean():.4f}"
-          f"  non-members: {scores[n_each:].mean():.4f}")
+    n_train = len(train_tgts)
+    print(f"  [RA-as-MIA] score (↑=member)  members: {scores[:n_train].mean():.4f}"
+          f"  non-members: {scores[n_train:].mean():.4f}")
 
     raw_metrics = _mia_metrics(scores, labels)
     # Re-prefix keys as RA_as_MIA_*

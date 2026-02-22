@@ -40,20 +40,30 @@ from master_experiment_script import _prepare_config
 DATASET       = "adult"
 DATA_ROOT     = "/home/golobs/data/reconstruction_data/"
 SAMPLE_SIZE   = 10_000
-SAMPLE_DIR    = f"{DATA_ROOT}{DATASET}/size_{SAMPLE_SIZE}/sample_00"
-HOLDOUT_DIR   = f"{DATA_ROOT}{DATASET}/size_{SAMPLE_SIZE}/sample_01"
+SAMPLE_DIR    = f"{DATA_ROOT}{DATASET}/size_{SAMPLE_SIZE}/sample_01"
+HOLDOUT_DIR   = f"{DATA_ROOT}{DATASET}/size_{SAMPLE_SIZE}/sample_02"
 
 SDG_METHODS = [
-    ("MST",    {"epsilon": 1.0}),
-    ("MST",    {"epsilon": 10.0}),
-    ("TVAE",   {}),
     ("TabDDPM",{}),
+    #("MST",    {"epsilon": 1.0}),
+    #("MST",    {"epsilon": 10.0}),
+    ("MST",    {"epsilon": 1000.0}),
+    #("TVAE",   {}),
+    ("Synthpop",{}),
 ]
 
 RA_METHOD = "RandomForest"
 RA_PARAMS  = {"max_depth": 15, "num_estimators": 25}
 QI         = "QI1"
 DATA_TYPE  = "categorical"
+
+# For RA-as-MIA scoring, restrict to genuinely categorical hidden features.
+# QI1's full hidden set includes fnlwgt (census weight, ~unique per person),
+# education-num (ordinal int), capital-gain/loss, and hours-per-week — all
+# effectively continuous.  When treated as categorical their rarity weights
+# dominate the score and swamp the real membership signal.
+# Set to None to use the full hidden feature set from the QI definition.
+RA_HIDDEN_OVERRIDE = ["workclass", "occupation", "relationship", "income"]
 
 MIA_METHODS  = ["SynthDistance", "NNDR"]
 N_TARGETS    = None   # None = use full train + full holdout; int = sample N from each
@@ -142,32 +152,92 @@ def _quadrant_analysis(mia_scores, ra_scores, labels, mia_name):
     }
 
 
-def _outlier_intersection(score_dict, outlier_flags, top_k_pct):
+def _outlier_auc(score_dict, outlier_flags, labels):
     """
-    For each method, find top-k% records and report fraction that are QI-outliers.
+    For each method, compute AUC restricted to outlier records and non-outlier
+    records separately.
+
+    This catches cases where a method is highly effective against outliers even
+    if their scores are not in the global top-k% — e.g. all outliers scored just
+    above the median would go undetected by the top-k intersection analysis.
+
+    Parameters
+    ----------
+    score_dict   : dict {method_name: np.ndarray of scores}
+    outlier_flags: np.ndarray of bool
+    labels       : np.ndarray of int (1 = member, 0 = non-member)
+
+    Returns
+    -------
+    list of dicts with keys: method, auc_outlier, auc_non_outlier, n_outlier, n_non_outlier
+    """
+    from sklearn.metrics import roc_auc_score
+
+    out_mask     = outlier_flags.astype(bool)
+    non_out_mask = ~out_mask
+    results = []
+
+    for name, scores in score_dict.items():
+        def _auc(mask):
+            if mask.sum() < 2 or len(np.unique(labels[mask])) < 2:
+                return float('nan')
+            return float(roc_auc_score(labels[mask], scores[mask]))
+
+        results.append({
+            "method":        name,
+            "auc_outlier":   _auc(out_mask),
+            "auc_non_outlier": _auc(non_out_mask),
+            "n_outlier":     int(out_mask.sum()),
+            "n_non_outlier": int(non_out_mask.sum()),
+        })
+
+    return results
+
+
+def _outlier_intersection(score_dict, outlier_flags, labels, top_k_pct):
+    """
+    For each method, find top-k% records ("predicted members") and report
+    QI-outlier rates overall and split by TP vs FP.
+
+    The key distinction:
+      - TP outlier rate: attack is accurate AND targets unusual records → concerning
+      - FP outlier rate: attack prefers outliers but is wrong about them → less concerning
 
     Parameters
     ----------
     score_dict   : dict {method_name: np.ndarray of scores}
     outlier_flags: np.ndarray of bool (True = outlier in QI space)
+    labels       : np.ndarray of int (1 = true member, 0 = true non-member)
     top_k_pct    : float, e.g. 0.10 for top-10%
 
     Returns
     -------
-    list of dicts with keys: method, outlier_rate, baseline_rate, lift_pp
+    list of dicts, baseline_rate
     """
     baseline_rate = float(outlier_flags.mean())
     results = []
     k = max(1, int(len(outlier_flags) * top_k_pct))
+
     for name, scores in score_dict.items():
-        top_k_idx    = np.argsort(scores)[::-1][:k]
-        top_k_outlier_rate = float(outlier_flags[top_k_idx].mean())
+        top_k_mask = np.zeros(len(scores), dtype=bool)
+        top_k_mask[np.argsort(scores)[::-1][:k]] = True
+
+        overall_rate = float(outlier_flags[top_k_mask].mean())
+
+        tp_mask = top_k_mask & (labels == 1)
+        fp_mask = top_k_mask & (labels == 0)
+        tp_rate = float(outlier_flags[tp_mask].mean()) if tp_mask.any() else float('nan')
+        fp_rate = float(outlier_flags[fp_mask].mean()) if fp_mask.any() else float('nan')
+
         results.append({
-            "method":        name,
-            "outlier_rate":  top_k_outlier_rate,
-            "baseline_rate": baseline_rate,
-            "lift_pp":       top_k_outlier_rate - baseline_rate,
+            "method":       name,
+            "overall_rate": overall_rate,
+            "tp_rate":      tp_rate,
+            "fp_rate":      fp_rate,
+            "n_tp":         int(tp_mask.sum()),
+            "n_fp":         int(fp_mask.sum()),
         })
+
     return results, baseline_rate
 
 
@@ -188,6 +258,8 @@ def run_comparison(sdg_method, sdg_params):
     from get_data import QIs, minus_QIs
     qi              = QIs[DATASET][QI]
     hidden_features = minus_QIs[DATASET][QI]
+    # For RA-as-MIA, optionally restrict to a categorical-only subset of hidden features
+    ra_hidden = RA_HIDDEN_OVERRIDE if RA_HIDDEN_OVERRIDE is not None else hidden_features
 
     # ── MIA attacks ──────────────────────────────────────────────────────────
     all_scores  = {}
@@ -207,15 +279,36 @@ def run_comparison(sdg_method, sdg_params):
     all_scores["NNDR"]  = nn_scores
     all_metrics.update({f"NNDR_{k}": v for k, v in nn_metrics.items()})
 
-    # ── RA-as-MIA ────────────────────────────────────────────────────────────
-    print("\n  [RA-as-MIA]")
-    attack_fn    = get_attack(RA_METHOD, DATA_TYPE)
-    ra_metrics, ra_scores, _, _ = ra_as_mia(
-        attack_fn, prepared_ra, synth, train, holdout, qi, hidden_features,
+    # ── RA-as-MIA, two QI variants ───────────────────────────────────────────
+    attack_fn = get_attack(RA_METHOD, DATA_TYPE)
+
+    # Approach A: standard QI1 (6 features) → predict ra_hidden (4 features)
+    print(f"\n  [RA-as-MIA / QI={QI}]")
+    ra_a_metrics, ra_a_scores, _, _ = ra_as_mia(
+        attack_fn, prepared_ra, synth, train, holdout, qi, ra_hidden,
         n_targets=N_TARGETS, seed=SEED,
     )
-    all_scores[f"RA-as-MIA ({RA_METHOD})"] = ra_scores
-    all_metrics.update(ra_metrics)
+    ra_a_label = f"RA-as-MIA ({RA_METHOD}, {QI})"
+    all_scores[ra_a_label] = ra_a_scores
+    all_metrics.update({k.replace("RA_as_MIA_", f"RA_as_MIA_QI1_"): v
+                        for k, v in ra_a_metrics.items()})
+
+    # Approach B: wide QI = all features except ra_hidden → predict ra_hidden
+    # The attack has more signal and is trained on exactly what it's scored on.
+    qi_wide = [f for f in train.columns if f not in ra_hidden]
+    print(f"\n  [RA-as-MIA / wide QI ({len(qi_wide)} features)]")
+    ra_b_metrics, ra_b_scores, _, _ = ra_as_mia(
+        attack_fn, prepared_ra, synth, train, holdout, qi_wide, ra_hidden,
+        n_targets=N_TARGETS, seed=SEED,
+    )
+    ra_b_label = f"RA-as-MIA ({RA_METHOD}, wide QI)"
+    all_scores[ra_b_label] = ra_b_scores
+    all_metrics.update({k.replace("RA_as_MIA_", f"RA_as_MIA_wideQI_"): v
+                        for k, v in ra_b_metrics.items()})
+
+    # Use the wide-QI variant as the primary RA signal for quadrant/outlier analysis
+    ra_scores  = ra_b_scores
+    ra_metrics = ra_b_metrics
 
     # ── Outlier scores in QI space ────────────────────────────────────────────
     from scoring import compute_outlier_scores
@@ -244,46 +337,63 @@ def run_comparison(sdg_method, sdg_params):
             f"{mia_name}_vs_RA_spearman_r": q["spearman_r"],
         })
 
-    # ── Outlier intersection ──────────────────────────────────────────────────
-    oi_results   = []
+    # ── Outlier intersection & subgroup AUC ──────────────────────────────────
+    oi_results    = []
+    oa_results    = []
     baseline_rate = None
     if has_outliers:
         oi_results, baseline_rate = _outlier_intersection(
-            all_scores, outlier_flags, TOP_K_PCT
+            all_scores, outlier_flags, labels, TOP_K_PCT
         )
+        oa_results = _outlier_auc(all_scores, outlier_flags, labels)
+
         for r in oi_results:
             key = r["method"].replace(" ", "_").replace("(", "").replace(")", "")
-            all_metrics[f"{key}_outlier_rate_top{int(TOP_K_PCT*100)}pct"] = round(r["outlier_rate"], 4)
+            pct = int(TOP_K_PCT * 100)
+            all_metrics[f"{key}_outlier_rate_top{pct}pct_overall"] = round(r["overall_rate"], 4)
+            all_metrics[f"{key}_outlier_rate_top{pct}pct_tp"]      = round(r["tp_rate"], 4)
+            all_metrics[f"{key}_outlier_rate_top{pct}pct_fp"]      = round(r["fp_rate"], 4)
+        for r in oa_results:
+            key = r["method"].replace(" ", "_").replace("(", "").replace(")", "")
+            all_metrics[f"{key}_auc_outlier_subgroup"]     = round(r["auc_outlier"], 4)
+            all_metrics[f"{key}_auc_non_outlier_subgroup"] = round(r["auc_non_outlier"], 4)
 
     # ── Terminal report ───────────────────────────────────────────────────────
-    _print_report(sdg_label, all_scores, sd_metrics, nn_metrics, ra_metrics,
-                  quadrant_results, oi_results, baseline_rate)
+    ra_variants = {ra_a_label: ra_a_metrics, ra_b_label: ra_b_metrics}
+    _print_report(sdg_label, all_scores, sd_metrics, nn_metrics, ra_variants,
+                  quadrant_results, oi_results, oa_results, baseline_rate)
 
     return all_metrics
 
 
 # ── Terminal report ────────────────────────────────────────────────────────────
 
-def _print_report(sdg_label, all_scores, sd_metrics, nn_metrics, ra_metrics,
-                  quadrant_results, oi_results, baseline_rate):
+def _print_report(sdg_label, all_scores, sd_metrics, nn_metrics, ra_variants,
+                  quadrant_results, oi_results, oa_results, baseline_rate):
     print(f"\n{'═'*60}")
     print(f"  MIA vs RA-as-MIA Comparison — {DATASET} / {sdg_label}")
     print(f"{'═'*60}")
 
     # Main metrics table
-    header = f"  {'Method':<22}  {'AUC':>6}  {'Advantage':>9}  {'TPR@FPR0.1%':>11}"
+    w = max(22, max(len(n) for n in ra_variants))
+    header = f"  {'Method':<{w}}  {'AUC':>6}  {'Advantage':>9}  {'TPR@FPR1%':>10}"
     print(header)
-    print("  " + "-" * 56)
+    print("  " + "-" * (w + 32))
 
-    def row(name, m_dict, prefix="MIA"):
-        auc  = m_dict.get(f"{prefix}_auc",            m_dict.get("RA_as_MIA_auc",            "?"))
-        adv  = m_dict.get(f"{prefix}_advantage",      m_dict.get("RA_as_MIA_advantage",      "?"))
-        tpr  = m_dict.get(f"{prefix}_tpr_at_fpr0001", m_dict.get("RA_as_MIA_tpr_at_fpr0001", "?"))
-        return f"  {name:<22}  {auc:>6.3f}  {adv:>9.3f}  {tpr:>11.3f}"
+    def fmt_row(name, auc, adv, tpr):
+        return f"  {name:<{w}}  {auc:>6.3f}  {adv:>9.3f}  {tpr:>11.3f}"
 
-    print(row("SynthDistance",        sd_metrics, "MIA"))
-    print(row("NNDR",                 nn_metrics, "MIA"))
-    print(row(f"RA-as-MIA ({RA_METHOD})", ra_metrics, "RA_as_MIA"))
+    def mia_row(name, m):
+        return fmt_row(name, m["MIA_auc"], m["MIA_advantage"], m["MIA_tpr_at_fpr001"])
+
+    def ra_row(name, m):
+        return fmt_row(name, m["RA_as_MIA_auc"], m["RA_as_MIA_advantage"],
+                       m["RA_as_MIA_tpr_at_fpr001"])
+
+    print(mia_row("SynthDistance", sd_metrics))
+    print(mia_row("NNDR",          nn_metrics))
+    for label, m in ra_variants.items():
+        print(ra_row(label, m))
 
     # Quadrant analysis
     print(f"\n  Quadrant Analysis (training records, median threshold):")
@@ -295,14 +405,51 @@ def _print_report(sdg_label, all_scores, sd_metrics, nn_metrics, ra_metrics,
 
     # Outlier intersection
     if oi_results:
-        print(f"\n  Outlier Intersection (top {int(TOP_K_PCT*100)}% of each method's scores):")
-        print(f"  {'Method':<26}  {'Outlier rate':>12}  {'vs baseline':>12}")
-        bl_str = f"(baseline {baseline_rate*100:.1f}%)"
-        print(f"  {'':26}  {'':12}  {bl_str:>12}")
-        print("  " + "-" * 54)
+        k_pct = int(TOP_K_PCT * 100)
+        print(f"\n  Outlier Intersection  (top {k_pct}% of scores = 'predicted member',"
+              f"  baseline outlier rate: {baseline_rate*100:.1f}%)")
+        print(f"  TP outlier rate = attack accurate AND targets unusual records  ← concerning if high")
+        print(f"  FP outlier rate = attack prefers outliers but is wrong         ← less concerning")
+
+        w = max(len(r["method"]) for r in oi_results)
+        header = (f"  {'Method':<{w}}  {'Overall':>9}  "
+                  f"{'TPs [concerning]':>18}  {'FPs [less concern]':>20}")
+        print(f"\n{header}")
+        print("  " + "-" * (w + 54))
+
+        def fmt_rate(rate, n):
+            if np.isnan(rate):
+                return f"{'N/A':>8}       "
+            lift = rate - baseline_rate
+            arrow = "▲" if lift > 0.01 else ("↓" if lift < -0.01 else " ")
+            return f"{rate*100:>7.1f}%  {arrow}{lift*100:>+5.1f}pp  (n={n})"
+
         for r in oi_results:
-            lift_str = f"{r['lift_pp']*100:+.1f}pp"
-            print(f"  {r['method']:<26}  {r['outlier_rate']*100:>11.1f}%  {lift_str:>12}")
+            overall_lift = r["overall_rate"] - baseline_rate
+            overall_arrow = "▲" if overall_lift > 0.01 else ("↓" if overall_lift < -0.01 else " ")
+            overall_str = f"{r['overall_rate']*100:>7.1f}%{overall_arrow}{overall_lift*100:>+5.1f}pp"
+            tp_str = fmt_rate(r["tp_rate"], r["n_tp"])
+            fp_str = fmt_rate(r["fp_rate"], r["n_fp"])
+            print(f"  {r['method']:<{w}}  {overall_str}  {tp_str}  {fp_str}")
+
+    # Subgroup AUC
+    if oa_results:
+        r0 = oa_results[0]
+        print(f"\n  Subgroup AUC  (outliers: n={r0['n_outlier']},  non-outliers: n={r0['n_non_outlier']})")
+        print(f"  Outlier AUC >> Non-outlier AUC → attack disproportionately effective on unusual records")
+        w = max(len(r["method"]) for r in oa_results)
+        print(f"\n  {'Method':<{w}}  {'Outlier AUC':>13}  {'Non-outlier AUC':>17}  {'Difference':>12}")
+        print("  " + "-" * (w + 48))
+        for r in oa_results:
+            auc_o   = r["auc_outlier"]
+            auc_no  = r["auc_non_outlier"]
+            diff    = auc_o - auc_no if not (np.isnan(auc_o) or np.isnan(auc_no)) else float('nan')
+            auc_o_s  = f"{auc_o:.3f}"  if not np.isnan(auc_o)  else "N/A"
+            auc_no_s = f"{auc_no:.3f}" if not np.isnan(auc_no) else "N/A"
+            diff_s   = f"{diff:+.3f}"  if not np.isnan(diff)   else "N/A"
+            arrow    = "▲" if (not np.isnan(diff) and diff > 0.02) else \
+                       ("↓" if (not np.isnan(diff) and diff < -0.02) else " ")
+            print(f"  {r['method']:<{w}}  {auc_o_s:>13}  {auc_no_s:>17}  {arrow}{diff_s:>11}")
 
     print(f"{'═'*60}\n")
 
