@@ -1,0 +1,145 @@
+"""
+Default parameter values for all reconstruction attacks.
+
+These mirror the *_default constants defined in each attack's implementation
+module (attacks/ML_classifiers.py, attacks/NN_classifier.py, etc.) and in
+the external repos (MIA_on_diffusion/, recon-synth/).
+
+Used by experiment scripts to log the full effective parameters to WandB,
+even when no overrides are passed:
+
+    from attacks.defaults import ATTACK_PARAM_DEFAULTS
+    effective = {**ATTACK_PARAM_DEFAULTS.get(method, {}), **explicit_overrides}
+
+If a default changes in the underlying implementation, update it here too.
+"""
+
+ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
+
+    # ── Baselines ────────────────────────────────────────────────────────────
+    # attacks/baselines_classifiers.py / baselines_continuous.py
+    "Mode":        {},
+    "Random":      {},
+    "Mean":        {},
+    "Median":      {},
+    "MeasureDeid": {},
+    "NearestNeighbor": {},
+    "RandomNormal":    {},
+
+    # ── ML classifiers (attacks/ML_classifiers.py) ───────────────────────────
+    "KNN": {
+        "k":           1,
+        "use_weights": True,
+    },
+    "NaiveBayes": {},
+    "LogisticRegression": {
+        "max_iter": 100,
+    },
+    "SVM": {
+        "kernel":      "rbf",
+        "C":           1.0,
+        "gamma":       "scale",
+    },
+    "RandomForest": {
+        "num_estimators": 25,
+        "max_depth":      25,
+    },
+    "LightGBM": {
+        "lgb_num_estimators": 100,
+        "lgb_objective":      "multiclass",
+        "lgb_metric":         "multi_logloss",
+        "lgb_verbosity":      -1,
+    },
+
+    # ── ML regressors (attacks/ML_regression.py) ─────────────────────────────
+    "LinearRegression":    {},
+    "Ridge":               {},
+    "Lasso":               {},
+    "ElasticNet":          {},
+    "PolynomialRegression": {},
+    "BayesianRidge":       {},
+    "HuberRegressor":      {},
+    "RANSACRegressor":     {},
+    "SGDRegressor":        {},
+
+    # ── Neural networks (attacks/NN_classifier.py) ───────────────────────────
+    "MLP": {
+        "test_size":     0.2,
+        "hidden_dims":   [300],
+        "batch_size":    264,
+        "learning_rate": 0.0003,
+        "epochs":        250,
+        "patience":      200,
+        "dropout_rate":  0.2,
+    },
+
+    # ── Attention (attacks/attention_classifier.py) ──────────────────────────
+    "Attention": {
+        "num_heads":       4,
+        "embedding_dim":   64,   # must be divisible by num_heads
+        "num_layers":      2,
+        "feedforward_dim": 128,
+        "dropout_rate":    0.2,
+        "test_size":       0.2,
+        "batch_size":      128,
+        "learning_rate":   0.001,
+        "epochs":          100,
+        "patience":        30,
+    },
+    "AttentionAutoregressive": {
+        "num_heads":       4,
+        "embedding_dim":   64,   # must be divisible by num_heads
+        "num_layers":      2,
+        "feedforward_dim": 128,
+        "dropout_rate":    0.15,
+        "test_size":       0.2,
+        "batch_size":      64,
+        "learning_rate":   0.001,
+        "epochs":          200,
+        "patience":        30,
+    },
+
+    # ── Partial diffusion — MIA_on_diffusion/midst_models/single_table_TabDDPM/
+    #    tabddpm_reconstruction_attack.py lines 37-44, pipeline_utils.py line 576
+    #    All three attacks train the same model (TabDDPM & ConditionedRePaint
+    #    share the artifact dir); they differ only in sampling strategy.
+    "TabDDPM": {
+        "dropout":           0.1,
+        "batch_size":        4096,
+        "lr":                0.0006,
+        "weight_decay":      1e-5,
+        "num_epochs":        100_000,
+        "num_timesteps":     1000,
+        "resamples":         10,
+        "jump_fn":           "jump_max10",   # serialised as string for WandB
+        "sample_batch_size": 8192,
+    },
+    "RePaint": {
+        "dropout":           0.1,
+        "batch_size":        4096,
+        "lr":                0.0006,
+        "weight_decay":      1e-5,
+        "num_epochs":        100_000,
+        "num_timesteps":     1000,
+        "resamples":         10,
+        "jump_fn":           "jump_max10",
+        "sample_batch_size": 8192,
+    },
+    "ConditionedRePaint": {
+        "dropout":           0.1,
+        "batch_size":        4096,
+        "lr":                0.0006,
+        "weight_decay":      1e-5,
+        "num_epochs":        100_000,
+        "num_timesteps":     1000,
+        "resamples":         10,
+        "jump_fn":           "jump_max10",
+        "sample_batch_size": 8192,
+    },
+
+    # ── SOTA — recon-synth / Reconstruction/SOTA_attacks/linear_reconstruction.py
+    "LinearReconstruction": {
+        "k":       3,   # k-way marginal queries
+        "n_procs": 4,   # Gurobi threads
+    },
+}

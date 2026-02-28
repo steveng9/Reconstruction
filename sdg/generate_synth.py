@@ -33,21 +33,50 @@ from datetime import datetime
 # ============================================================
 
 DATA_ROOT = Path("/home/golobs/data/reconstruction_data")
-DATASET = "adult"
-#DATASET = "match2-2017"
+#DATASET = "adult"
+DATASET = "nist_arizona_data"
+#DATASET = "nist_sbo"
 #DATASET = "cdc_diabetes"
 #DATASET = "california"
-#DATASET = "nist_sbo"
+#DATASET = "match2-2017"
 
-SAMPLE_SIZE = 20_000
-NUM_SAMPLES = 5       # total training samples to create
+SAMPLE_SIZE = 10_000
+NUM_SAMPLES = 10       # total training samples to create
 
 # Whether samples must be disjoint (non-overlapping).
 # Set False when XxN exceeds total available data, or when samples won't be used as holdout sets.
 # Non-disjoint sampling writes a NO_HOLDOUT marker in each sample dir.
-DISJOINT = False
+DISJOINT = True
 
 RANDOM_SEED = 42
+
+# Feature subset — set to a list of column names to restrict BOTH sample() and sdg() to
+# those columns. None = use all columns. When set, the size directory gets a "_Nfeat"
+# suffix so 50-feat and 98-feat experiments live in separate directories
+# (e.g. size_10000_50feat/ vs size_10000/).
+#FEATURE_SUBSET = None
+# nist_arizona_data 25-col subset (mirrors NIST CRC competition, F-code encoding):
+FEATURE_SUBSET = [
+    'AGE','AGEMARR','BPL','CITIZEN','DURUNEMP',
+    'EDUC','EMPSTAT','FAMSIZE','FARM','GQ','GQTYPE',
+    'HISPAN','INCWAGE','IND','LABFORCE','MARST','MIGRATE5',
+    'MTONGUE','NATIVITY','OWNERSHP','RACE','SEX','URBAN',
+    'VETSTAT','WKSWORK1',
+]
+# nist_arizona_data 50-col subset:
+# FEATURE_SUBSET = [
+#     'AGE','AGEMARR','BPL','CHBORN','CITIZEN',
+#     'CITY','CLASSWKR','COUNTY','DURUNEMP',
+#     'EDUC','EMPSTAT','FAMSIZE','FARM','FBPL',
+#     'GQ','GQFUNDS','GQTYPE','HISPAN','HRSWORK1',
+#     'INCNONWG','INCWAGE','IND','LABFORCE',
+#     'MARRNO','MARST','MBPL','METAREA','METRO',
+#     'MIGCITY5','MIGRATE5','MIGTYPE5','MTONGUE',
+#     'NATIVITY','NCHLT5','OCC','OWNERSHP','RACE',
+#     'RENT','SAMEPLAC','SCHOOL','SEX','SSENROLL',
+#     'URBAN','VALUEH','VETCHILD','VETPER',
+#     'VETSTAT','VETWWI','WARD','WKSWORK1',
+# ]
 
 # Which samples to generate SDG for (0-indexed).
 SAMPLES_TO_GENERATE = range(5)
@@ -159,6 +188,29 @@ _SDG_JOBS_BY_DATASET = {
         ("CellSuppression", {"key_vars": ["FIPST", "SECTOR", "ETH1", "SEX1", "AGE1"]}),
     ],
 
+    "nist_arizona_data": [
+        # Deep generative models
+        #("TabDDPM", {}),
+        #("TVAE",    {}),
+        #("CTGAN",   {}),
+        #("ARF",     {}),
+        # Differentially private — pre-bin continuous cols to avoid BinTransformer failures
+        # at small epsilon (INCWAGE range 0–999998 and VALUEH range 1–9999999 cause
+        # approx_bounds to return None with preprocessor_eps < ~0.1)
+        #("MST", {"epsilon": 0.1,   "bin_continuous_as_ordinal": True}),
+        #("MST", {"epsilon": 1.0,   "bin_continuous_as_ordinal": True}),
+        #("MST", {"epsilon": 10.0,  "bin_continuous_as_ordinal": True}),
+        #("MST", {"epsilon": 100.0, "bin_continuous_as_ordinal": True}),
+        #("MST", {"epsilon": 1000.0, "bin_continuous_as_ordinal": True}),
+        #("AIM", {"epsilon": 1.0}),
+        #("AIM", {"epsilon": 10.0}),
+        #("AIM", {"epsilon": 100.0}),
+        # R-based / de-identification
+        ("Synthpop", {}),
+        #("RankSwap",        {"swap_features": ["AGE", "AGEMARR", "FAMSIZE", "INCWAGE"]}),
+        #("CellSuppression", {"key_vars": ["RACE", "SEX", "AGE"], "k": 6}),
+    ],
+
     "match2-2017": [
         ("MST",  {"epsilon": 1.0}),
         ("MST",  {"epsilon": 10.0}),
@@ -180,6 +232,25 @@ if DATASET not in _SDG_JOBS_BY_DATASET:
     )
 
 SDG_JOBS = _SDG_JOBS_BY_DATASET[DATASET]
+
+
+def _base_dir() -> Path:
+    """Size directory, with a '_Nfeat' suffix when FEATURE_SUBSET is active."""
+    if FEATURE_SUBSET is not None:
+        return DATA_ROOT / DATASET / f"size_{SAMPLE_SIZE}_{len(FEATURE_SUBSET)}feat"
+    return DATA_ROOT / DATASET / f"size_{SAMPLE_SIZE}"
+
+
+def _effective_meta() -> dict:
+    """Return META filtered to FEATURE_SUBSET columns (or the full META if unset)."""
+    if FEATURE_SUBSET is None:
+        return META
+    subset = set(FEATURE_SUBSET)
+    return {
+        "categorical": [c for c in META.get("categorical", []) if c in subset],
+        "continuous":  [c for c in META.get("continuous",  []) if c in subset],
+        "ordinal":     [c for c in META.get("ordinal",     []) if c in subset],
+    }
 
 
 # Environment variables to suppress noisy warnings in subprocesses
@@ -248,9 +319,17 @@ def do_sample():
         # Leaves ~123,892 fully-complete rows out of 161,079.
         df = df.dropna().reset_index(drop=True)
 
-    print(f"Full dataset: {len(df)} rows after cleaning")
+    if FEATURE_SUBSET is not None:
+        missing = set(FEATURE_SUBSET) - set(df.columns)
+        if missing:
+            raise ValueError(f"FEATURE_SUBSET columns not in data: {sorted(missing)}")
+        n_total = len(df.columns)
+        df = df[list(FEATURE_SUBSET)]
+        print(f"Feature subset active: using {len(FEATURE_SUBSET)} of {n_total} columns")
 
-    base = DATA_ROOT / DATASET / f"size_{SAMPLE_SIZE}"
+    print(f"Full dataset: {len(df)} rows, {len(df.columns)} columns after cleaning")
+
+    base = _base_dir()
 
     if DISJOINT:
         # Non-overlapping sequential slices from a shuffled dataset
@@ -294,7 +373,7 @@ def do_sample():
             print(f"  sample_{i:02d}/train.csv — {len(sample_df)} rows  [non-disjoint, NO_HOLDOUT marked]")
 
     print(f"\nSaved {NUM_SAMPLES} samples to {base}/")
-    print(f"Meta: {META_PATH}")
+    print(f"Meta: {META_PATH}" + (f"  (filtered to {len(FEATURE_SUBSET)} cols)" if FEATURE_SUBSET else ""))
     print(f"Verify, then run:  python generate_synth.py sdg")
 
 
@@ -304,7 +383,7 @@ def do_sample():
 
 def do_sdg():
     """Generate synthetic data for each sample using parallel subprocesses."""
-    base = DATA_ROOT / DATASET / f"size_{SAMPLE_SIZE}"
+    base = _base_dir()
 
     # Verify samples exist
     for i in SAMPLES_TO_GENERATE:
@@ -332,7 +411,7 @@ def launch_sdg_jobs(sample_idx):
     sys.path.insert(0, "/home/golobs/Reconstruction")
     from sdg import sdg_dirname
 
-    base = DATA_ROOT / DATASET / f"size_{SAMPLE_SIZE}"
+    base = _base_dir()
     sample_dir = base / f"sample_{sample_idx:02d}"
     train_csv = str(sample_dir / "train.csv")
 
@@ -379,7 +458,7 @@ def launch_sdg_jobs(sample_idx):
         cmd = [
             sys.executable, script, "--job",
             method, train_csv, output_csv,
-            json.dumps(META), json.dumps(config),
+            json.dumps(_effective_meta()), json.dumps(config),
         ]
         proc = subprocess.Popen(
             cmd, stdout=job_log_fh, stderr=subprocess.STDOUT, env=_QUIET_ENV,
@@ -485,14 +564,14 @@ if __name__ == "__main__":
         print()
         print("To run in background:")
         print("  nohup python sdg/generate_synth.py sdg &")
-        base = DATA_ROOT / DATASET / f"size_{SAMPLE_SIZE}"
+        base = _base_dir()
         print(f"  tail -f {base}/sdg_log.txt")
         sys.exit(1)
     elif sys.argv[1] == "sample":
         do_sample()
     elif sys.argv[1] == "sdg":
         # Open log file
-        base = DATA_ROOT / DATASET / f"size_{SAMPLE_SIZE}"
+        base = _base_dir()
         base.mkdir(parents=True, exist_ok=True)
         _log_fh = open(base / "sdg_log.txt", "a")
         log(f"--- Started: {datetime.now().isoformat()} ---")

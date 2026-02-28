@@ -40,6 +40,21 @@ svm_clf_C_default = 1.0
 svm_clf_gamma_default = 'scale'
 
 
+def _encode_qi(deid, targets, qi, scale=False):
+    """OrdinalEncode QI columns for sklearn compatibility with both numeric and
+    string-valued categorical data (e.g. adult 'Male'/'Female'). Numeric columns
+    pass through unchanged since OrdinalEncoder handles them. Optionally applies
+    StandardScaler afterward (needed for distance-based methods: KNN, SVM)."""
+    enc = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
+    X_train = enc.fit_transform(deid[qi].astype(str))
+    X_test  = enc.transform(targets[qi].astype(str))
+    if scale:
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_test  = scaler.transform(X_test)
+    return X_train, X_test
+
+
 
 def _development():
     qis = [
@@ -123,6 +138,7 @@ def _development():
 
 def logistic_regression_reconstruction(cfg, deid, targets, qi, hidden_features):
     max_iter = cfg["attack_params"].get("max_iter", logistic_max_iter_default)
+    X_train, X_test = _encode_qi(deid, targets, qi)
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         model = LogisticRegression(max_iter=max_iter)
@@ -130,12 +146,17 @@ def logistic_regression_reconstruction(cfg, deid, targets, qi, hidden_features):
 
         # Handle edge case: ensure at least 2 classes
         if y.nunique() < 2:
-            y.iloc[0] = '1'  # Use iloc for safer assignment
+            y.iloc[0] = '1'
 
-        model.fit(deid[qi].astype(str), y)
-        reconstructed_targets[hidden_feature] = model.predict(targets[qi].astype(str))
+        model.fit(X_train, y)
+        pred = model.predict(X_test)
+        # Predictions are strings (from y.astype(str)); restore original dtype.
+        try:
+            reconstructed_targets[hidden_feature] = pred.astype(deid[hidden_feature].dtype)
+        except (ValueError, TypeError):
+            reconstructed_targets[hidden_feature] = pred
 
-    return reconstructed_targets.astype(int), None, None
+    return reconstructed_targets, None, None
 
 
 # ============================================================================
@@ -158,9 +179,13 @@ def random_forest_reconstruction(cfg, deid, targets, qi, hidden_features):
 
     for hidden_feature in hidden_features:
         model = RandomForestClassifier(n_estimators=num_estimators, max_depth=max_depth)
-        model.fit(X_train, deid[hidden_feature])
+        model.fit(X_train, deid[hidden_feature].astype(str))
 
-        reconstructed_targets[hidden_feature] = model.predict(X_targets)
+        pred = model.predict(X_targets)
+        try:
+            reconstructed_targets[hidden_feature] = pred.astype(deid[hidden_feature].dtype)
+        except (ValueError, TypeError):
+            reconstructed_targets[hidden_feature] = pred
         probas.append(model.predict_proba(X_targets))
         classes_.append(model.classes_)
 
@@ -173,6 +198,7 @@ def lgboost_reconstruction(cfg, deid, targets, qi, hidden_features):
     metric = cfg["attack_params"].get("lgb_metric", lgb_metric_default)
     verbosity = cfg["attack_params"].get("lgb_verbosity", lgb_verbosity_default)
 
+    X_train, X_test = _encode_qi(deid, targets, qi)
     reconstructed_targets = targets.copy()
     probas = []
     classes_ = []
@@ -190,15 +216,19 @@ def lgboost_reconstruction(cfg, deid, targets, qi, hidden_features):
         }
 
         model = lgb.LGBMClassifier(**params)
-        y = deid[hidden_feature].copy()
+        y = deid[hidden_feature].astype(str)
 
         # Handle edge case: ensure at least 2 classes
         if y.nunique() < 2:
-            y.iloc[0] = 99
+            y.iloc[0] = '__dummy__'
 
-        model.fit(deid[qi], y)
-        reconstructed_targets[hidden_feature] = model.predict(targets[qi])
-        probas.append(model.predict_proba(targets[qi]))
+        model.fit(X_train, y)
+        pred = model.predict(X_test)
+        try:
+            reconstructed_targets[hidden_feature] = pred.astype(deid[hidden_feature].dtype)
+        except (ValueError, TypeError):
+            reconstructed_targets[hidden_feature] = pred
+        probas.append(model.predict_proba(X_test))
         classes_.append(model.classes_)
 
     return reconstructed_targets, probas, classes_
@@ -239,34 +269,31 @@ def naive_bayes_reconstruction(cfg, deid, targets, qi, hidden_features, classes=
     probas = []
 
     for hidden_feature in hidden_features:
-        original_dtype = deid[hidden_feature].dtype
         model = GaussianNB()
 
         if classes is not None:
             # Augment training data to include all classes
-            deid_augmented = augment_df(deid, classes[hidden_feature], hidden_feature)
-            y_train = deid_augmented[hidden_feature]
-            model.fit(deid_augmented[qi].astype(str), y_train.astype(str))
+            deid_fit = augment_df(deid, classes[hidden_feature], hidden_feature)
+        else:
+            deid_fit = deid
 
-            # Verify all classes are present
+        enc = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
+        X_train = enc.fit_transform(deid_fit[qi].astype(str))
+        X_test  = enc.transform(targets[qi].astype(str))
+        y_train = deid_fit[hidden_feature].astype(str)
+        model.fit(X_train, y_train)
+
+        if classes is not None:
             assert len(classes[hidden_feature]) == len(model.classes_), \
                 f"Expected {len(classes[hidden_feature])} classes, got {len(model.classes_)}"
-        else:
-            y_train = deid[hidden_feature]
-            model.fit(deid[qi].astype(str), y_train.astype(str))
 
+        pred = model.predict(X_test)
+        # Predictions are strings (from y_train.astype(str)); restore original dtype.
         try:
-            reconstructed_targets[hidden_feature] = model.predict(reconstructed_targets[qi].astype(str))
-
-            # Restore original dtype
-            if original_dtype == np.float64:
-                reconstructed_targets[hidden_feature] = reconstructed_targets[hidden_feature].astype(float)
-            else:
-                reconstructed_targets[hidden_feature] = reconstructed_targets[hidden_feature].astype(int)
-        except Exception as e:
-            print(f"Exception occurred for feature {hidden_feature}: {e}")
-
-        probas.append(model.predict_proba(reconstructed_targets[qi].astype(str)))
+            reconstructed_targets[hidden_feature] = pred.astype(deid[hidden_feature].dtype)
+        except (ValueError, TypeError):
+            reconstructed_targets[hidden_feature] = pred
+        probas.append(model.predict_proba(X_test))
 
     return reconstructed_targets, probas, None
 
@@ -323,28 +350,16 @@ def KNN_reconstruction(cfg, deid, targets, qi, hidden_features):
     # Force k=1 for categorical data
     k = 1
 
-    # Normalize QI features for fair distance calculation
-    scaler = StandardScaler()
-    syn_qi_scaled = scaler.fit_transform(deid[qi])
-    target_qi_scaled = scaler.transform(targets[qi])
+    X_train, X_test = _encode_qi(deid, targets, qi, scale=True)
 
-    # Fit KNN
-    nbrs = NearestNeighbors(n_neighbors=k).fit(syn_qi_scaled)
-    distances, indices = nbrs.kneighbors(target_qi_scaled)
+    nbrs = NearestNeighbors(n_neighbors=k).fit(X_train)
+    distances, indices = nbrs.kneighbors(X_test)
 
     recon = targets.copy()
-
     for feature in hidden_features:
-        feature_values = []
+        recon[feature] = [deid.iloc[indices[i][0]][feature] for i in range(len(targets))]
 
-        for i in range(len(targets)):
-            neighbor_idx = indices[i][0]  # Only one neighbor (k=1)
-            neighbor_value = deid.iloc[neighbor_idx][feature]
-            feature_values.append(neighbor_value)
-
-        recon[feature] = feature_values
-
-    return recon.astype(int), None, None
+    return recon, None, None
 
 
 
@@ -358,31 +373,31 @@ def SVM_classification_reconstruction(cfg, deid, targets, qi, hidden_features):
     gamma = cfg["attack_params"].get("gamma", svm_clf_gamma_default)
     probability = cfg["attack_params"].get("probability", True)  # Enable probability estimates
 
-    # Normalize features for SVM (important for good performance)
-    scaler = StandardScaler()
+    X_train_scaled, X_target_scaled = _encode_qi(deid, targets, qi, scale=True)
 
     targets_copy = targets.copy()
     probas = []
     classes_ = []
 
     for hidden_feature in hidden_features:
-        # Scale input features
-        X_train_scaled = scaler.fit_transform(deid[qi])
-        X_target_scaled = scaler.transform(targets[qi])
 
-        y_train = deid[hidden_feature]
+        y_train = deid[hidden_feature].astype(str)
 
         # Handle edge case: ensure at least 2 classes
         if y_train.nunique() < 2:
             y_train = y_train.copy()
-            y_train.iloc[0] = 99
+            y_train.iloc[0] = '__dummy__'
 
         # Train SVM Classifier
         model = SVC(kernel=kernel, C=C, gamma=gamma, probability=probability)
         model.fit(X_train_scaled, y_train)
 
-        # Predict
-        targets_copy[hidden_feature] = model.predict(X_target_scaled)
+        # Predict and restore original dtype
+        pred = model.predict(X_target_scaled)
+        try:
+            targets_copy[hidden_feature] = pred.astype(deid[hidden_feature].dtype)
+        except (ValueError, TypeError):
+            targets_copy[hidden_feature] = pred
 
         # Get probabilities if enabled
         if probability:
@@ -392,7 +407,7 @@ def SVM_classification_reconstruction(cfg, deid, targets, qi, hidden_features):
 
         classes_.append(model.classes_)
 
-    return targets_copy.astype(int), probas, classes_
+    return targets_copy, probas, classes_
 
 
 def chained_rf_reconstruction(deid, targets, qi, hidden_features):

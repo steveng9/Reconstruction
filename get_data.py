@@ -39,10 +39,20 @@ QIs = {
     "california": {
         "QI1": ["Latitude", "Longitude", "HouseAge", "Population"],
     },
+    # nist_arizona_25feat: 25-col IPUMS subset (mirrors NIST CRC competition, F-code encoding)
+    # nist_arizona_50feat: 50-col subset
+    # nist_arizona_data:   98-col full data (QI2 uses SUPDIST which is not in 25/50 subsets)
+    # QI1 known (7) is shared across all three; hidden features differ by available columns.
+    "nist_arizona_25feat": {
+        "QI1": ['RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT'],
+    },
+    "nist_arizona_50feat": {
+        "QI1": ['RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT'],
+    },
     "nist_arizona_data": {
-        "QI1": ['F37', 'F41', 'F2', 'F17', 'F22', 'F32', 'F47'],
-        "QI2": ['F37', 'F41', 'F3', 'F13', 'F18', 'F23', 'F30'],
-        "QI3": ['F1', 'F2', 'F3', 'F5', 'F9', 'F10', 'F11', 'F12', 'F13', 'F15', 'F17', 'F18', 'F21', 'F22', 'F23', 'F25', 'F30', 'F32', 'F33', 'F36', 'F37', 'F41', 'F47', 'F50']
+        "QI1": ['RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT'],
+        "QI2": ['SEX', 'AGE', 'RACE', 'MARST', 'NATIVITY', 'HISPAN', 'BPL',
+                'COUNTY', 'SUPDIST', 'EMPSTAT', 'LABFORCE', 'EDUC'],
     },
     "california_housing_data": {
         "QI1": ['0', '1', '2', '3', '4', '5'],
@@ -60,10 +70,25 @@ minus_QIs = {
     "california": {
         "QI1": ["MedInc", "AveRooms", "AveBedrms", "AveOccup", "MedHouseVal"],
     },
+    # 25-feat: all 18 non-QI features (mirrors NIST CRC competition format)
+    "nist_arizona_25feat": {
+        "QI1": ['AGE', 'BPL', 'CITIZEN', 'DURUNEMP', 'EDUC', 'EMPSTAT', 'FAMSIZE',
+                'FARM', 'GQ', 'HISPAN', 'INCWAGE', 'LABFORCE', 'MARST', 'MIGRATE5',
+                'NATIVITY', 'OWNERSHP', 'URBAN', 'WKSWORK1'],
+    },
+    # 50-feat: focused economic/labor/education outcomes
+    "nist_arizona_50feat": {
+        "QI1": ['INCWAGE', 'VALUEH', 'RENT', 'OCC', 'WKSWORK1',
+                'HRSWORK1', 'CLASSWKR', 'EDUC'],
+    },
+    # 98-feat full data
+    # QI1 hidden (8): economic + labor + education outcomes
+    # QI2 hidden (10): economic + labor outcomes (EDUC already in QI2 known features)
     "nist_arizona_data": {
-        "QI1": ['F23', 'F13', 'F11', 'F43', 'F36', 'F15', 'F33', 'F25', 'F18', 'F5', 'F30', 'F10', 'F12', 'F50', 'F3', 'F1', 'F9', 'F21'],
-        "QI2": ['F11', 'F43', 'F5', 'F36', 'F25', 'F47', 'F32', 'F15', 'F33', 'F17', 'F10', 'F12', 'F2', 'F1', 'F50', 'F22', 'F9', 'F21'],
-        "QI3": ['F43']
+        "QI1": ['INCWAGE', 'VALUEH', 'RENT', 'OCC', 'WKSWORK1',
+                'HRSWORK1', 'CLASSWKR', 'EDUC'],
+        "QI2": ['INCWAGE', 'VALUEH', 'RENT', 'OCC', 'IND', 'WKSWORK1',
+                'HRSWORK1', 'SEI', 'OCCSCORE', 'CLASSWKR'],
     },
     "california_housing_data": {
         "QI1": ['6', '7', '8'],

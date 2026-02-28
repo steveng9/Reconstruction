@@ -74,12 +74,16 @@ def synthpop_generate(train_df, meta, **config):
         train_df: Training DataFrame (no ID column).
         meta: Dict with 'categorical', 'continuous', 'ordinal' column lists.
         **config: method (str, default 'cart'),
-                  maxfaclevels (int, default 1000 — max factor levels before synthpop refuses).
+                  maxfaclevels (int, default 1000 — max factor levels before synthpop refuses),
+                  high_card_threshold (int, default 20 — columns with more unique values than
+                    this are moved to the end of the synthesis order and use polyreg instead of
+                    cart, avoiding slow CART split-search over many factor levels as predictors).
     Returns:
         Synthetic DataFrame.
     """
     method = config.get("method", "cart")
     maxfaclevels = config.get("maxfaclevels", 1000)
+    high_card_threshold = config.get("high_card_threshold", 20)
     synthpop = _ensure_r_package("synthpop")
 
     df = train_df.copy()
@@ -87,12 +91,38 @@ def synthpop_generate(train_df, meta, **config):
     for col in cat_cols:
         df[col] = df[col].astype(str)
 
+    # High-cardinality categorical columns (e.g. IND=110 levels, BPL=89 levels) slow down
+    # every CART model where they appear as predictors. Move them to the end so the default
+    # lower-triangular predictor matrix excludes them as predictors for all other columns.
+    # Use polyreg (multinomial logistic regression) for their own synthesis — faster than
+    # CART for many-class responses and avoids exponential factor-level subset search.
+    high_card_cols = [c for c in cat_cols if df[c].nunique() > high_card_threshold]
+    if high_card_cols:
+        other_cols = [c for c in df.columns if c not in high_card_cols]
+        df = df[other_cols + high_card_cols]
+
     r_df = _py2rpy(df)
     for col in cat_cols:
         r_df = _to_factor(r_df, col)
 
-    syn_result = synthpop.syn(data=r_df, method=method, maxfaclevels=maxfaclevels)
+    if high_card_cols:
+        # Use "sample" (draw from observed marginal) rather than "polyreg" or "cart":
+        # polyreg one-hot-encodes all factor predictors, producing ~6-18k parameters for
+        # 89-110 class columns — nnet::multinom never converges. "sample" is instant and
+        # preserves the marginal distribution; joint conditioning is sacrificed, but these
+        # columns are already excluded as predictors (end of visit sequence), so other
+        # variables are unaffected.
+        method_vec = ro.StrVector([
+            "sample" if c in set(high_card_cols) else method
+            for c in df.columns
+        ])
+        syn_result = synthpop.syn(data=r_df, method=method_vec, maxfaclevels=maxfaclevels)
+    else:
+        syn_result = synthpop.syn(data=r_df, method=method, maxfaclevels=maxfaclevels)
+
     syn_df = _rpy2py(syn_result.rx2("syn"))
+    # Restore original column order
+    syn_df = syn_df[train_df.columns]
 
     return _restore_int_cols(syn_df, train_df)
 
