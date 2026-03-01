@@ -1,0 +1,113 @@
+                                                                                                                                               
+MIA vs RA Comparison
+
+  This is the harder design question because the two attacks assume fundamentally different adversary models:
+
+  ┌─────────────────────┬─────────────────────────────────┬─────────────────────────────────────────────────────────┐
+  │                     │               RA                │                           MIA                           │
+  ├─────────────────────┼─────────────────────────────────┼─────────────────────────────────────────────────────────┤
+  │ What attacker knows │ QI of target + synthetic data   │ Full record of target + synthetic data (+ aux for NNDR) │
+  ├─────────────────────┼─────────────────────────────────┼─────────────────────────────────────────────────────────┤
+  │ What attacker asks  │ What are the hidden attributes? │ Was this record in the training set?                    │
+  ├─────────────────────┼─────────────────────────────────┼─────────────────────────────────────────────────────────┤
+  │ Output              │ Reconstructed attribute values  │ Membership confidence score                             │
+  └─────────────────────┴─────────────────────────────────┴─────────────────────────────────────────────────────────┘
+
+  The key insight for comparison is to shift perspective from attack properties to record-level vulnerability. For every training record, we
+  can ask: how much does synthetic data reveal about this record? Both attacks give an answer from different angles. The row-level RA scores
+  from Feature 1 are the enabling technology here.
+
+  Proposed comparison approach
+
+  experiment_scripts/compare_mia_ra.py — a standalone analysis script that takes a config with both RA and MIA parameters specified, operates
+  on the same training records, and produces:
+
+  1. Aligned per-record scores: Run MIA on a sample of training records (same n_targets, same seed). Run RA (row-level) on those same records
+  using their QI as given. Now each training record has both a MIA score and a RA row score.
+  2. Correlation analysis: Spearman correlation between MIA confidence and mean RA row score. Addresses: are these attacks measuring the same
+  underlying vulnerability, or complementary risks?
+  3. Quadrant analysis: 2×2 grid of low/high MIA × low/high RA. Records in the high/high quadrant are doubly vulnerable. Records in the
+  off-diagonal quadrants show where one attack succeeds and the other fails — most interesting for the white paper.
+  4. Outlier intersection: Within the top-10% MIA scores and top-10% RA scores, what fraction are QI-space outliers? This tests the hypothesis
+  that uniqueness drives both attack types.
+  5. SDG method sweep table: Given a fixed dataset, compare across SDG methods the pair (MIA_auc, RA_mean) — which methods trade off privacy
+  risks differently?
+
+  Key design tensions to flag
+
+  Adversary model asymmetry: RA's adversary knows QI but not membership; MIA's adversary knows full records. This is a genuine
+  apples-and-oranges comparison. I'd suggest the paper frame this as: "RA and MIA are complementary auditing tools for different threat models.
+   Row-level analysis lets us ask: do they converge on the same records as high-risk, or do they reveal distinct populations?" The comparison
+  is valid as an audit tool comparison, not as measuring the same risk.
+
+  MIA requires returning raw per-record scores: Currently mia_fn() → dict only returns aggregate metrics. We'd need to add a return_raw=True
+  path to get back the scores array and labels array before they're reduced to metrics. Minimal change — just a new parameter.
+
+  ---
+  Before I start building, a few design questions I want your input on:
+
+  1. Row scores — logging destination: Should row-level CSVs be WandB artifacts (logged with wandb.log_artifact), saved to a configured
+  directory on disk, or both? WandB tables would make the subgroup analysis browsable in the UI.
+  2. Outlier features: QI-space outliers as described above, or should we also offer full-feature-space and hidden-feature-space variants? My
+  instinct is QI-space is the right default for privacy auditing.
+  3. Comparison script output: Matplotlib plots saved to disk (clean for paper figures), or a rich terminal/WandB report, or both?
+  4. Scope of comparison script: Should it be a standalone analysis script (reads pre-computed row score CSVs + MIA results), or a live
+  execution script that runs both attacks fresh? Live execution is simpler but slower; reading from pre-computed results is faster but requires
+   coordination between separate runs.
+
+✻ Brewed for 2m 5s
+
+❯ for feature 1, your ideas sound great. But let's make sure we keep the output scores / files organized so that, when we run a ton of         
+  different attacks on different SDGs under different parameters /s settings ,etc. that we don't overwrite the wrong files. For the second    
+   feature, I like your idea of the quadrant analysis (#3) ! Let's make sure we have that when we implmement this. I also like your            
+  outlier intersection analysis idea (#4) . I don't know, however, if I agree with your comparison design that both attaccks will need to      
+  have row-level scores, fundementally, for this feature. I think there is something I need to clarify for us: an RA has exactly the set       
+  of training rows (so knows membership is 1 for all), but not the QI. The MIA has all features (qi + hidden) but (usually) twice the          
+  number of rows as was used to train the SDG method, not knowing which 50% are members. So, besides the synthetic dataset, assumeing that     
+   the QI is exactly half of the features, then the RA has one quarter of cells given to an MIA. (this isn't important or very technical,      
+  but just so we're on the same page). So if we were to compare the two, don't you think that the MIA might be given the training set          
+  appended to an equally-sized holdout set, to create a "target" MIA set? For your concerns: 1. logging row scores: I think this will be       
+  important to save and log, but they might be challenging to find and parse in the wandb UI. I'll need your help here. 2. I like your         
+  suggestion of QI-space outliers. 3. for now, just a rich terminal / wandb report. I'll make the plots with the data later, so long as I      
+  can find it. 4. I'm not sure yet. Coordinating between runs is stressful for me to keep track of. I'll need help doing so, and deciding.     
+                                                                                                                                               
+                                                                                                                                               
+● Your adversary model clarification is helpful — let me make sure I've got it right:
+                                                                                      
+  - RA adversary: knows exactly who is in training (membership = 1 for all targets), knows QI values for those targets, reconstructs hidden
+  features                                                                                                                                     
+  - MIA adversary: has full records (QI + hidden) for a mixed set of training + holdout, doesn't know which half are members
+                                                                                                                                               
+  So the two attacks differ on both axes: RA trades membership certainty for feature incompleteness; MIA has full features but membership
+  uncertainty. That's a meaningful asymmetry, and it shifts how I'd frame the comparison.
+
+  Revised comparison framing: Instead of comparing per-record scores across the two attacks, the cleaner question is: can RA serve as a
+  membership classifier? The memorization test already runs RA on both training AND holdout records and measures RA_delta. If training records
+  are systematically better-reconstructed, RA is leaking membership via reconstruction quality. We can compute RA-as-classifier AUC by treating
+   RA row scores as membership scores — exactly analogous to MIA_auc — and compare the two directly. This is a principled comparison with no
+  adversary model mismatch, because we're comparing the outcomes as classifiers, not the attacks themselves.
+
+  The per-record quadrant analysis you asked for then becomes: for training records that MIA "easily" identifies (high MIA score), do those
+  records also have high RA reconstruction scores? This still requires row-level scores from Feature 1, but doesn't require returning row-level
+   MIA scores — we just need MIA's per-record score for the training subset (a minor change to extract raw scores before aggregation).
+
+  ---
+  On the logistics questions:
+
+  File organization: Mirror the data directory hierarchy so files are co-located with what produced them:
+  {sample_dir}/{sdg_dir}/row_scores/{attack_method}_{qi}_{run_id}.csv
+  e.g. size_10000/sample_01/MST_eps1/row_scores/RandomForest_QI1_run0.csv. Uniquely namespaced by (sample, SDG+params, attack, QI, run), never
+  overwrites sibling runs.
+
+  WandB logging: Log summary statistics as scalars (mean, std, p10/p50/p90 of RA_row_mean), log per-feature histograms as WandB Histogram
+  objects, and save the full CSV to disk with its path stored in wandb.config so it's always traceable. That way WandB gives you the
+  distributions and the CSV path, and you can load the data locally for plotting.
+
+  Comparison script: Live execution (single config, runs both fresh). Less coordination overhead. The config would specify both attack + MIA
+  parameters and the script handles sequencing internally.
+
+  ---
+  One last question before I move into planning mode: for the comparison script, should it run at the level of a single (dataset, SDG, attack)
+  config — i.e., you run it once per configuration and get one comparison output — or should it sweep across multiple SDG methods for a given
+  dataset in one run and produce a summary table comparing MIA_auc vs RA_as_MIA_auc across all SDG methods? The latter is more useful for the
+  white paper but requires specifying multiple SDG configs in one YAML.

@@ -1,0 +1,43 @@
+  On healthcare imputation: yes, this is a very well-timed connection to make. The structural parallel is essentially exact:
+                                                                                                                                                           
+  ┌─────────────────────────────────┬────────────────────────────┐                                                                                         
+  │           Imputation            │   Reconstruction Attack    │                                                                                         
+  ├─────────────────────────────────┼────────────────────────────┤                                                                                         
+  │ Observed features (non-missing) │ Quasi-identifiers (public) │
+  ├─────────────────────────────────┼────────────────────────────┤
+  │ Missing features                │ Hidden features            │
+  ├─────────────────────────────────┼────────────────────────────┤
+  │ Training dataset                │ Synthetic dataset          │
+  ├─────────────────────────────────┼────────────────────────────┤
+  │ Model fitted on full data       │ Model fitted on synth      │
+  ├─────────────────────────────────┼────────────────────────────┤
+  │ Goal: fill gaps accurately      │ Goal: infer private values │
+  └─────────────────────────────────┴────────────────────────────┘
+
+  Standard healthcare imputation methods map almost 1-to-1 onto your existing attack suite:
+
+  - missForest (Random Forest per column) → your RandomForest attack, verbatim
+  - MICE / MCAR (chained equations — iteratively predict each missing col conditioned on the rest) → your chaining enhancement, conceptually identical
+  - kNN imputation → your distance-based attacks
+  - PMM (Predictive Mean Matching) → closest analog is your continuous regression attacks
+  - Low-rank matrix completion → LinearReconstruction
+  - GAIN / MIWAE (deep generative imputers) → your diffusion-based attacks
+
+  The framing for the white paper that I'd suggest: a reconstruction attack is imputation run adversarially — the attacker substitutes synthetic data where
+   the imputer would use real data. The threat is not exotic; it's the same pipeline healthcare data scientists already trust and run routinely.
+
+  Concrete additions worth considering, in order of effort:
+
+  1. (Low effort, high value) — Prose acknowledgment only. A sidebar noting the parallel. Cite MICE (van Buuren 2011) and missForest (Stekhoven & Bühlmann
+  2012) as the imputation analogues. This contextualizes the threat for clinical readers without any new code.
+  2. (Medium effort) — MICE as an attack baseline. sklearn.impute.IterativeImputer is MICE (Bayesian Ridge by default). You could register it as an attack
+  method — it takes QI as observed and iterates over hidden features, trained on synth. This would show empirically how a generic "trusted healthcare tool"
+   performs as an attacker.
+  3. (Medium effort) — Synthetic-vs-real imputation gap. Run MICE twice: once trained on synth (the attack), once trained on real training data (the
+  oracle). The gap between them is a direct measure of how much synthetic data degrades imputation fidelity — framing the privacy/utility tradeoff in
+  imputation terms that healthcare readers will immediately recognize.
+  4. (Higher effort) — Subgroup analysis matching imputation literature. The imputation literature specifically calls out that MCAR/MAR/MNAR missingness
+  patterns interact badly with subgroups — unusual records are harder to impute. That maps directly onto what your new subgroup script is investigating. A
+  cross-reference here would be compelling.
+
+  Of these, option 2 or 3 seems most publishable.

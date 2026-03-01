@@ -1,0 +1,63 @@
+  ---                                                                                                                              
+  MAMA-MIA: How It Works (concise)                                                                                                 
+                                                                                                                                   
+  Focal points are the specific marginals (column tuples) the SDG algorithm internally selects when fitting — for MST, these are   
+  the edges of its maximum spanning tree (2-way marginals). Shadow runs (15 by default, paper says 50) run the algorithm N times on
+   auxiliary data (holdout works) to build a frequency distribution over which marginals tend to get selected. The scoring is then:
+
+  score(target) = Σ weight_i × P_synth(target[marginal_i]) / P_aux(target[marginal_i])
+
+
+  It's a weighted ratio of how much more the synthetic data "explains" the target than the population baseline does.
+
+  ---
+  Feasibility by SDG Method
+
+  MST — Moderate effort, clear path
+
+  The good news: SmartNoise's MSTSynthesizer does expose the cliques via its select() method, which returns list(T.edges) — pairs
+  of column names. The scoring logic in the existing codebase is ~30 clean pandas lines that can be re-implemented natively.
+
+  The friction points:
+  1. Environment split: SmartNoise MST runs in sdg env (needs mbi/private-pgm); MIA scoring runs in recon_. Shadow runs need to
+  cross this boundary — same subprocess pattern as generate_synth.py, but we'd need a small helper script in the sdg env that runs
+  N MST fits, collects cliques, and saves them as JSON.
+  2. BinTransformer mismatch: SmartNoise internally bins continuous columns. The cliques are in the transformed column space
+  (bucket indices), but synth.csv outputs reconstructed original-scale values. Computing P_synth/P_aux ratios requires binning the
+  target and synth data the same way. You'd need to capture the fitted TableTransformer state alongside the cliques — non-trivial
+  but doable.
+  3. Auxiliary data format: The existing code assumes an "auxiliary dataset" separate from both train and holdout. In our setup,
+  the holdout serves this role cleanly.
+  4. The existing code is not callable: custom_mst_attack is deeply coupled to their cfg object, C constants, HHID column,
+  file-based artifact caching. You'd need to re-implement the scoring (~30 lines) not call their code.
+
+  Estimated effort: 1–2 days of focused work.
+
+  AIM — Hard, likely not worth it
+
+  AIM isn't in the original paper, and for good reason. AIM is adaptive — it iteratively selects marginals based on residuals, not
+  a static spanning tree. The "focal points" concept (marginals the algorithm is likely to pick regardless of exact dataset)
+  doesn't map as cleanly because AIM's selections depend heavily on the actual data distribution. You'd need to design the
+  shadow-run/FP-aggregation from scratch, and it's unclear the attack would be as powerful. I'd skip AIM for the white paper.
+
+  RankSwap / CellSuppression — Not applicable
+
+  These are de-identification methods, not marginal-based generative models. They have no "selection footprint" to exploit.
+  MAMA-MIA's theoretical basis simply doesn't apply.
+
+  ---
+  Recommended Path for MST
+
+  The cleanest implementation would:
+
+  1. Add a collect_mst_focal_points(train_df, meta, epsilon, n_shadow, seed) helper in sdg/smartnoise_methods.py (runs in sdg env)
+  that fits SmartNoise MST n_shadow times on bootstrap samples of train_df, collects select() output each time, and returns a
+  Counter({clique_tuple: frequency}).
+  2. Add mama_mia_mst() to attacks/mia.py that: calls the above helper as a subprocess (like generate_synth.py does), then runs the
+   scoring loop (weighted P_synth/P_aux ratios) natively — using the binned representations consistently.
+  3. Register it in MIA_REGISTRY under "MAMA_MIA_MST".
+
+  The one remaining design question before starting: whether to handle the BinTransformer column space by (a) scoring in binned
+  space throughout (requires capturing the fitted transformer), or (b) restricting MAMA-MIA to categorical-only columns for MST
+  runs, which sidesteps binning entirely and is actually a reasonable experimental scope for the white paper — MST's spanning tree
+  on categorical data is the clean case anyway.

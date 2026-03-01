@@ -1,0 +1,15 @@
+how do I kill the entire script if it's running in the background with many worker processes running and queued?                                               
+                                                                                                                                                                     
+● The worker processes are spawned children — killing just the parent leaves them running. Kill the entire process group instead:                                    
+                                                                                                                                                                     
+  # Kill everything in the process group (parent + all workers + wandb sidecars)                                                                                     
+  kill -- -$(pgrep -f run_production_sweep)                                                                                                                          
+                                                                                                                                                                     
+  The - before the PID means "kill process group". Since the workers are spawned children they inherit the same PGID as the parent.                                  
+
+  If it doesn't die (e.g. a worker is stuck in C code):
+  kill -9 -- -$(pgrep -f run_production_sweep)
+
+  You can verify everything is gone with:
+  pgrep -fa run_production_sweep
+  ps aux | grep golobs | grep python | grep -v grep

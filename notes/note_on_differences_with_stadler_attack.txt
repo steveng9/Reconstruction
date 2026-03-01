@@ -1,0 +1,28 @@
+The core mechanism is essentially identical — both train a classifier on the synthetic dataset using QI columns as features and  
+  predict the hidden attribute(s). The meaningful differences are:                                                                 
+                                                                                                                                   
+  1. Target records                                                                                                                
+  Stadler infers attributes for arbitrary target individuals (drawn from the population, not necessarily in training). Your attack 
+  runs inference on the actual training records (and a disjoint holdout). This is a deliberate design choice — you're measuring how
+   much the SDG memorizes specific individuals, not just whether it preserves population-level correlations.                       
+                                                                                                                                   
+  2. The limitation Stadler identifies — which your memorization test directly addresses                                           
+  Stadler explicitly flags that their attack can infer attributes even for people not in the training set, making it impossible to 
+  tell whether the leakage is from record-level memorization vs. population-level correlation. Their attack can't answer that      
+  question. Your RA_delta_mean (train accuracy minus holdout accuracy) is specifically designed to measure exactly this: does the  
+  SDG leak more about training records than it does about population-level base rates?
+
+  3. Single vs. multiple hidden features
+  Stadler targets one sensitive attribute at a time. Your framework reconstructs all hidden features simultaneously (or
+  sequentially via chaining).
+
+  4. Survey scope
+  Stadler uses their attack to demonstrate a vulnerability exists. Your framework sweeps across 9+ SDG methods, multiple epsilon
+  values, and attack variants to characterize how much each method leaks.
+
+  In short: You're running essentially Stadler's attack, but answering the harder follow-up question they left open — by using a
+  disjoint holdout to separate memorization from correlation leakage.
+
+  Sources:
+  - https://arxiv.org/abs/2011.07018v2
+  - https://www.usenix.org/system/files/sec22-stadler.pdf

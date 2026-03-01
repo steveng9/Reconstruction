@@ -1,0 +1,123 @@
+MIA and reconstruction are complementary privacy paradigms and putting them       
+  side-by-side will make for a much stronger argument.
+                                                                                                                                   
+  ---                                                                                                                              
+  MIA vs. Reconstruction: Setup Clarification                                                                                      
+                                                                                                                                   
+  In your system's terms:
+
+  ┌──────────────────────┬───────────────────────────────────────────┬──────────────────────────────────────────┐
+  │                      │              Reconstruction               │                   MIA                    │
+  ├──────────────────────┼───────────────────────────────────────────┼──────────────────────────────────────────┤
+  │ Assumes target is... │ a training member (known)                 │ unknown — could be train or holdout      │
+  ├──────────────────────┼───────────────────────────────────────────┼──────────────────────────────────────────┤
+  │ Question             │ Given QI + synth, infer hidden attributes │ Given x + synth, is x a training member? │
+  ├──────────────────────┼───────────────────────────────────────────┼──────────────────────────────────────────┤
+  │ Output               │ predicted attribute values                │ member/non-member score                  │
+  ├──────────────────────┼───────────────────────────────────────────┼──────────────────────────────────────────┤
+  │ Metric               │ rarity-weighted accuracy, RMSE            │ AUC, Advantage, TPR@low-FPR              │
+  └──────────────────────┴───────────────────────────────────────────┴──────────────────────────────────────────┘
+
+  You already have holdout.csv files (and the memorization test infrastructure), so the membership labels are ready.
+
+  ---
+  Recommended Attacks (tiered)
+
+  Tier 1 — Baselines (trivial to implement):
+  - RandomGuess — AUC = 0.5 by definition. Theoretical floor.
+  - SynthDistance — For each target record, score = 1 / (min distance to any synthetic record). The intuition: training records
+  tend to be closer to synthetic records because the model saw them. Works for both categorical (Hamming) and continuous
+  (Euclidean/normalized). Simple, fast, often surprisingly competitive.
+
+  Tier 2 — Standard literature attacks:
+  - NNDR (Nearest Neighbor Distance Ratio) — Stadler et al. 2022 / used in TAPAS. Score = dist(x, synth) / dist(x, train_rest).
+  Penalizes cases where x is just universally close to everything (common records). Widely reported in synthetic data privacy
+  papers.
+  - Groundhog — Stadler et al. 2022. Builds a shadow synthesizer on holdout, computes a likelihood ratio between real and shadow
+  synthesizer. More powerful but requires training a second synthesizer.
+
+  Tier 3 — ML-based:
+  - ClassifierMIA — Train a binary classifier (member vs non-member) using features derived from the target's relationship to
+  synthetic data (distances, nearest neighbor stats, etc.). Requires a labeled training/holdout split to train the meta-classifier.
+
+  For a white paper, I'd suggest implementing SynthDistance + NNDR as the core baselines (well-established, fast, interpretable),
+  and optionally Groundhog as the SOTA comparison. ClassifierMIA is more of a worst-case bound.
+
+  ---
+  Metrics
+
+  Standard in the MIA literature:
+  - AUC — overall discrimination
+  - Advantage = max(TPR − FPR) — bounded 0–1, intuitive privacy interpretation
+  - TPR @ FPR = 0.1% — Carlini et al. 2022 style; the practically meaningful one (how many members are caught when you're almost
+  never wrong about non-members?)
+  - Balanced accuracy — (TPR + TNR) / 2
+
+  ---
+  Integration Options
+
+  Option A: Extend master_experiment_script.py with an MIA mode flag
+  Add --mode mia that swaps the attack pipeline: instead of reconstruction, it runs MIA attacks over the same (synth, train,
+  holdout) triplet. Single config format, same WandB logging. Clean and unified.
+
+  Option B: Separate master_mia_script.py
+  A parallel script with its own config structure. Cleaner separation of concerns but duplicates infrastructure.
+
+  Option C: MIA as attack types inside the existing registry
+  Register MIA attacks alongside reconstruction attacks, selected by data_type: "mia" in the config. Minimal new code, but mixes
+  two conceptually different things in one registry.
+
+  Option A is probably cleanest for the white paper — same datasets, same experimental grid, same logging, just a different "what
+  are we measuring."
+
+  ---
+  Key Questions Before I Start
+
+  1. Which attacks do you want? I'd suggest SynthDistance + NNDR as a minimum, Groundhog optionally. Or do you want all four tiers?
+  2. Integration style? Option A (extend master script with --mode mia) feels right to me, but do you want it fully unified or a
+  separate script?
+  3. Scope of comparison? Do you want MIA to run across the same SDG methods and epsilon values as reconstruction (so you can plot
+  "reconstruction leakage vs. MIA leakage" as epsilon varies), or is it a separate experimental grid?
+  4. Groundhog feasibility: Groundhog needs to train a shadow synthesizer on holdout data. Since you already have the SDG
+  infrastructure, this is doable — but it means MIA evaluation takes as long as SDG generation. Is that acceptable, or should MIA
+  attacks be fast/inference-only?
+
+
+
+
+
+
+                                                                
+  ---                                                                                                                              
+  What was implemented                                                                                                             
+                                                                                                                                   
+  attacks/mia.py (new)                                                                                                             
+  - _gower_block() / _min_gower_dist() — vectorised Gower distance (categorical + continuous, chunked for memory)                  
+  - _min_gower_dist_loo() — leave-one-out variant for training targets (masks exact self-matches)
+  - _mia_metrics() — AUC, Advantage, TPR@FPR=0.1%, Balanced Accuracy
+  - synth_distance_mia / nndr_mia — the two attack functions + MIA_REGISTRY
+
+  attacks/__init__.py — added get_mia_attack(name) and exported MIA_REGISTRY
+
+  get_data.py — added load_mia_data(config) which loads train, synth, holdout, and meta.json
+
+  master_experiment_script.py — added --mode mia flag; run_single_experiment branches cleanly into the MIA path before touching any
+   reconstruction code
+
+  ---
+  To run an MIA experiment
+
+  Your config YAML just needs mia_method and a holdout_dir, everything else stays the same:
+
+  wandb:  {project: "...", name: "MST_e1_NNDR", tags: ["mia"]}
+  dataset: {name: "adult", dir: "/path/to/sample_00", size: 10000}
+  sdg_method: "MST"
+  sdg_params: {epsilon: 1.0}
+  memorization_test:
+    holdout_dir: "/path/to/sample_01"   # non-member targets
+  mia_method: "NNDR"
+  mia_params:
+    n_targets: 500    # balanced: 500 members + 500 non-members
+    seed: 42
+
+  python master_experiment_script.py --mode mia --n_runs 1 --on_server T

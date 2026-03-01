@@ -1,0 +1,113 @@
+As for what those lines mean — they're a quick sanity check printed before the AUC is computed. Each attack assigns every target record a    
+  membership score (higher = more likely a training member). The print shows:                                                                  
+                                                                                                                                               
+  - SynthDistance — mean -dist(target, synth) for members vs non-members. If members are closer to the synthetic data (as expected when the    
+  model memorised them), the member mean should be less negative (closer to 0).                                                                
+  - NNDR — mean dist(target, train_LOO) / dist(target, synth) for each group. A higher ratio means "relatively closer to synth than to training
+   distribution" → more likely a member.
+  - RA-as-MIA — mean rarity-weighted reconstruction accuracy for members vs non-members. If the synthetic data reconstructs training members'  
+  hidden features better than holdout records, the member mean should be higher.                                                               
+                                                                                                                                               
+  The gap between the two numbers is the raw signal the attack is exploiting. A negligible gap (as you're seeing with NNDR ~0.93 vs ~0.91) is
+  consistent with low AUC — the attack isn't finding much.
+
+
+
+
+
+The threshold is the median of the full 20k set (train + holdout combined), not just the training records. So it's the global 50th percentile
+   of all scores.
+                                                                                                                                               
+  The four quadrants are then computed on the 10k training records only. They always sum to exactly n_train (10k here): 1042 + 4036 + 1211 +
+  3711 = 10,000. ✓
+
+  - Both-high (1042): training records where both MIA score ≥ global median AND RA score ≥ global median
+  - MIA-only (4036): training records where MIA score ≥ median but RA score < median
+  - RA-only (1211): training records where RA score ≥ median but MIA score < median
+  - Both-low (3711): training records where both scores < median
+
+  And yes, both-high ≤ min(both-high + MIA-only, both-high + RA-only) by definition — it's the intersection.
+
+  On TPR: not quite. The quadrant counts are at the median threshold, and since the median splits all 20k scores in half, exactly 10k records
+  (train + holdout combined) are above it. If the attack were perfect, all 10k training records would be above the median — so both-high +
+  MIA-only = 10k and both-low + RA-only = 0. With no signal at all, you'd expect ~5k training records above the median by chance, split
+  randomly between both-high and MIA-only. Here MIA-only=4036 + both-high=1042 = 5,078 ≈ 5k, which tells you MIA has almost no signal for this
+  SDG method.
+
+  Spearman r and p: the Spearman correlation measures how monotonically related the MIA scores and RA-as-MIA scores are, computed only on the
+  training records. r=0.093 means almost no correlation — the two methods are picking up largely different (and both weak) signals. The
+  p=0.0000 just means this tiny correlation is statistically distinguishable from zero, which is easy at n=10k even for noise-level effects. A
+  large r (say >0.5) would mean "when MIA thinks a record is a member, RA tends to agree" — useful for understanding whether the two signals
+  are redundant or complementary.
+
+✻ Churned for 37s                                                                                                                              
+  
+❯ and is the median per attack? Like, when you say median, you're talking about the median prediction, right? And the median would be          
+  different for the RA than the median for the MIA, right? I'm a little confused                                                              
+                                                                                                                                               
+● Yes, exactly right — there are two separate medians, one per attack:                                                                         
+                                                                                                                                               
+  - mia_thresh = np.median(mia_scores) — the median of SynthDistance (or NNDR) scores across all 20k records                                   
+  - ra_thresh = np.median(ra_scores) — the median of RA-as-MIA scores across all 20k records
+                                                                                                                                               
+  These are on completely different scales (e.g. SynthDistance scores are negative distances, RA-as-MIA scores are rarity-weighted accuracies  
+  between 0 and 1), so each method gets its own threshold independently. A record is "high MIA" if it's above the MIA median, and "high RA" if
+  it's above the RA median — those are separate judgments on separate scales.
+
+  So the quadrant question is really: among training records, when MIA says "above average membership signal" and RA says "above average
+  membership signal", do they agree on the same records? The both-high count and Spearman r answer that. A low both-high (1042 vs ~2500
+  expected if independent) and low Spearman r (0.093) here says they're mostly flagging different records — the two signals are nearly
+  orthogonal, which is actually an interesting finding in itself.
+
+❯ Okay, and as far as the spearman r and p, what's the range? [-1, 1] or [0, 1]? 0 means no correlation and -1 means inverse correlation,      
+  right? And also, a high r, like r=.9, doesn't mean that both the MIA and RA are accurate, right? They both could be as good as random       
+  guessing and still be highly correlated? I wonder if the converse is ever / always true -- that is, if they are both very accurate,          
+  what's the LOWEST their correlation can be... hmmm.                                                                                          
+                                                                                                                                               
+● Range: [-1, 1]. r=0 means no monotonic relationship, r=1 means perfectly correlated (records ranked the same by both), r=-1 means perfectly  
+  anti-correlated (records ranked in opposite order). You're right that negative is possible in principle — if RA tends to score high exactly  
+  where MIA scores low — though that would be a strange finding.                                                                               
+                                         
+  Your second point is exactly right. Two random noise signals can be highly correlated with each other while both being uncorrelated with     
+  ground truth membership. Spearman r only measures agreement between the two signals, not agreement with truth.                               
+
+  Your converse question is the interesting one. If both attacks are very accurate, what's the minimum possible correlation between them?
+
+  Intuitively: if both have high TPR at the median threshold, then both-high + MIA-only ≈ 10k and both-high + RA-only ≈ 10k. Since all four
+  quadrants sum to 10k, that forces both-high to be large and both-low to be small, which pushes r upward. So two highly-accurate attacks
+  cannot be highly anti-correlated — they're geometrically forced to agree on many records.
+
+  More precisely: if TPR_MIA = a and TPR_RA = b (both at median threshold, so FPR ≈ 0.5 for a random attack), then both-high ≥ a + b - 1 (by
+  inclusion-exclusion). So if both have TPR=0.9, both-high ≥ 0.8 × n_train — they must agree on at least 80% of training records. High accuracy
+   implies a lower bound on correlation, though the exact Spearman r depends on the full ranking not just the median split.
+
+  So the relationship is asymmetric: high correlation tells you nothing about accuracy, but high accuracy implies a correlation floor.
+
+
+
+
+
+
+
+So you're saying that a perfectly random MIA and random RA would have about 2,500 rows for "both-high",          
+  2,500 for "MIA_only", and 2,500 for the other two? Something like that? And that the r would be around 0? I wonder why the "both-high" I    
+   got was much lower...                                                                                                                       
+                                                                                                                                               
+● Yes, exactly — for two independent random attacks you'd expect ~2,500 in each quadrant, and r ≈ 0.                                           
+                                                            
+  The reason both-high is so much lower than 2,500 here is revealing. Look at the marginals:                                                   
+                                         
+  - Training records above MIA median: 1042 + 4036 = 5,078 (≈50% — consistent with a random/weak signal)                                       
+  - Training records above RA median: 1042 + 1211 = 2,253 (≈22.5% — far below 50%)                                                             
+
+  RA is only flagging ~22% of training records as "high", rather than the expected ~50%. Since the global RA median is computed on all 20k
+  records, this means RA scores for training members are systematically lower than for holdout non-members — the RA signal is actually
+  inverted. The synthetic data is reconstructing holdout records better than training records on average.
+
+  This is a real phenomenon and actually makes sense: the synthetic data learns the general distribution, so it reconstructs "average" records
+  well. Training records may disproportionately contain rare-valued individuals (who are harder to reconstruct precisely because their rare
+  values are underrepresented in the synthetic data). Holdout records, being a fresh independent draw from the same population, are no more or
+  less average than the training set — but the rarity weighting penalizes training records that happen to have unusual values.
+
+  So both-high being low isn't noise — it's telling you the RA signal is inverted relative to the MIA signal, which is itself an interesting
+  finding for the white paper.

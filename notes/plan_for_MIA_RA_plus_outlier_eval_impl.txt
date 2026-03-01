@@ -1,0 +1,248 @@
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Plan to implement                                                                                                                           │
+│                                                                                                                                             │
+│ Implementation Plan: Row-Level RA Scores + MIA/RA-as-MIA Comparison                                                                         │
+│                                                                                                                                             │
+│ Context                                                                                                                                     │
+│                                                                                                                                             │
+│ Two new analytical features:                                                                                                                │
+│ 1. Row-level RA scores: Per-record reconstruction accuracy, enabling subgroup/outlier/demographic analysis downstream. Currently only       │
+│ population-level per-column scores exist.                                                                                                   │
+│ 2. RA-as-MIA comparison: A new MIA attack that uses reconstruction accuracy as its membership signal ("does the synthetic data reconstruct  │
+│ your hidden features well?" → infer membership). Compare its AUC against SynthDistance/NNDR to contextualize RA's privacy implications.     │
+│                                                                                                                                             │
+│ ---                                                                                                                                         │
+│ Feature 1: Row-Level RA Scores                                                                                                              │
+│                                                                                                                                             │
+│ 1a. scoring.py — three new functions                                                                                                        │
+│                                                                                                                                             │
+│ calculate_row_level_scores(original, reconstructed, hidden_features, dataset_type)                                                          │
+│ Dispatcher → calls categorical or continuous variant. Returns DataFrame(n_rows × n_score_cols).                                             │
+│                                                                                                                                             │
+│ _row_level_categorical(original, reconstructed, hidden_features)                                                                            │
+│ - Per-cell column: binary 0/1 correctness for each hidden feature (RA_row_{feat})                                                           │
+│ - RA_row_mean: rarity-weighted row score:                                                                                                   │
+│ score_i = Σ_j [correct_ij × rarity(val_ij)] / Σ_j rarity(val_ij)                                                                            │
+│ where rarity(val) = total_records / count(val).                                                                                             │
+│ Down-weights rows with only common values; up-weights rows where rare values were correctly recovered.                                      │
+│                                                                                                                                             │
+│ _row_level_continuous(original, reconstructed, hidden_features)                                                                             │
+│ - Per-cell column: normalized absolute error |real - pred| / range ∈ [0,1] (lower = better)                                                 │
+│ - RA_row_mean: mean across features                                                                                                         │
+│                                                                                                                                             │
+│ compute_outlier_scores(df, qi_cols, cat_cols, num_cols, method='isolation_forest', percentile=90)                                           │
+│ - Operates on QI columns only (public feature space = what an adversary observes; uniqueness in QI space is the relevant privacy risk)      │
+│ - method='isolation_forest': OrdinalEncoder on cat cols + StandardScaler on num cols → IsolationForest. Score = -score_samples() (higher =  │
+│ more outlier-like).                                                                                                                         │
+│ - method='gower_knn': Leave-one-out Gower distance to nearest neighbor (reuses _min_gower_dist_loo from attacks/mia.py).                    │
+│ - Returns (outlier_score Series, is_outlier bool Series) keyed to df.index.                                                                 │
+│ - Cat/num split inferred from dtype (float64 → continuous, otherwise → categorical) — no config change needed.                              │
+│                                                                                                                                             │
+│ 1b. master_experiment_script.py — two new helpers + wiring                                                                                  │
+│                                                                                                                                             │
+│ _build_row_score_path(config, run_id, is_training)                                                                                          │
+│ Returns unique path mirroring the data directory hierarchy:                                                                                 │
+│ {data_dir}/{sdg_dir}/row_scores/{attack_method}__{qi}__{train_or_holdout}_run{run_id}.csv                                                   │
+│ e.g. .../size_10000/sample_01/MST_eps1/row_scores/RandomForest__QI1__train_run0.csv                                                         │
+│ Namespaced by (sample, SDG+params, attack, QI, train/holdout, run_id). Never overwrites sibling runs.                                       │
+│                                                                                                                                             │
+│ _save_row_scores(config, targets, reconstructed, hidden_features, qi, dataset_type, run_id, is_training)                                    │
+│ 1. Calls calculate_row_level_scores() → row score DataFrame                                                                                 │
+│ 2. Optionally calls compute_outlier_scores() if row_level_analysis.compute_outliers: true                                                   │
+│ 3. Builds output DataFrame: [qi_cols | true_{feat}... | recon_{feat}... | RA_row_{feat}... | RA_row_mean | outlier_score | is_outlier |     │
+│ is_training | run_id]                                                                                                                       │
+│ 4. Saves CSV to path from _build_row_score_path()                                                                                           │
+│ 5. Logs to WandB:                                                                                                                           │
+│   - Summary scalars: RA_row_p10, RA_row_p50, RA_row_p90 (percentiles of RA_row_mean)                                                        │
+│   - If outliers enabled: RA_row_outlier_mean, RA_row_non_outlier_mean (score gap)                                                           │
+│   - Histogram: wandb.Histogram(row_scores['RA_row_mean'].values) — distribution visible in WandB UI                                         │
+│   - Config key: CSV path stored in wandb.config so it's always traceable                                                                    │
+│                                                                                                                                             │
+│ Wiring into run_single_experiment():                                                                                                        │
+│ - After computing reconstructed_train, check config.get('row_level_analysis', {}).get('enabled', False)                                     │
+│ - If enabled: call _save_row_scores(..., is_training=True)                                                                                  │
+│ - If memorization test is also enabled and holdout is not None: call _save_row_scores(..., is_training=False) on holdout                    │
+│                                                                                                                                             │
+│ 1c. New config section (in YAML):                                                                                                           │
+│                                                                                                                                             │
+│ row_level_analysis:                                                                                                                         │
+│   enabled: false                                                                                                                            │
+│   compute_outliers: false                                                                                                                   │
+│   outlier_method: "isolation_forest"   # or "gower_knn"                                                                                     │
+│   outlier_percentile: 90                                                                                                                    │
+│                                                                                                                                             │
+│ ---                                                                                                                                         │
+│ Feature 2: MIA vs RA-as-MIA Comparison                                                                                                      │
+│                                                                                                                                             │
+│ 2a. attacks/mia.py — add ra_as_mia + raw score returns                                                                                      │
+│                                                                                                                                             │
+│ ra_as_mia(attack_fn, cfg, synth_df, train_df, holdout_df, qi, hidden_features, n_targets=500, seed=42)                                      │
+│ - Samples n_each = min(n_targets, len(train), len(holdout)) records from each                                                               │
+│ - Concatenates train_tgts (label=1) + holdout_tgts (label=0) → all_targets                                                                  │
+│ - Calls attack_fn(cfg, synth_df, all_targets, qi, hidden_features) → reconstructed                                                          │
+│ - Computes per-row reconstruction accuracy inline (no import from scoring.py to avoid path issues):                                         │
+│   - Categorical: rarity-weighted row score (same formula as Feature 1)                                                                      │
+│   - Continuous: scores = -mean_normalized_error (negate so higher = better reconstruction = higher membership signal)                       │
+│ - Calls _mia_metrics(scores, labels) and re-prefixes keys as RA_as_MIA_*                                                                    │
+│ - Returns (metrics_dict, scores_array, labels_array, all_targets_df)                                                                        │
+│                                                                                                                                             │
+│ Add return_raw=False to synth_distance_mia and nndr_mia:                                                                                    │
+│ When True, returns (metrics_dict, scores_array, labels_array, all_targets_df) in addition to normal metrics. Backwards-compatible (default  │
+│ unchanged).                                                                                                                                 │
+│                                                                                                                                             │
+│ Do NOT add ra_as_mia to MIA_REGISTRY — it has a different signature (needs attack_fn, qi, hidden_features) and is only used directly by the │
+│  comparison script.                                                                                                                         │
+│                                                                                                                                             │
+│ 2b. attacks/__init__.py — export ra_as_mia                                                                                                  │
+│                                                                                                                                             │
+│ Add from .mia import ra_as_mia and include in __all__.                                                                                      │
+│                                                                                                                                             │
+│ 2c. New experiment_scripts/compare_mia_ra.py                                                                                                │
+│                                                                                                                                             │
+│ Configuration block at top (same pattern as run_partial_diffusion_adult.py):                                                                │
+│ DATASET       = "adult"                                                                                                                     │
+│ DATA_ROOT     = "/home/golobs/data/reconstruction_data/"                                                                                    │
+│ SAMPLE_DIR    = "size_10000/sample_00"                                                                                                      │
+│ HOLDOUT_DIR   = "size_10000/sample_01"                                                                                                      │
+│ SDG_METHODS   = [("MST", {"epsilon": 1.0}), ("TVAE", {}), ...]                                                                              │
+│ RA_METHOD     = "RandomForest"                                                                                                              │
+│ RA_PARAMS     = {"max_depth": 15, "num_estimators": 25}                                                                                     │
+│ QI            = "QI1"                                                                                                                       │
+│ MIA_METHODS   = ["SynthDistance", "NNDR"]                                                                                                   │
+│ N_TARGETS     = 500                                                                                                                         │
+│ SEED          = 42                                                                                                                          │
+│ OUTLIER_PCT   = 90    # top-N% = outlier for intersection analysis                                                                          │
+│ TOP_K_PCT     = 0.10  # top-10% for outlier intersection analysis                                                                           │
+│                                                                                                                                             │
+│ run_comparison(sdg_method, sdg_params) — core function:                                                                                     │
+│ 1. Build cfg dict (same pattern as make_config() in other scripts)                                                                          │
+│ 2. Load train, synth, holdout, meta via load_mia_data(cfg) (already loads all 4)                                                            │
+│ 3. Sample aligned targets: same n_each and seed for all methods → ensures record alignment                                                  │
+│ 4. Run each MIA_METHODS with return_raw=True → (metrics, scores, labels, targets)                                                           │
+│ 5. Run ra_as_mia(attack_fn, cfg, ...) → (metrics, ra_scores, labels, targets)                                                               │
+│ 6. Compute outlier scores on the shared all_targets DataFrame (QI cols, QI-space isolation forest)                                          │
+│ 7. Call _quadrant_analysis() for each MIA method vs RA-as-MIA                                                                               │
+│ 8. Call _outlier_intersection() for all methods                                                                                             │
+│ 9. Print rich terminal report                                                                                                               │
+│ 10. wandb.log(all_metrics)                                                                                                                  │
+│                                                                                                                                             │
+│ _quadrant_analysis(mia_scores, ra_scores, labels, mia_name):                                                                                │
+│ - Uses median of full sample (train + holdout) as threshold for each score                                                                  │
+│ - Reports counts in 4 quadrants for training records only (labels==1):                                                                      │
+│   - Both high / MIA-only high / RA-only high / Both low                                                                                     │
+│ - Computes Spearman correlation between MIA scores and RA-as-MIA scores for training records                                                │
+│                                                                                                                                             │
+│ _outlier_intersection(score_dict, outlier_flags, top_k_pct):                                                                                │
+│ - For each method's scores: find top-k% records, report fraction that are QI-space outliers                                                 │
+│ - Reports baseline (overall outlier rate) for comparison                                                                                    │
+│                                                                                                                                             │
+│ Terminal output example:                                                                                                                    │
+│ ══════════════════════════════════════════════════════════                                                                                  │
+│ MIA vs RA-as-MIA Comparison — adult / MST_eps1                                                                                              │
+│ ══════════════════════════════════════════════════════════                                                                                  │
+│                     AUC    Advantage  TPR@FPR0.1%                                                                                           │
+│ SynthDistance      0.612     0.224       0.043                                                                                              │
+│ NNDR               0.587     0.198       0.031                                                                                              │
+│ RA-as-MIA (RF)     0.534     0.108       0.011                                                                                              │
+│                                                                                                                                             │
+│ Quadrant Analysis (training records, median threshold):                                                                                     │
+│                     vs RA-as-MIA                                                                                                            │
+│ SynthDistance:  Both-high=127  MIA-only=123  RA-only=123  Both-low=127                                                                      │
+│                 Spearman r=0.21 (p=0.003)                                                                                                   │
+│                                                                                                                                             │
+│ Outlier Intersection (top 10% of each method's scores):                                                                                     │
+│                     Outlier rate   vs baseline (9.0%)                                                                                       │
+│ SynthDistance           14.2%        +5.2pp                                                                                                 │
+│ NNDR                    13.8%        +4.8pp                                                                                                 │
+│ RA-as-MIA (RF)          11.1%        +2.1pp                                                                                                 │
+│ ══════════════════════════════════════════════════════════                                                                                  │
+│                                                                                                                                             │
+│ ---                                                                                                                                         │
+│ Files Modified/Created                                                                                                                      │
+│                                                                                                                                             │
+│ File: scoring.py                                                                                                                            │
+│ Change: Add calculate_row_level_scores, _row_level_categorical, _row_level_continuous, compute_outlier_scores                               │
+│ ────────────────────────────────────────                                                                                                    │
+│ File: master_experiment_script.py                                                                                                           │
+│ Change: Add _build_row_score_path, _save_row_scores, wire into run_single_experiment                                                        │
+│ ────────────────────────────────────────                                                                                                    │
+│ File: attacks/mia.py                                                                                                                        │
+│ Change: Add ra_as_mia, add return_raw=False to synth_distance_mia + nndr_mia                                                                │
+│ ────────────────────────────────────────                                                                                                    │
+│ File: attacks/__init__.py                                                                                                                   │
+│ Change: Export ra_as_mia                                                                                                                    │
+│ ────────────────────────────────────────                                                                                                    │
+│ File: experiment_scripts/compare_mia_ra.py                                                                                                  │
+│ Change: New file                                                                                                                            │
+│                                                                                                                                             │
+│ ---                                                                                                                                         │
+│ Verification                                                                                                                                │
+│                                                                                                                                             │
+│ 1. Row-level scores: Run master_experiment_script.py with row_level_analysis.enabled: true on any existing config. Verify CSV appears at    │
+│ expected path, columns are correct, WandB shows histogram and summary scalars.                                                              │
+│ 2. No regression: Run same config with row_level_analysis.enabled: false (default) — output should be identical to current behavior.        │
+│ 3. Comparison script: Run compare_mia_ra.py on adult dataset. Verify terminal table prints, WandB logs RA_as_MIA_auc, quadrant counts sum   │
+│ to n_targets, outlier rates are plausible.                                                                                                  │
+│ 4. Existing MIA mode: Run master_experiment_script.py --mode mia — confirm unchanged (no return_raw called).                                │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+ ---                                                                                                                                          
+  Implementation Complete                                                                                                                      
+                                                                                                                                               
+  Files Modified                                                                                                                               
+                                                                                                                                               
+  scoring.py — 4 new functions added:
+  - calculate_row_level_scores(original, reconstructed, hidden_features, dataset_type) — dispatcher
+  - _row_level_categorical(...) — binary correctness per cell + rarity-weighted RA_row_mean
+  - _row_level_continuous(...) — normalized absolute error per cell + mean
+  - compute_outlier_scores(df, qi_cols, cat_cols, num_cols, method, percentile) — IsolationForest or Gower-KNN outlier detection in QI space
+
+  attacks/mia.py — 3 changes:
+  - synth_distance_mia: added return_raw=False param (backward-compatible)
+  - nndr_mia: added return_raw=False param (backward-compatible)
+  - ra_as_mia(attack_fn, cfg, synth_df, train_df, holdout_df, qi, hidden_features, n_targets, seed): new function — runs RA attack, computes
+  rarity-weighted row scores as MIA signal, returns (metrics_dict, scores, labels, all_targets)
+
+  attacks/__init__.py: exported ra_as_mia
+
+  master_experiment_script.py — 3 additions:
+  - _sdg_dirname(method, params) — local helper for SDG directory naming
+  - _build_row_score_path(config, run_id, is_training) — path builder for row score CSVs
+  - _save_row_scores(...) — computes, saves, and WandB-logs row-level scores
+  - Wired into run_single_experiment after each reconstruction (train + optionally holdout), guarded by row_level_analysis.enabled: true
+
+  Files Created
+
+  experiment_scripts/compare_mia_ra.py — new standalone script:
+  - Runs SynthDistance, NNDR, and RA-as-MIA on aligned targets
+  - Reports quadrant analysis (where methods agree/disagree on training records) + Spearman correlation
+  - Reports outlier intersection (do top-scoring records cluster among QI-space outliers?)
+  - Logs all metrics to WandB with SDG-method prefixes
+
+  Config snippet to enable row-level analysis:
+
+  row_level_analysis:
+    enabled: true
+    compute_outliers: true
+    outlier_method: "isolation_forest"
+    outlier_percentile: 90
+
+
+
+
+
+
+IF MIA/RA comparison targets should just be full train + full holdout:
+ - _setup in mia.py: n_targets=None → skips .sample(), uses full train and holdout DataFrames as-is. labels length now derived from actual    
+  DataFrame lengths rather than hardcoded n_each, so it's correct in both cases.
+  - ra_as_mia in mia.py: same None sentinel, same pattern.                                                                                     
+  - compare_mia_ra.py: N_TARGETS = None is now the default (use everything).                                                                   
+  - example_cfg.yaml: notes that ~ (YAML null) means "all rows".
+
+  One thing to be aware of: if train and holdout are different sizes (e.g. 10k vs 9.8k), the resulting target set will be imbalanced.
+  roc_auc_score handles this fine, but MIA_advantage and MIA_balanced_acc are also unaffected since they operate on the ROC curve. So using the
+   full sets is safe even if sizes differ slightly.
