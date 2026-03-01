@@ -1,6 +1,7 @@
 
 import sys
 import os
+import copy
 import numpy as np
 import pandas as pd
 from os.path import isfile, join
@@ -186,6 +187,7 @@ class CategoricalNN(nn.Module):
 def train_model(cfg, model, train_loader, val_loader, criterion, optimizer, device, epochs, early_stopping_patience):
     model.to(device)
     best_val_loss = float('inf')
+    best_state_dict = None   # in-memory early stopping — avoids file race conditions
     train_losses = []
     val_losses = []
     val_accuracies = []
@@ -255,8 +257,7 @@ def train_model(cfg, model, train_loader, val_loader, criterion, optimizer, devi
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
-            # Save best model
-            torch.save(model.state_dict(), os.path.join(cfg["dataset"]["artifacts"], 'best_model_categorical.pth'))
+            best_state_dict = copy.deepcopy(model.state_dict())
         else:
             patience_counter += 1
             if patience_counter >= early_stopping_patience:
@@ -282,8 +283,9 @@ def train_model(cfg, model, train_loader, val_loader, criterion, optimizer, devi
         plt.tight_layout()
         plt.show()
 
-    # Load best model
-    model.load_state_dict(torch.load(os.path.join(cfg["dataset"]["artifacts"], 'best_model_categorical.pth')))
+    # Restore best model weights from memory
+    if best_state_dict is not None:
+        model.load_state_dict(best_state_dict)
     return model, training_history
 
 

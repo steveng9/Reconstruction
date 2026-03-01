@@ -211,6 +211,35 @@ def get_meta_data_for_diffusion(cfg):
             "native-country":  {"size": 42,   "type": "discrete"},
             "income":          {"size": 2,    "type": "discrete"},
         }
+    elif cfg["dataset"]["name"] == "nist_arizona_25feat":
+        meta = {"relation_order": [[None, "arizona_data"]], "tables": {"arizona_data": {"children": [], "parents": []}}}
+        domain = {
+            "AGE":      {"size": 101,  "type": "continuous"},
+            "AGEMARR":  {"size": 43,   "type": "continuous"},
+            "BPL":      {"size": 118,  "type": "discrete"},
+            "CITIZEN":  {"size": 5,    "type": "discrete"},
+            "DURUNEMP": {"size": 348,  "type": "continuous"},
+            "EDUC":     {"size": 13,   "type": "discrete"},
+            "EMPSTAT":  {"size": 3,    "type": "discrete"},
+            "FAMSIZE":  {"size": 22,   "type": "continuous"},
+            "FARM":     {"size": 2,    "type": "discrete"},
+            "GQ":       {"size": 5,    "type": "discrete"},
+            "GQTYPE":   {"size": 7,    "type": "discrete"},
+            "HISPAN":   {"size": 5,    "type": "discrete"},
+            "INCWAGE":  {"size": 2836, "type": "continuous"},
+            "IND":      {"size": 131,  "type": "discrete"},
+            "LABFORCE": {"size": 3,    "type": "discrete"},
+            "MARST":    {"size": 5,    "type": "discrete"},
+            "MIGRATE5": {"size": 5,    "type": "discrete"},
+            "MTONGUE":  {"size": 35,   "type": "discrete"},
+            "NATIVITY": {"size": 6,    "type": "discrete"},
+            "OWNERSHP": {"size": 3,    "type": "discrete"},
+            "RACE":     {"size": 6,    "type": "discrete"},
+            "SEX":      {"size": 2,    "type": "discrete"},
+            "URBAN":    {"size": 2,    "type": "discrete"},
+            "VETSTAT":  {"size": 4,    "type": "discrete"},
+            "WKSWORK1": {"size": 53,   "type": "continuous"},
+        }
     elif cfg["dataset"]["name"] == "nist_arizona_data":
         meta = {"relation_order": [[None, "crc_data"]], "tables": {"crc_data": {"children": [], "parents": []}}}
         domain = {"F1": {"size": 101, "type": "discrete"}, "F2": {"size": 36, "type": "discrete"}, "F3": {"size": 114, "type": "discrete"}, "F5": {"size": 5, "type": "discrete"}, "F9": {"size": 924, "type": "discrete"}, "F10": {"size": 13, "type": "discrete"}, "F11": {"size": 3, "type": "discrete"}, "F12": {"size": 24, "type": "discrete"}, "F13": {"size": 2, "type": "discrete"}, "F15": {"size": 5, "type": "discrete"}, "F17": {"size": 7, "type": "discrete"}, "F18": {"size": 5, "type": "discrete"}, "F21": {"size": 7511, "type": "continuous"}, "F22": {"size": 128, "type": "discrete"}, "F23": {"size": 3, "type": "discrete"}, "F25": {"size": 5, "type": "discrete"}, "F30": {"size": 5, "type": "discrete"}, "F32": {"size": 30, "type": "discrete"}, "F33": {"size": 6, "type": "discrete"}, "F36": {"size": 3, "type": "discrete"}, "F37": {"size": 6, "type": "discrete"}, "F41": {"size": 2, "type": "discrete"}, "F43": {"size": 2, "type": "discrete"}, "F47": {"size": 4, "type": "discrete"}, "F50": {"size": 53, "type": "discrete"}, "F4": {"size": 19, "type": "discrete"}, "F6": {"size": 3, "type": "discrete"}, "F7": {"size": 4, "type": "discrete"}, "F8": {"size": 14, "type": "discrete"}, "F14": {"size": 102, "type": "continuous"}, "F16": {"size": 8, "type": "discrete"}, "F19": {"size": 94, "type": "continuous"}, "F20": {"size": 3, "type": "discrete"}, "F24": {"size": 4, "type": "discrete"}, "F26": {"size": 103, "type": "continuous"}, "F27": {"size": 2, "type": "discrete"}, "F28": {"size": 3, "type": "discrete"}, "F29": {"size": 313, "type": "continuous"}, "F31": {"size": 5, "type": "discrete"}, "F34": {"size": 6, "type": "discrete"}, "F35": {"size": 211, "type": "continuous"}, "F38": {"size": 161, "type": "continuous"}, "F39": {"size": 3, "type": "discrete"}, "F40": {"size": 2, "type": "discrete"}, "F42": {"size": 3, "type": "discrete"}, "F44": {"size": 338, "type": "continuous"}, "F45": {"size": 5, "type": "discrete"}, "F46": {"size": 8, "type": "discrete"}, "F48": {"size": 2, "type": "discrete"}, "F49": {"size": 7, "type": "discrete"}}

@@ -87,16 +87,17 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "patience":        30,
     },
     "AttentionAutoregressive": {
-        "num_heads":       4,
-        "embedding_dim":   64,   # must be divisible by num_heads
-        "num_layers":      2,
-        "feedforward_dim": 128,
-        "dropout_rate":    0.15,
-        "test_size":       0.2,
-        "batch_size":      64,
-        "learning_rate":   0.001,
-        "epochs":          200,
-        "patience":        30,
+        "num_heads_AR":       4,
+        "embedding_dim_AR":   64,   # must be divisible by num_heads_AR
+        "num_layers_AR":      2,
+        "feedforward_dim_AR": 128,
+        "dropout_rate_AR":    0.15,
+        "test_size_AR":       0.2,
+        "batch_size_AR":      64,
+        "learning_rate_AR":   0.001,
+        "epochs_AR":          200,
+        "patience_AR":        30,
+        "feature_order":      None,  # None → use hidden_features order
     },
 
     # ── Partial diffusion — MIA_on_diffusion/midst_models/single_table_TabDDPM/
@@ -104,6 +105,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
     #    All three attacks train the same model (TabDDPM & ConditionedRePaint
     #    share the artifact dir); they differ only in sampling strategy.
     "TabDDPM": {
+        "hidden_dims":       [512, 1024, 1024, 1024, 1024, 512],  # d_layers of the diffusion MLP; required (no fallback in tabddpm_reconstruction_attack.py)
         "dropout":           0.1,
         "batch_size":        4096,
         "lr":                0.0006,
@@ -115,6 +117,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "sample_batch_size": 8192,
     },
     "RePaint": {
+        "hidden_dims":       [512, 1024, 1024, 1024, 1024, 512],
         "dropout":           0.1,
         "batch_size":        4096,
         "lr":                0.0006,
@@ -126,6 +129,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "sample_batch_size": 8192,
     },
     "ConditionedRePaint": {
+        "hidden_dims":       [512, 1024, 1024, 1024, 1024, 512],
         "dropout":           0.1,
         "batch_size":        4096,
         "lr":                0.0006,

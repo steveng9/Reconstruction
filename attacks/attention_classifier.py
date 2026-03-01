@@ -19,7 +19,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
-from get_data import load_data
+from get_data import load_data, _sdg_dirname
 from scoring import calculate_reconstruction_score
 
 # ============================================================================
@@ -628,9 +628,12 @@ def attention_reconstruction_single(cfg, synth, targets, known_features, hidden_
         # Predict
         predictions = predict(trained_model, target_loader, device)
         original_predictions = target_encoder.inverse_transform(predictions)
-        targets_copy[hidden_feature] = original_predictions
+        try:
+            targets_copy[hidden_feature] = pd.Series(original_predictions).astype(synth[hidden_feature].dtype).values
+        except (ValueError, TypeError):
+            targets_copy[hidden_feature] = original_predictions
 
-    return targets_copy.astype(int)
+    return targets_copy
 
 #
 # def attention_reconstruction_autoregressive_retrain(cfg, synth, targets, known_features,
@@ -818,9 +821,13 @@ def attention_reconstruction_autoregressive_true(cfg, synth, targets, known_feat
             X_inference[:, num_qi + k] = predictions
 
             # Decode back to original values
-            targets_copy[hidden_feature] = encoders[hidden_feature].inverse_transform(predictions)
+            decoded = encoders[hidden_feature].inverse_transform(predictions)
+            try:
+                targets_copy[hidden_feature] = pd.Series(decoded).astype(synth[hidden_feature].dtype).values
+            except (ValueError, TypeError):
+                targets_copy[hidden_feature] = decoded
 
-    return targets_copy.astype(int)
+    return targets_copy
 
 
 # ============================================================================
@@ -829,7 +836,10 @@ def attention_reconstruction_autoregressive_true(cfg, synth, targets, known_feat
 
 def attention_reconstruction(cfg, synth, targets, known_features, hidden_features):
     """Single-feature attention reconstruction."""
-    cfg["dataset"]["artifacts"] = cfg["dataset"]["dir"] + "/attention_artifacts"
+    sdg_dir = _sdg_dirname(cfg.get("sdg_method", ""), cfg.get("sdg_params") or {})
+    qi_tag = cfg.get("QI", "")
+    artifacts_name = f"attention_artifacts_{qi_tag}" if qi_tag else "attention_artifacts"
+    cfg["dataset"]["artifacts"] = os.path.join(cfg["dataset"]["dir"], sdg_dir, artifacts_name)
     os.makedirs(cfg["dataset"]["artifacts"], exist_ok=True)
     return attention_reconstruction_single(
         cfg, synth, targets, known_features, hidden_features,
@@ -848,7 +858,10 @@ def attention_reconstruction(cfg, synth, targets, known_features, hidden_feature
 
 def attention_autoregressive_reconstruction(cfg, synth, targets, known_features, hidden_features):
     """TRUE autoregressive: single model, multiple heads (more efficient, LLM-like)."""
-    cfg["dataset"]["artifacts"] = cfg["dataset"]["dir"] + "/attention_AR_artifacts"
+    sdg_dir = _sdg_dirname(cfg.get("sdg_method", ""), cfg.get("sdg_params") or {})
+    qi_tag = cfg.get("QI", "")
+    artifacts_name = f"attention_AR_artifacts_{qi_tag}" if qi_tag else "attention_AR_artifacts"
+    cfg["dataset"]["artifacts"] = os.path.join(cfg["dataset"]["dir"], sdg_dir, artifacts_name)
     os.makedirs(cfg["dataset"]["artifacts"], exist_ok=True)
     return attention_reconstruction_autoregressive_true(
         cfg, synth, targets, known_features, hidden_features,

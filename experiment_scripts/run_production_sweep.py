@@ -72,39 +72,39 @@ QI_VARIANTS = ["QI1"]   # "QI2" only defined for nist_arizona_data (98-col full 
 # SDG methods: (method_name, sdg_params)
 SDG_METHODS = [
     ("RankSwap",       {}),
-    #("MST",            {"epsilon": 0.1}),
-    #("MST",            {"epsilon": 1.0}),
-    #("MST",            {"epsilon": 10.0}),
-    #("MST",            {"epsilon": 100.0}),
+    ("MST",            {"epsilon": 0.1}),
+    ("MST",            {"epsilon": 1.0}),
+    ("MST",            {"epsilon": 10.0}),
+    ("MST",            {"epsilon": 100.0}),
     ("MST",            {"epsilon": 1000.0}),
-    #("AIM",            {"epsilon": 1.0}),
+    ("AIM",            {"epsilon": 1.0}),
     #("AIM",            {"epsilon": 10.0}),
     #("AIM",            {"epsilon": 100.0}),
-    #("TVAE",           {}),
-    #("CTGAN",          {}),
-    #("ARF",            {}),
+    ("TVAE",           {}),
+    ("CTGAN",          {}),
+    ("ARF",            {}),
     ("TabDDPM",        {}),
-    #("Synthpop",       {}),
-    #("CellSuppression", {}),
+    ("Synthpop",       {}),
+    ("CellSuppression", {}),
 ]
 
 # (attack_method, method_specific_params)
 ATTACK_CONFIGS = [
     # Baselines
-    ("Mode",                    {}),
-    ("Random",                  {}),
+    #("Mode",                    {}),
+    #("Random",                  {}),
     #("Mean",                    {}),
-    ("MeasureDeid",             {}),
+    #("MeasureDeid",             {}),
     # ML classifiers
     #("KNN",                     {}),
     #("NaiveBayes",              {}),
     #("LogisticRegression",      {}),
-    # ("SVM",                     {}),   # O(n²–n³) — impractical at n=10k
-    ("RandomForest",            {}),
-    ("LightGBM",                {}),
+    #("SVM",                     {}),   # O(n²–n³) — impractical at n=10k
+    #("RandomForest",            {}),
+    #("LightGBM",                {}),
     # Neural networks
-    ("MLP",                     {}),
-    #("Attention",               {}),
+    #("MLP",                     {}),
+    ("Attention",               {}),
     #("AttentionAutoregressive", {}),
     # SOTA (requires Gurobi academic licence)
     # ("LinearReconstruction",    {}),
@@ -113,9 +113,9 @@ ATTACK_CONFIGS = [
     # (identical QI-conditioned training; differ only in sampling). Whichever runs
     # second will find model_ckpt.pkl already present and skip retraining automatically.
     # Pass retrain=True to force retraining from scratch.
-    #("TabDDPM",            {"retrain": False}),   # QI-conditioned + TabDDPM sampling
+    ("TabDDPM",            {"retrain": False}),   # QI-conditioned + TabDDPM sampling
     # ("RePaint",           {"retrain": False}),   # standard training + RePaint sampling
-    #("ConditionedRePaint", {"retrain": False}),   # QI-conditioned + RePaint sampling
+    ("ConditionedRePaint", {"retrain": False}),   # QI-conditioned + RePaint sampling
 ]
 
 # ATTACK_PARAM_DEFAULTS is imported from attack_defaults.py (repo root) at the top of this file.
@@ -227,7 +227,10 @@ def run_job(job: Job) -> dict[str, Any]:
         "attack_params": {
             "ensembling": {"enabled": False},
             "chaining":   {"enabled": False},
-            job.attack_method: job.attack_params,
+            job.attack_method: {
+                **ATTACK_PARAM_DEFAULTS.get(job.attack_method, {}),
+                **job.attack_params,
+            },
         },
     }
 
@@ -240,8 +243,7 @@ def run_job(job: Job) -> dict[str, Any]:
 
     prepared = _prepare_config(cfg)
 
-    # Effective params: attack defaults, overridden by whatever was explicitly passed.
-    # This ensures WandB always records the full set of params actually used.
+    # Effective params: same merge already applied to cfg above, reused for WandB logging.
     effective_attack_params = {
         **ATTACK_PARAM_DEFAULTS.get(job.attack_method, {}),
         **job.attack_params,
