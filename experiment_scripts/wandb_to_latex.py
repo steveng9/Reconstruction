@@ -26,6 +26,8 @@ import wandb
 
 WANDB_PROJECT = "tabular-reconstruction-attacks"
 WANDB_GROUP   = "main attack sweep 1"
+#DATASET       = "nist_arizona_25feat"   # filter to this dataset; None = all datasets
+DATASET       = "adult"   # filter to this dataset; None = all datasets
 
 
 # ── Display order & groupings ──────────────────────────────────────────────────
@@ -133,9 +135,15 @@ def fetch_runs(group: str, qi_filter: str | None) -> pd.DataFrame:
         qi         = cfg.get("qi")
         sample     = cfg.get("sample_idx")
         ra_mean    = summ.get("RA_mean")
+        dataset_cfg = cfg.get("dataset") or {}
+        dataset = dataset_cfg.get("name") if isinstance(dataset_cfg, dict) else dataset_cfg
 
         # Skip failed / incomplete runs
         if None in (attack, sdg_method, qi, sample) or ra_mean is None:
+            skipped += 1
+            continue
+
+        if DATASET and dataset != DATASET:
             skipped += 1
             continue
 
@@ -220,7 +228,7 @@ def to_latex(pivot: pd.DataFrame, df_raw: pd.DataFrame,
     col_headers = [SDG_DISPLAY.get(c, c.replace("_", r"\_")) for c in cols]
 
     lines = []
-    lines.append(r"\begin{table}[ht]")
+    lines.append(r"\begin{table*}[ht]")
     lines.append(r"  \centering")
     lines.append(r"  \small")
     lines.append(r"  % Requires: \usepackage{booktabs,rotating,graphicx}")
@@ -270,7 +278,7 @@ def to_latex(pivot: pd.DataFrame, df_raw: pd.DataFrame,
     lines.append(f"           WandB group: \\textit{{{group}}}. QI variant: {qi}.")
     lines.append(r"           $^*$Fewer than 5 samples available for this cell.}")
     lines.append(r"  \label{tab:ra_mean}")
-    lines.append(r"\end{table}")
+    lines.append(r"\end{table*}")
 
     return "\n".join(lines)
 

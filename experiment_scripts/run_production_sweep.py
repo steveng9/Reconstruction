@@ -49,13 +49,13 @@ from attack_defaults import ATTACK_PARAM_DEFAULTS
 #   right QI definitions and hidden-feature set for each feature-subset experiment.
 # N_FEATURES:  None = full 98-col data; 25 or 50 = feature-subset data (adds "_Nfeat"
 #   suffix to the size directory, matching what generate_synth.py creates).
-DATASET_BASE  = "nist_arizona_data"
-DATASET_NAME  = "nist_arizona_25feat"   # QI lookup key — change with N_FEATURES
-#DATASET_BASE  = "adult"
-#DATASET_NAME  = "adult"   # QI lookup key — change with N_FEATURES
+#DATASET_BASE  = "nist_arizona_data"
+#DATASET_NAME  = "nist_arizona_25feat"   # QI lookup key — change with N_FEATURES
+DATASET_BASE  = "adult"
+DATASET_NAME  = "adult"   # QI lookup key — change with N_FEATURES
 DATASET_SIZE  = 10_000
-N_FEATURES    = 25                      # None | 25 | 50
-#N_FEATURES    = None                      # None | 25 | 50
+#N_FEATURES    = 25                      # None | 25 | 50
+N_FEATURES    = None                      # None | 25 | 50
 DATA_ROOT     = (
     f"/home/golobs/data/reconstruction_data/{DATASET_BASE}/size_{DATASET_SIZE}"
     + (f"_{N_FEATURES}feat" if N_FEATURES is not None else "")
@@ -72,7 +72,7 @@ QI_VARIANTS = ["QI1"]   # "QI2" only defined for nist_arizona_data (98-col full 
 # SDG methods: (method_name, sdg_params)
 SDG_METHODS = [
     ("RankSwap",       {}),
-    ("MST",            {"epsilon": 0.1}),
+    #("MST",            {"epsilon": 0.1}),
     ("MST",            {"epsilon": 1.0}),
     ("MST",            {"epsilon": 10.0}),
     ("MST",            {"epsilon": 100.0}),
@@ -91,19 +91,19 @@ SDG_METHODS = [
 # (attack_method, method_specific_params)
 ATTACK_CONFIGS = [
     # Baselines
-    #("Mode",                    {}),
-    #("Random",                  {}),
+    ("Mode",                    {}),
+    ("Random",                  {}),
     #("Mean",                    {}),
-    #("MeasureDeid",             {}),
+    ("MeasureDeid",             {}),
     # ML classifiers
-    #("KNN",                     {}),
-    #("NaiveBayes",              {}),
-    #("LogisticRegression",      {}),
-    #("SVM",                     {}),   # O(n²–n³) — impractical at n=10k
-    #("RandomForest",            {}),
-    #("LightGBM",                {}),
+    ("KNN",                     {}),
+    ("NaiveBayes",              {}),
+    ("LogisticRegression",      {}),
+    ("SVM",                     {}),   # O(n²–n³) — impractical at n=10k
+    ("RandomForest",            {}),
+    ("LightGBM",                {}),
     # Neural networks
-    #("MLP",                     {}),
+    ("MLP",                     {}),
     ("Attention",               {}),
     #("AttentionAutoregressive", {}),
     # SOTA (requires Gurobi academic licence)

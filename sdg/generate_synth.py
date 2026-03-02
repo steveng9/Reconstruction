@@ -33,14 +33,13 @@ from datetime import datetime
 # ============================================================
 
 DATA_ROOT = Path("/home/golobs/data/reconstruction_data")
-#DATASET = "adult"
-DATASET = "nist_arizona_data"
+DATASET = "adult"
+#DATASET = "nist_arizona_data"
 #DATASET = "nist_sbo"
 #DATASET = "cdc_diabetes"
 #DATASET = "california"
-#DATASET = "match2-2017"
 
-SAMPLE_SIZE = 10_000
+SAMPLE_SIZE = 1_000
 NUM_SAMPLES = 10       # total training samples to create
 
 # Whether samples must be disjoint (non-overlapping).
@@ -54,15 +53,15 @@ RANDOM_SEED = 42
 # those columns. None = use all columns. When set, the size directory gets a "_Nfeat"
 # suffix so 50-feat and 98-feat experiments live in separate directories
 # (e.g. size_10000_50feat/ vs size_10000/).
-#FEATURE_SUBSET = None
+FEATURE_SUBSET = None
 # nist_arizona_data 25-col subset (mirrors NIST CRC competition, F-code encoding):
-FEATURE_SUBSET = [
-    'AGE','AGEMARR','BPL','CITIZEN','DURUNEMP',
-    'EDUC','EMPSTAT','FAMSIZE','FARM','GQ','GQTYPE',
-    'HISPAN','INCWAGE','IND','LABFORCE','MARST','MIGRATE5',
-    'MTONGUE','NATIVITY','OWNERSHP','RACE','SEX','URBAN',
-    'VETSTAT','WKSWORK1',
-]
+#FEATURE_SUBSET = [
+#    'AGE','AGEMARR','BPL','CITIZEN','DURUNEMP',
+#    'EDUC','EMPSTAT','FAMSIZE','FARM','GQ','GQTYPE',
+#    'HISPAN','INCWAGE','IND','LABFORCE','MARST','MIGRATE5',
+#    'MTONGUE','NATIVITY','OWNERSHP','RACE','SEX','URBAN',
+#    'VETSTAT','WKSWORK1',
+#]
 # nist_arizona_data 50-col subset:
 # FEATURE_SUBSET = [
 #     'AGE','AGEMARR','BPL','CHBORN','CITIZEN',
@@ -85,7 +84,7 @@ SAMPLES_TO_GENERATE = range(5)
 
 # Max parallel SDG jobs per sample.
 # GPU methods (TVAE, CTGAN, ARF, TabDDPM) share GPU memory — tune accordingly.
-MAX_WORKERS = 8
+MAX_WORKERS = 1
 
 # Column metadata — loaded from meta.json next to full_data.csv
 META_PATH = DATA_ROOT / DATASET / "meta.json"
@@ -105,55 +104,64 @@ _SDG_JOBS_BY_DATASET = {
 
     "adult": [
         # Deep generative models
-        ("TabDDPM", {}),
-        ("TVAE",    {}),
-        ("CTGAN",   {}),
-        ("ARF",     {}),
+        #("TabDDPM", {}),
+        #("TVAE",    {}),
+        #("CTGAN",   {}),
+        #("ARF",     {}),
         # Differentially private — vary epsilon
-        ("MST",  {"epsilon": 0.1}),
-        ("MST",  {"epsilon": 1.0}),
-        ("MST",  {"epsilon": 10.0}),
-        ("MST",  {"epsilon": 100.0}),
-        ("MST",  {"epsilon": 1000.0}),
-        ("AIM",  {"epsilon": 1.0}),
-        ("AIM",  {"epsilon": 10.0}),
+        # bin_continuous_as_ordinal=True: fnlwgt (12k–1.5M) and capital-gain (0–99k)
+        # are skewed enough to trip BinTransformer private bound estimation at small epsilon.
+        ("MST",  {"epsilon": 0.1,    "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 1.0,   "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 10.0,  "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 100.0, "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 1000.0,"bin_continuous_as_ordinal": True}),
+        #("AIM",  {"epsilon": 1.0}),
+        #("AIM",  {"epsilon": 10.0}),
         # R-based / de-identification
-        ("Synthpop",        {}),
-        ("RankSwap",        {"swap_features": ["age", "fnlwgt", "education-num", "capital-gain", "capital-loss", "hours-per-week"]}),
-        ("CellSuppression", {"key_vars": ["age", "workclass", "education", "sex", "race", "native-country"]}),
+        #("Synthpop",        {}),
+        #("RankSwap",        {"swap_features": ["age", "fnlwgt", "education-num", "capital-gain", "capital-loss", "hours-per-week"]}),
+        #("CellSuppression", {"key_vars": ["age", "workclass", "education", "sex", "race", "native-country"]}),
     ],
 
     "cdc_diabetes": [
-        ("MST",  {"epsilon": 0.1}),
-        ("MST",  {"epsilon": 1.0}),
-        ("MST",  {"epsilon": 10.0}),
-        ("MST",  {"epsilon": 100.0}),
-        ("MST",  {"epsilon": 1000.0}),
-        ("AIM",  {"epsilon": 1.0}),
-        ("AIM",  {"epsilon": 10.0}),
-        ("TVAE",    {}),
-        ("CTGAN",   {}),
-        ("ARF",     {}),
-        ("TabDDPM", {}),
-        ("Synthpop",        {}),
-        ("RankSwap",        {"swap_features": ["BMI", "MentHlth", "PhysHlth"]}),
-        ("CellSuppression", {"key_vars": ["Sex", "Age", "Income", "Education"]}),
+        # bin_continuous_as_ordinal=True: pre-bins the 3 continuous columns (BMI, MentHlth,
+        # PhysHlth) before fitting, bypassing BinTransformer's private bound estimation which
+        # fails at small epsilon (preprocessor_eps = 0.1 * 0.3 = 0.03 is too small).
+        ("MST",  {"epsilon": 0.1,    "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 1.0,   "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 10.0,  "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 100.0, "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 1000.0,"bin_continuous_as_ordinal": True}),
+        #("AIM",  {"epsilon": 1.0}),
+        #("AIM",  {"epsilon": 10.0}),
+        #("TVAE",    {}),
+        #("CTGAN",   {}),
+        #("ARF",     {}),
+        #("TabDDPM", {}),
+        #("Synthpop",        {}),
+        #("RankSwap",        {"swap_features": ["BMI", "MentHlth", "PhysHlth"]}),
+        #("CellSuppression", {"key_vars": ["Sex", "Age", "Income", "Education"]}),
     ],
 
     "california": [
-        ("MST",  {"epsilon": 1.0}),
-        ("MST",  {"epsilon": 10.0}),
-        ("MST",  {"epsilon": 100.0}),
-        ("MST",  {"epsilon": 1000.0}),
-        ("AIM",  {"epsilon": 1.0}),
-        ("AIM",  {"epsilon": 10.0}),
-        ("TVAE",    {}),
-        ("CTGAN",   {}),
-        ("ARF",     {}),
-        ("TabDDPM", {}),
-        ("Synthpop",        {}),
+        # bin_continuous_as_ordinal=True: all 9 columns are continuous, several heavily
+        # skewed (Population 3–35k, AveOccup 0.7–1244). BinTransformer private bound
+        # estimation fails at small epsilon and may be unreliable at larger ones too.
+        ("MST",  {"epsilon": 0.1,    "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 1.0,   "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 10.0,  "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 100.0, "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 1000.0,"bin_continuous_as_ordinal": True}),
+        #("AIM",  {"epsilon": 1.0}),
+        #("AIM",  {"epsilon": 10.0}),
+        #("TVAE",    {}),
+        #("CTGAN",   {}),
+        #("ARF",     {}),
+        #("TabDDPM", {}),
+        #("Synthpop",        {}),
         # All 9 columns are continuous — swap all
-        ("RankSwap", {"swap_features": ["MedInc", "HouseAge", "AveRooms", "AveBedrms", "Population", "AveOccup", "Latitude", "Longitude", "MedHouseVal"]}),
+        #("RankSwap", {"swap_features": ["MedInc", "HouseAge", "AveRooms", "AveBedrms", "Population", "AveOccup", "Latitude", "Longitude", "MedHouseVal"]}),
         # CellSuppression requires categorical QI columns — omit for purely continuous datasets
     ],
 
@@ -349,7 +357,11 @@ def do_sample():
 
             sample_dir = base / f"sample_{i:02d}"
             sample_dir.mkdir(parents=True, exist_ok=True)
-            sample_df.to_csv(sample_dir / "train.csv", index=False)
+            out_path = sample_dir / "train.csv"
+            if out_path.exists():
+                print(f"  sample_{i:02d}/train.csv — already exists, skipping")
+                continue
+            sample_df.to_csv(out_path, index=False)
             print(f"  sample_{i:02d}/train.csv — {len(sample_df)} rows  [disjoint]")
 
     else:
@@ -360,12 +372,16 @@ def do_sample():
             )
 
         for i in range(NUM_SAMPLES):
-            sample_df = df.sample(n=SAMPLE_SIZE, replace=False, random_state=RANDOM_SEED + i)
-            sample_df = sample_df.reset_index(drop=True)
-
             sample_dir = base / f"sample_{i:02d}"
             sample_dir.mkdir(parents=True, exist_ok=True)
-            sample_df.to_csv(sample_dir / "train.csv", index=False)
+            out_path = sample_dir / "train.csv"
+            if out_path.exists():
+                print(f"  sample_{i:02d}/train.csv — already exists, skipping")
+                continue
+
+            sample_df = df.sample(n=SAMPLE_SIZE, replace=False, random_state=RANDOM_SEED + i)
+            sample_df = sample_df.reset_index(drop=True)
+            sample_df.to_csv(out_path, index=False)
 
             # Mark as non-holdout-eligible — these samples may overlap each other
             # and therefore cannot be used as membership inference holdout sets.
