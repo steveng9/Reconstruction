@@ -45,6 +45,9 @@ QIs = {
     # QI1 known (7) is shared across all three; hidden features differ by available columns.
     "nist_arizona_25feat": {
         "QI1": ['RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT'],
+        "QI3": ['RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT',
+                'AGE', 'BPL', 'CITIZEN', 'DURUNEMP', 'EMPSTAT', 'FAMSIZE', 'HISPAN',
+                 'OWNERSHP', 'URBAN', 'WKSWORK1', 'MARST'],
     },
     "nist_arizona_50feat": {
         "QI1": ['RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT'],
@@ -75,6 +78,7 @@ minus_QIs = {
         "QI1": ['AGE', 'BPL', 'CITIZEN', 'DURUNEMP', 'EDUC', 'EMPSTAT', 'FAMSIZE',
                 'FARM', 'GQ', 'HISPAN', 'INCWAGE', 'LABFORCE', 'MARST', 'MIGRATE5',
                 'NATIVITY', 'OWNERSHP', 'URBAN', 'WKSWORK1'],
+        "QI3": ['EDUC', 'FARM', 'GQ', 'INCWAGE', 'LABFORCE', 'MIGRATE5', 'NATIVITY'],
     },
     # 50-feat: focused economic/labor/education outcomes
     "nist_arizona_50feat": {

@@ -84,7 +84,7 @@ SAMPLES_TO_GENERATE = range(5)
 
 # Max parallel SDG jobs per sample.
 # GPU methods (TVAE, CTGAN, ARF, TabDDPM) share GPU memory — tune accordingly.
-MAX_WORKERS = 1
+MAX_WORKERS = 2
 
 # Column metadata — loaded from meta.json next to full_data.csv
 META_PATH = DATA_ROOT / DATASET / "meta.json"
@@ -111,13 +111,21 @@ _SDG_JOBS_BY_DATASET = {
         # Differentially private — vary epsilon
         # bin_continuous_as_ordinal=True: fnlwgt (12k–1.5M) and capital-gain (0–99k)
         # are skewed enough to trip BinTransformer private bound estimation at small epsilon.
-        ("MST",  {"epsilon": 0.1,    "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 0.3,    "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 3.0,   "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 30.0,   "bin_continuous_as_ordinal": True}),
+        #("MST",  {"epsilon": 0.1,    "bin_continuous_as_ordinal": True}),
         #("MST",  {"epsilon": 1.0,   "bin_continuous_as_ordinal": True}),
         #("MST",  {"epsilon": 10.0,  "bin_continuous_as_ordinal": True}),
         #("MST",  {"epsilon": 100.0, "bin_continuous_as_ordinal": True}),
         #("MST",  {"epsilon": 1000.0,"bin_continuous_as_ordinal": True}),
-        #("AIM",  {"epsilon": 1.0}),
-        #("AIM",  {"epsilon": 10.0}),
+        #("AIM",  {"epsilon": 1.0, "bin_continuous_as_ordinal": True}),
+        ("AIM",  {"epsilon": 0.1,  "bin_continuous_as_ordinal": True}),
+        ("AIM",  {"epsilon": 0.3,  "bin_continuous_as_ordinal": True}),
+        #("AIM",  {"epsilon": 3.0,  "bin_continuous_as_ordinal": True}),
+        #("AIM",  {"epsilon": 10.0, "bin_continuous_as_ordinal": True}),
+        #("AIM",  {"epsilon": 30.0, "bin_continuous_as_ordinal": True}),
+        #("AIM",  {"epsilon": 100.0,"bin_continuous_as_ordinal": True}),
         # R-based / de-identification
         #("Synthpop",        {}),
         #("RankSwap",        {"swap_features": ["age", "fnlwgt", "education-num", "capital-gain", "capital-loss", "hours-per-week"]}),
