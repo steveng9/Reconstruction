@@ -141,6 +141,41 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "sample_batch_size": 8192,
     },
 
+    # ── Partial MST (attacks/partialMST.py) ──────────────────────────────────
+    # PartialMSTIndependent reuses the same defaults; each call trains on a
+    # single-feature synth so checkpoints are automatically distinct.
+    "PartialMST": {
+        "bin_continuous_as_ordinal": True,
+        "n_bins":                   20,
+        "retrain":                  False,
+        "sample_mode":              "sample",  # "sample" | "argmax" | "top_pct"
+        "top_pct":                  20.0,      # used only when sample_mode="top_pct"
+    },
+    "PartialMSTIndependent": {
+        "bin_continuous_as_ordinal": True,
+        "n_bins":                   20,
+        "retrain":                  False,
+        "sample_mode":              "sample",
+        "top_pct":                  20.0,
+    },
+    "PartialMSTBounded": {
+        "bin_continuous_as_ordinal": True,
+        "n_bins":                   20,
+        "retrain":                  False,
+        "clique_variant":           "bounded",
+        "max_clique_size":          3,
+        "sample_mode":              "sample",
+        "top_pct":                  20.0,
+    },
+    "PartialMSTHub": {
+        "bin_continuous_as_ordinal": True,
+        "n_bins":                   20,
+        "retrain":                  False,
+        "clique_variant":           "hub",
+        "sample_mode":              "sample",
+        "top_pct":                  20.0,
+    },
+
     # ── SOTA — recon-synth / Reconstruction/SOTA_attacks/linear_reconstruction.py
     "LinearReconstruction": {
         "k":       3,   # k-way marginal queries

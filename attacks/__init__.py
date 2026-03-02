@@ -54,6 +54,12 @@ from .baselines_continuous import (
 
 # Data-type agnostic attacks (work on both)
 from .partialDiffusion import repaint_reconstruction, partial_tabddpm_reconstruction, conditioned_repaint_reconstruction
+from .partialMST import (
+    partial_mst_reconstruction,
+    partial_mst_independent_reconstruction,
+    partial_mst_bounded_reconstruction,
+    partial_mst_hub_reconstruction,
+)
 
 # Membership Inference Attacks
 from .mia import MIA_REGISTRY, synth_distance_mia, nndr_mia, ra_as_mia
@@ -130,6 +136,10 @@ ATTACK_REGISTRY = {
         "TabDDPM": partial_tabddpm_reconstruction,
         "RePaint": repaint_reconstruction,
         "ConditionedRePaint": conditioned_repaint_reconstruction,
+        "PartialMST": partial_mst_reconstruction,
+        "PartialMSTIndependent": partial_mst_independent_reconstruction,
+        "PartialMSTBounded": partial_mst_bounded_reconstruction,
+        "PartialMSTHub": partial_mst_hub_reconstruction,
     }
 }
 
