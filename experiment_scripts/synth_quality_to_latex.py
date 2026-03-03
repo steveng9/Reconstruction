@@ -53,12 +53,20 @@ import pandas as pd
 # SDG methods to include (in row order). Absent methods are silently skipped.
 SDG_ORDER = [
     "MST_eps0.1",
+    "MST_eps0.3",
     "MST_eps1",
+    "MST_eps3",
     "MST_eps10",
+    "MST_eps30",
     "MST_eps100",
     "MST_eps1000",
+    "AIM_eps0.1",
+    "AIM_eps0.3",
     "AIM_eps1",
+    "AIM_eps3",
     "AIM_eps10",
+    "AIM_eps30",
+    "AIM_eps100",
     "RankSwap",
     "CellSuppression",
     "Synthpop",
@@ -71,9 +79,12 @@ SDG_ORDER = [
 
 # Groups control \midrule placement between them.
 SDG_GROUPS = [
-    ("Differentially private",  ["MST_eps0.1", "MST_eps1", "MST_eps10",
+    ("Differentially private",  ["MST_eps0.1", "MST_eps0.3", "MST_eps1",
+                                  "MST_eps3", "MST_eps10", "MST_eps30",
                                   "MST_eps100", "MST_eps1000",
-                                  "AIM_eps1", "AIM_eps10"]),
+                                  "AIM_eps0.1", "AIM_eps0.3", "AIM_eps1",
+                                  "AIM_eps3", "AIM_eps10", "AIM_eps30",
+                                  "AIM_eps100"]),
     ("Non-DP statistical",      ["RankSwap", "CellSuppression", "Synthpop"]),
     ("Deep generative",         ["TVAE", "CTGAN", "ARF", "TabDDPM"]),
     ("Baseline",                ["~train_baseline"]),
@@ -81,12 +92,19 @@ SDG_GROUPS = [
 
 SDG_DISPLAY: dict[str, str] = {
     "MST_eps0.1":      r"MST $(\varepsilon{=}0.1)$",
+    "MST_eps0.3":      r"MST $(\varepsilon{=}0.3)$",
     "MST_eps1":        r"MST $(\varepsilon{=}1)$",
+    "MST_eps3":        r"MST $(\varepsilon{=}3)$",
     "MST_eps10":       r"MST $(\varepsilon{=}10)$",
+    "MST_eps30":       r"MST $(\varepsilon{=}30)$",
     "MST_eps100":      r"MST $(\varepsilon{=}100)$",
     "MST_eps1000":     r"MST $(\varepsilon{=}1000)$",
+    "AIM_eps0.1":        r"AIM $(\varepsilon{=}0.1)$",
+    "AIM_eps0.3":        r"AIM $(\varepsilon{=}0.3)$",
     "AIM_eps1":        r"AIM $(\varepsilon{=}1)$",
+    "AIM_eps3":        r"AIM $(\varepsilon{=}3)$",
     "AIM_eps10":       r"AIM $(\varepsilon{=}10)$",
+    "AIM_eps30":        r"AIM $(\varepsilon{=}30)$",
     "RankSwap":        "RankSwap",
     "CellSuppression": r"Cell Supp.",
     "Synthpop":        "Synthpop",
@@ -254,7 +272,7 @@ def _build_header_rows(active_cols: list[tuple[str, str, str]],
     sub_cells = [entry[2] for entry in active_cols]   # e.g. "1k", "10k"
 
     row1 = "    " + r"\textbf{SDG method}" + " & " + " & ".join(top_cells) + r" \\"
-    row2 = "    " + " & ".join(sub_cells) + r" \\"
+    row2 = "    " + " & " + " & ".join(sub_cells) + r" \\"
     row3 = "    " + " ".join(cmidrules)
 
     return row1, row2, row3

@@ -3,3 +3,6 @@ wandb/
 out*.txt
 .DS_Store
 .idea/
+*.csv
+*.tex
+outfiles/

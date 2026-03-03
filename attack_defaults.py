@@ -147,6 +147,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
     "PartialMST": {
         "bin_continuous_as_ordinal": True,
         "n_bins":                   20,
+        "iters":                    10000,
         "retrain":                  False,
         "sample_mode":              "sample",  # "sample" | "argmax" | "top_pct"
         "top_pct":                  20.0,      # used only when sample_mode="top_pct"
@@ -154,6 +155,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
     "PartialMSTIndependent": {
         "bin_continuous_as_ordinal": True,
         "n_bins":                   20,
+        "iters":                    10000,
         "retrain":                  False,
         "sample_mode":              "sample",
         "top_pct":                  20.0,
@@ -161,6 +163,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
     "PartialMSTBounded": {
         "bin_continuous_as_ordinal": True,
         "n_bins":                   20,
+        "iters":                    10000,
         "retrain":                  False,
         "clique_variant":           "bounded",
         "max_clique_size":          3,
@@ -170,6 +173,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
     "PartialMSTHub": {
         "bin_continuous_as_ordinal": True,
         "n_bins":                   20,
+        "iters":                    10000,
         "retrain":                  False,
         "clique_variant":           "hub",
         "sample_mode":              "sample",

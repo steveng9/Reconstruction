@@ -200,6 +200,7 @@ class _PartialMSTSynthesizer(MSTSynthesizer):
     qi_orig_cols    = None
     clique_variant  = "standard"
     max_clique_size = 3
+    iters           = 10000
 
     # ---- core MST override -------------------------------------------------
 
@@ -238,7 +239,7 @@ class _PartialMSTSynthesizer(MSTSynthesizer):
             selected = self.select(data, rho / 3.0, log1)
 
         log2 = self.measure(data, selected, sigma)
-        engine = FactoredInference(data.domain, iters=5000)
+        engine = FactoredInference(data.domain, iters=self.iters)
         self.synthesizer = engine.estimate(log1 + log2)
 
     # ---- high-order clique selection helpers --------------------------------
@@ -312,11 +313,13 @@ class _PartialMSTSynthesizer(MSTSynthesizer):
                 best_score  = -1.0
                 best_clique = None
                 for qi_subset in itertools.combinations(qi_cols, n_qi_in_clique):
-                    clique = tuple(sorted(qi_subset + (h,)))
-                    score  = _clique_score(pmi, clique)
+                    # Score by MI(h, qi_i) only — QI-QI MI is constant across
+                    # subsets and would bias selection away from features
+                    # that are actually informative about h.
+                    score = sum(pmi.get((q, h), 0.0) for q in qi_subset)
                     if score > best_score:
                         best_score  = score
-                        best_clique = clique
+                        best_clique = tuple(sorted(qi_subset + (h,)))
 
             selected.append(best_clique)
             for c in best_clique:
@@ -436,7 +439,8 @@ def _sdg_dirname(cfg):
 
 
 def _fit_mst_on_synth(synth, meta, bin_continuous_as_ordinal, n_bins,
-                      qi=None, clique_variant="standard", max_clique_size=3):
+                      qi=None, clique_variant="standard", max_clique_size=3,
+                      iters=10000):
     """Fit a _PartialMSTSynthesizer on synth (noiseless — no DP).
 
     Returns (model, bin_edges) where bin_edges is {col -> np.array of edges}
@@ -474,6 +478,7 @@ def _fit_mst_on_synth(synth, meta, bin_continuous_as_ordinal, n_bins,
     model.qi_orig_cols    = list(qi) if qi else []
     model.clique_variant  = clique_variant
     model.max_clique_size = max_clique_size
+    model.iters           = iters
 
     model.fit(
         df,
@@ -587,13 +592,17 @@ def _conditional_sample(model, encoded_qi, n_targets,
 
     qi_model_cols = set(encoded_qi.keys())
     cliques = [set(cl) for cl in est.cliques]
-    used = set()
+    # Pre-populate with all QI columns: their values are known upfront and must
+    # be available for conditioning regardless of where they appear in the
+    # traversal order (QI columns that are leaf nodes in the spanning tree are
+    # eliminated first → appear last in the reversed order → without this
+    # initialisation, hidden features sampled before them would condition on
+    # nothing and degenerate to unconditional/random sampling).
+    used = set(encoded_qi.keys())
 
     for col in order:
         if col in qi_model_cols:
-            # QI column already filled; just mark it as available for conditioning
-            used.add(col)
-            continue
+            continue  # already filled and pre-marked in used
 
         # Find already-used columns that share a clique with `col`
         relevant_cliques = [cl for cl in cliques if col in cl]
@@ -757,6 +766,7 @@ def partial_mst_reconstruction(cfg, synth, targets, qi, hidden_features):
     params = cfg.get("attack_params", {})
     bin_continuous_as_ordinal = bool(params.get("bin_continuous_as_ordinal", True))
     n_bins          = int(params.get("n_bins", 20))
+    iters           = int(params.get("iters", 10000))
     clique_variant  = params.get("clique_variant", "standard")
     max_clique_size = int(params.get("max_clique_size", 3))
     sample_mode     = params.get("sample_mode", "sample")
@@ -776,6 +786,7 @@ def partial_mst_reconstruction(cfg, synth, targets, qi, hidden_features):
         model, bin_edges = _fit_mst_on_synth(
             synth, meta, bin_continuous_as_ordinal, n_bins,
             qi=qi, clique_variant=clique_variant, max_clique_size=max_clique_size,
+            iters=iters,
         )
         with open(checkpoint_path, "wb") as f:
             pickle.dump({"model": model, "bin_edges": bin_edges}, f)
