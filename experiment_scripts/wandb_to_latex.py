@@ -58,7 +58,7 @@ ATTACK_GROUPS = [
     ("ML Classifiers", ["KNN", "NaiveBayes", "LogisticRegression", "SVM",
                         "RandomForest", "LightGBM"]),
     ("Neural",         ["MLP", "Attention", "AttentionAutoregressive"]),
-    ("Diffusion",      ["TabDDPM", "ConditionedRePaint", "RePaint"]),
+    ("Partial SDG",      ["TabDDPM", "ConditionedRePaint", "RePaint", "PartialMST", "PartialMSTIndependent", "PartialMSTBounded"]),
     ("SOTA",           ["LinearReconstruction"]),
 ]
 
@@ -79,6 +79,9 @@ ATTACK_DISPLAY: dict[str, str] = {
     "ConditionedRePaint":      r"Cond.\ RePaint",
     "RePaint":                 "RePaint",
     "LinearReconstruction":    "Linear Recon.",
+    "PartialMST":              "MST",
+    "PartialMSTIndependent":   "MST (1 ft./time)",
+    "PartialMSTBounded":       "MST, k=3",
 }
 
 SDG_DISPLAY: dict[str, str] = {
@@ -114,14 +117,29 @@ def _sdg_label(method: str, params: dict | None) -> str:
     return f"{method}_eps{float(eps):g}" if eps is not None else method
 
 
-def fetch_runs(group: str, qi_filter: str | None) -> pd.DataFrame:
+def fetch_runs(group: str, qi_filter: str | None,
+               attack_filter: list[str] | None = None,
+               dataset_filter: str | None = None) -> pd.DataFrame:
     """Pull all finished runs from the given WandB group and return a flat DataFrame."""
     api    = wandb.Api(timeout=60)
     entity = api.default_entity
     path   = f"{entity}/{WANDB_PROJECT}"
 
+    # dataset_filter=None means use the module-level DATASET constant.
+    effective_dataset = dataset_filter if dataset_filter is not None else DATASET
+
+    server_filters: dict = {"group": group}
+    if attack_filter:
+        server_filters["config.attack_method"] = {"$in": attack_filter}
+    if effective_dataset:
+        server_filters["config.dataset"] = effective_dataset
+
     print(f"Querying {path}  group={group!r} ...")
-    runs = api.runs(path, filters={"group": group})
+    if attack_filter:
+        print(f"  Attack filter (server-side): {attack_filter}")
+    if effective_dataset:
+        print(f"  Dataset filter (server-side): {effective_dataset!r}")
+    runs = api.runs(path, filters=server_filters)
 
     rows = []
     skipped = 0
@@ -143,11 +161,15 @@ def fetch_runs(group: str, qi_filter: str | None) -> pd.DataFrame:
             skipped += 1
             continue
 
-        if DATASET and dataset != DATASET:
+        if effective_dataset and dataset != effective_dataset:
             skipped += 1
             continue
 
         if qi_filter and qi != qi_filter:
+            continue
+
+        if attack_filter and attack not in attack_filter:
+            skipped += 1
             continue
 
         rows.append({
@@ -295,11 +317,18 @@ def main():
                         help="Output .tex path (default: experiment_scripts/ra_table_<qi>.tex).")
     parser.add_argument("--decimals", type=int, default=3,
                         help="Decimal places for table values (default: 3).")
+    parser.add_argument("--attacks", nargs="+", default=None, metavar="ATTACK",
+                        help="Only include these attack methods (e.g. --attacks PartialMST PartialMSTBounded).")
+    parser.add_argument("--dataset", default=None,
+                        help="Filter to this dataset name (overrides DATASET constant at top of file; "
+                             "use 'all' to disable filtering).")
     args = parser.parse_args()
 
     qi_filter = None if args.qi.lower() == "all" else args.qi
+    dataset_filter = ("" if args.dataset and args.dataset.lower() == "all" else args.dataset)
 
-    df = fetch_runs(args.group, qi_filter)
+    df = fetch_runs(args.group, qi_filter, attack_filter=args.attacks,
+                    dataset_filter=dataset_filter)
     if not df.empty:
         df = deduplicate(df)
     if df.empty:

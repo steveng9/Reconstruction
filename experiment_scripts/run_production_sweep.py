@@ -49,13 +49,13 @@ from attack_defaults import ATTACK_PARAM_DEFAULTS
 #   right QI definitions and hidden-feature set for each feature-subset experiment.
 # N_FEATURES:  None = full 98-col data; 25 or 50 = feature-subset data (adds "_Nfeat"
 #   suffix to the size directory, matching what generate_synth.py creates).
-DATASET_BASE  = "nist_arizona_data"
-DATASET_NAME  = "nist_arizona_25feat"   # QI lookup key — change with N_FEATURES
-#DATASET_BASE  = "adult"
-#DATASET_NAME  = "adult"   # QI lookup key — change with N_FEATURES
+#DATASET_BASE  = "nist_arizona_data"
+#DATASET_NAME  = "nist_arizona_25feat"   # QI lookup key — change with N_FEATURES
+DATASET_BASE  = "adult"
+DATASET_NAME  = "adult"   # QI lookup key — change with N_FEATURES
 DATASET_SIZE  = 10_000
-N_FEATURES    = 25                      # None | 25 | 50
-#N_FEATURES    = None                      # None | 25 | 50
+#N_FEATURES    = 25                      # None | 25 | 50
+N_FEATURES    = None                      # None | 25 | 50
 DATA_ROOT     = (
     f"/home/golobs/data/reconstruction_data/{DATASET_BASE}/size_{DATASET_SIZE}"
     + (f"_{N_FEATURES}feat" if N_FEATURES is not None else "")
@@ -118,13 +118,13 @@ ATTACK_CONFIGS = [
     #("ConditionedRePaint", {"retrain": False}),   # QI-conditioned + RePaint sampling
     # Partial MST
     #("PartialMST",            {"retrain": False}),
-    ("PartialMST",            {"retrain": False, "sample_mode": "argmax"}),
-    #("PartialMST",            {"retrain": False, "sample_mode": "top_pct", "top_pct": 20.0}),
+    #("PartialMST",            {"retrain": False, "sample_mode": "argmax"}),
+    ("PartialMST",            {"retrain": False, "sample_mode": "top_pct", "top_pct": 20.0}),
     #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3}),
     #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "argmax"}),
-    ("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 15.0}),
+    ("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 20.0}),
     #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 10.0}),
-    ("PartialMSTIndependent", {"retrain": False, "sample_mode": "top_pct", "top_pct": 10.0}),
+    ("PartialMSTIndependent", {"retrain": False, "sample_mode": "top_pct", "top_pct": 20.0}),
 
 
 

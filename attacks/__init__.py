@@ -53,7 +53,13 @@ from .baselines_continuous import (
 )
 
 # Data-type agnostic attacks (work on both)
-from .partialDiffusion import repaint_reconstruction, partial_tabddpm_reconstruction, conditioned_repaint_reconstruction
+from .partialDiffusion import (
+    repaint_reconstruction,
+    partial_tabddpm_reconstruction,
+    conditioned_repaint_reconstruction,
+    tabddpm_ensemble_reconstruction,
+    tabddpm_mlp_reconstruction,
+)
 from .partialMST import (
     partial_mst_reconstruction,
     partial_mst_independent_reconstruction,
@@ -134,6 +140,8 @@ ATTACK_REGISTRY = {
     # Data-type agnostic (work on both categorical and continuous)
     "agnostic": {
         "TabDDPM": partial_tabddpm_reconstruction,
+        "TabDDPMEnsemble": tabddpm_ensemble_reconstruction,
+        "TabDDPMWithMLP": tabddpm_mlp_reconstruction,
         "RePaint": repaint_reconstruction,
         "ConditionedRePaint": conditioned_repaint_reconstruction,
         "PartialMST": partial_mst_reconstruction,
