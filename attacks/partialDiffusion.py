@@ -2,7 +2,8 @@
 import os
 import numpy as np
 import pandas as pd
-from sklearn.neural_network import MLPClassifier, MLPRegressor
+import torch
+import torch.nn as nn
 from sklearn.preprocessing import OrdinalEncoder, LabelEncoder, StandardScaler
 
 from get_data import get_meta_data_for_diffusion
@@ -194,6 +195,76 @@ def tabddpm_ensemble_reconstruction(cfg, synth, targets, qi, hidden_features):
     return aggregated, None, None
 
 
+_TORCH_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+class _TorchMLP(nn.Module):
+    """Lightweight GPU-capable MLP with a sklearn-compatible .predict() interface.
+
+    task="classify": CrossEntropyLoss, .predict() returns integer class indices.
+    task="regress":  MSELoss,           .predict() returns float values.
+    """
+
+    def __init__(self, in_dim, hidden_dims, out_dim, task="classify"):
+        super().__init__()
+        layers = []
+        prev = in_dim
+        for h in hidden_dims:
+            layers += [nn.Linear(prev, h), nn.ReLU()]
+            prev = h
+        layers.append(nn.Linear(prev, out_dim))
+        self.net = nn.Sequential(*layers)
+        self.task = task
+        self.loss_curve_ = []
+
+    def forward(self, x):
+        return self.net(x)
+
+    def fit(self, X_np, y_np, lr=0.001, epochs=200, batch_size=512):
+        device = _TORCH_DEVICE
+        self.to(device)
+        X = torch.tensor(X_np, dtype=torch.float32, device=device)
+        if self.task == "classify":
+            y = torch.tensor(y_np, dtype=torch.long, device=device)
+            criterion = nn.CrossEntropyLoss()
+        else:
+            y = torch.tensor(y_np, dtype=torch.float32, device=device)
+            criterion = nn.MSELoss()
+        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+        dataset = torch.utils.data.TensorDataset(X, y)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        self.loss_curve_ = []
+        self.train()
+        for _ in range(epochs):
+            epoch_loss = 0.0
+            for xb, yb in loader:
+                optimizer.zero_grad()
+                out = self(xb)
+                if self.task == "regress":
+                    out = out.squeeze(-1)
+                loss = criterion(out, yb)
+                loss.backward()
+                optimizer.step()
+                epoch_loss += loss.item() * len(xb)
+            self.loss_curve_.append(epoch_loss / len(X))
+        self.to("cpu")
+        return self
+
+    def predict(self, X_np):
+        device = _TORCH_DEVICE
+        self.to(device)
+        self.eval()
+        with torch.no_grad():
+            X = torch.tensor(X_np, dtype=torch.float32, device=device)
+            out = self(X)
+            if self.task == "classify":
+                pred = out.argmax(dim=1).cpu().numpy()
+            else:
+                pred = out.squeeze(-1).cpu().numpy()
+        self.to("cpu")
+        return pred
+
+
 def _train_tabddpm_mlp_stacker(cfg, synth, qi, hidden_features, mlp_artifact_dir, domain):
     """Train a stacked MLP that corrects TabDDPM imputations using synth as training data."""
     attack_params = cfg.get("attack_params", {})
@@ -243,12 +314,12 @@ def _train_tabddpm_mlp_stacker(cfg, synth, qi, hidden_features, mlp_artifact_dir
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
 
-    # Train one MLP per hidden feature (classifier for discrete, regressor for continuous)
-    # Use LabelEncoder to convert labels to integers for MLPClassifier — newer sklearn
-    # versions call np.isnan() on y during validation, which fails on string/object arrays.
+    # Train one _TorchMLP per hidden feature (classifier for discrete, regressor for continuous).
+    # LabelEncoder converts string labels → integer class indices for CrossEntropyLoss.
     n_feats = len(hidden_features)
     print(f"\n  [TabDDPMWithMLP] Training stacker MLPs on {n_rows} synth rows "
-          f"({len(qi)} QI + {n_feats} hint features)  →  {n_feats} targets", flush=True)
+          f"({len(qi)} QI + {n_feats} hint features)  →  {n_feats} targets  "
+          f"[device: {_TORCH_DEVICE}]", flush=True)
 
     mlps = {}
     label_encoders = {}
@@ -256,27 +327,16 @@ def _train_tabddpm_mlp_stacker(cfg, synth, qi, hidden_features, mlp_artifact_dir
         feat_type = domain.get(feat, {}).get("type", "discrete")
         y = synth_stack[feat]
         if feat_type == "continuous":
-            mlp = MLPRegressor(
-                hidden_layer_sizes=tuple(mlp_hidden_dims),
-                max_iter=mlp_epochs,
-                learning_rate_init=mlp_lr,
-                random_state=42,
-                early_stopping=False,
-            )
-            mlp.fit(X_train, y.astype(float))
+            mlp = _TorchMLP(X_train.shape[1], mlp_hidden_dims, 1, task="regress")
+            mlp.fit(X_train, y.astype(float).values, lr=mlp_lr, epochs=mlp_epochs)
             label_encoders[feat] = None
+            n_classes = None
         else:
             le = LabelEncoder()
             y_int = le.fit_transform(y.astype(str))
             n_classes = len(le.classes_)
-            mlp = MLPClassifier(
-                hidden_layer_sizes=tuple(mlp_hidden_dims),
-                max_iter=mlp_epochs,
-                learning_rate_init=mlp_lr,
-                random_state=42,
-                early_stopping=False,
-            )
-            mlp.fit(X_train, y_int)
+            mlp = _TorchMLP(X_train.shape[1], mlp_hidden_dims, n_classes, task="classify")
+            mlp.fit(X_train, y_int, lr=mlp_lr, epochs=mlp_epochs)
             label_encoders[feat] = le
 
         losses = mlp.loss_curve_

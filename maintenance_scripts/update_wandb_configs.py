@@ -25,7 +25,7 @@ project = "tabular-reconstruction-attacks"
 
 OLD_GROUP   = "main attack sweep 1"
 NEW_GROUP   = "main attack sweep 1 - BROKEN"
-DATASET     = "adult"
+DATASET     = "nist_arizona_25feat"
 BAD_ATTACKS = {"TabDDPM", "ConditionedRePaint", "TabDDPMWithMLP", "TabDDPMEnsemble"}
 
 runs = api.runs(

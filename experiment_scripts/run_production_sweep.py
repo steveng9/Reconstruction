@@ -60,7 +60,7 @@ DATA_ROOT     = (
     f"/home/golobs/data/reconstruction_data/{DATASET_BASE}/size_{DATASET_SIZE}"
     + (f"_{N_FEATURES}feat" if N_FEATURES is not None else "")
 )
-SAMPLE_RANGE  = range(5)          # sample_00 through sample_04
+SAMPLE_RANGE  = list(reversed(range(5)))          # sample_00 through sample_04
 DATASET_TYPE  = "categorical"     # "categorical" or "continuous"
 
 # Set HOLDOUT_SAMPLE_IDX to use a fixed sample as holdout for memorization test.
@@ -71,7 +71,6 @@ QI_VARIANTS = ["QI1"]   # "QI2" only defined for nist_arizona_data (98-col full 
 
 # SDG methods: (method_name, sdg_params)
 SDG_METHODS = [
-    ("RankSwap",       {}),
     #("MST",            {"epsilon": 0.1}),
     ("MST",            {"epsilon": 1.0}),
     ("MST",            {"epsilon": 10.0}),
@@ -86,6 +85,7 @@ SDG_METHODS = [
     ("TabDDPM",        {}),
     ("Synthpop",       {}),
     ("CellSuppression", {}),
+    ("RankSwap",       {}),
 ]
 
 # (attack_method, method_specific_params)
@@ -116,7 +116,7 @@ ATTACK_CONFIGS = [
     ("TabDDPM",            {"retrain": True}),   # QI-conditioned + TabDDPM sampling
     # ("RePaint",           {"retrain": False}),   # standard training + RePaint sampling
     ("ConditionedRePaint", {"retrain": False}),   # QI-conditioned + RePaint sampling
-    ("TabDDPMWithMLP",     {"retrain": True}),
+    ("TabDDPMWithMLP",     {"retrain": False, "retrain_mlp": True}),
     # Partial MST
     #("PartialMST",            {"retrain": False}),
     #("PartialMST",            {"retrain": False, "sample_mode": "argmax"}),
