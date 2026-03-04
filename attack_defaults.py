@@ -164,7 +164,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "resamples":       10,
         "jump_fn":         "jump_max10",
         "stacking_frac":   0.5,
-        "mlp_hidden_dims": [256, 256],
+        "mlp_hidden_dims": [1024],
         "mlp_epochs":      500,
         "mlp_lr":          0.001,
     },

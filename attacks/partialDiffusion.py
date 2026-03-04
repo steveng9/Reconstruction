@@ -15,6 +15,21 @@ from tabddpm_reconstruction_attack import (
 )
 
 
+def _artifact_dir(cfg: dict, name: str) -> str:
+    """Return a per-sample, per-SDG-method, per-QI artifact directory path.
+
+    Pattern: {sample_dir}/{sdg_label}/{name}_{qi}
+    Mirrors the Attention attack convention so parallel jobs across different
+    SDG methods or QI variants never share the same checkpoint.
+    """
+    method = cfg.get("sdg_method", "unknown")
+    params = cfg.get("sdg_params") or {}
+    eps = params.get("epsilon") or params.get("eps")
+    sdg_label = f"{method}_eps{eps:g}" if eps is not None else method
+    qi = cfg.get("QI", "QI")
+    return cfg["dataset"]["dir"] + f"/{sdg_label}/{name}_{qi}"
+
+
 def _needs_training(artifact_dir: str, cfg: dict) -> bool:
     """Return True if the diffusion model should be trained."""
     checkpoint = os.path.join(artifact_dir, "model_ckpt.pkl")
@@ -84,7 +99,7 @@ def _fix_feature_dtypes(reconstruction, hidden_features, domain):
 
 
 def partial_tabddpm_reconstruction(cfg, synth, targets, qi, hidden_features):
-    artifact_dir = cfg["dataset"]["dir"] + "/partial_tabddpm_artifacts"
+    artifact_dir = _artifact_dir(cfg, "partial_tabddpm_artifacts")
     cfg["dataset"]["artifacts"] = artifact_dir
     os.makedirs(artifact_dir, exist_ok=True)
     meta, domain = get_meta_data_for_diffusion(cfg)
@@ -101,7 +116,7 @@ def partial_tabddpm_reconstruction(cfg, synth, targets, qi, hidden_features):
 
 
 def repaint_reconstruction(cfg, synth, targets, qi, hidden_features):
-    artifact_dir = cfg["dataset"]["dir"] + "/repaint_artifacts"
+    artifact_dir = _artifact_dir(cfg, "repaint_artifacts")
     cfg["dataset"]["artifacts"] = artifact_dir
     os.makedirs(artifact_dir, exist_ok=True)
     meta, domain = get_meta_data_for_diffusion(cfg)
@@ -122,9 +137,9 @@ def conditioned_repaint_reconstruction(cfg, synth, targets, qi, hidden_features)
 
     Shares artifact directory with partial_tabddpm_reconstruction — both use
     identical QI-conditioned training, so the checkpoint can be reused.
-    If TabDDPM has already run for this sample, training is skipped automatically.
+    If TabDDPM has already run for this (SDG method, QI), training is skipped automatically.
     """
-    artifact_dir = cfg["dataset"]["dir"] + "/partial_tabddpm_artifacts"
+    artifact_dir = _artifact_dir(cfg, "partial_tabddpm_artifacts")
     cfg["dataset"]["artifacts"] = artifact_dir
     os.makedirs(artifact_dir, exist_ok=True)
     meta, domain = get_meta_data_for_diffusion(cfg)
@@ -142,7 +157,7 @@ def conditioned_repaint_reconstruction(cfg, synth, targets, qi, hidden_features)
 
 def tabddpm_ensemble_reconstruction(cfg, synth, targets, qi, hidden_features):
     """Run TabDDPM N times and aggregate: mode for discrete, mean for continuous."""
-    artifact_dir = cfg["dataset"]["dir"] + "/partial_tabddpm_artifacts"
+    artifact_dir = _artifact_dir(cfg, "partial_tabddpm_artifacts")
     cfg["dataset"]["artifacts"] = artifact_dir
     os.makedirs(artifact_dir, exist_ok=True)
     meta, domain = get_meta_data_for_diffusion(cfg)
@@ -289,8 +304,8 @@ def _train_tabddpm_mlp_stacker(cfg, synth, qi, hidden_features, mlp_artifact_dir
 
 def tabddpm_mlp_reconstruction(cfg, synth, targets, qi, hidden_features):
     """TabDDPM imputations used as features for a discriminative MLP stacker."""
-    artifact_dir = cfg["dataset"]["dir"] + "/partial_tabddpm_artifacts"
-    mlp_artifact_dir = cfg["dataset"]["dir"] + "/partial_tabddpm_mlp_artifacts"
+    artifact_dir = _artifact_dir(cfg, "partial_tabddpm_artifacts")
+    mlp_artifact_dir = _artifact_dir(cfg, "partial_tabddpm_mlp_artifacts")
     cfg["dataset"]["artifacts"] = artifact_dir
     os.makedirs(artifact_dir, exist_ok=True)
     meta, domain = get_meta_data_for_diffusion(cfg)

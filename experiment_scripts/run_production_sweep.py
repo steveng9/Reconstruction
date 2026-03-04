@@ -113,18 +113,19 @@ ATTACK_CONFIGS = [
     # (identical QI-conditioned training; differ only in sampling). Whichever runs
     # second will find model_ckpt.pkl already present and skip retraining automatically.
     # Pass retrain=True to force retraining from scratch.
-    #("TabDDPM",            {"retrain": False}),   # QI-conditioned + TabDDPM sampling
+    ("TabDDPM",            {"retrain": False}),   # QI-conditioned + TabDDPM sampling
     # ("RePaint",           {"retrain": False}),   # standard training + RePaint sampling
-    #("ConditionedRePaint", {"retrain": False}),   # QI-conditioned + RePaint sampling
+    ("ConditionedRePaint", {"retrain": False}),   # QI-conditioned + RePaint sampling
+    ("TabDDPMWithMLP",     {"retrain": False}),
     # Partial MST
     #("PartialMST",            {"retrain": False}),
     #("PartialMST",            {"retrain": False, "sample_mode": "argmax"}),
-    ("PartialMST",            {"retrain": False, "sample_mode": "top_pct", "top_pct": 20.0}),
+    #("PartialMST",            {"retrain": False, "sample_mode": "top_pct", "top_pct": 20.0}),
     #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3}),
     #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "argmax"}),
-    ("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 20.0}),
+    #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 20.0}),
     #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 10.0}),
-    ("PartialMSTIndependent", {"retrain": False, "sample_mode": "top_pct", "top_pct": 20.0}),
+    #("PartialMSTIndependent", {"retrain": False, "sample_mode": "top_pct", "top_pct": 20.0}),
 
 
 
@@ -135,7 +136,7 @@ ATTACK_CONFIGS = [
 # Explicitly passed params in ATTACK_CONFIGS override those defaults; the merged result
 # is logged to WandB so every run records the full effective parameter set.
 
-N_WORKERS     = 8
+N_WORKERS     = 4
 WANDB_PROJECT = "tabular-reconstruction-attacks"
 WANDB_GROUP   = "main attack sweep 1"
 WANDB_TAGS    = [DATASET_NAME, f"size_{DATASET_SIZE}", "production"]
