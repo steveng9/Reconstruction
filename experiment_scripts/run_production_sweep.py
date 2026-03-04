@@ -113,10 +113,10 @@ ATTACK_CONFIGS = [
     # (identical QI-conditioned training; differ only in sampling). Whichever runs
     # second will find model_ckpt.pkl already present and skip retraining automatically.
     # Pass retrain=True to force retraining from scratch.
-    ("TabDDPM",            {"retrain": False}),   # QI-conditioned + TabDDPM sampling
+    ("TabDDPM",            {"retrain": True}),   # QI-conditioned + TabDDPM sampling
     # ("RePaint",           {"retrain": False}),   # standard training + RePaint sampling
     ("ConditionedRePaint", {"retrain": False}),   # QI-conditioned + RePaint sampling
-    ("TabDDPMWithMLP",     {"retrain": False}),
+    ("TabDDPMWithMLP",     {"retrain": True}),
     # Partial MST
     #("PartialMST",            {"retrain": False}),
     #("PartialMST",            {"retrain": False, "sample_mode": "argmax"}),
@@ -136,7 +136,7 @@ ATTACK_CONFIGS = [
 # Explicitly passed params in ATTACK_CONFIGS override those defaults; the merged result
 # is logged to WandB so every run records the full effective parameter set.
 
-N_WORKERS     = 4
+N_WORKERS     = 1
 WANDB_PROJECT = "tabular-reconstruction-attacks"
 WANDB_GROUP   = "main attack sweep 1"
 WANDB_TAGS    = [DATASET_NAME, f"size_{DATASET_SIZE}", "production"]
