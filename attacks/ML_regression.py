@@ -182,41 +182,33 @@ def KNN_reconstruction_continuous(cfg, deid, targets, qi, hidden_features):
 
 
 def linear_regression_reconstruction(cfg, synth, targets, qi, hidden_features):
-    # StandardScaler().fit(targets)
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         model = LinearRegression()
-        y = synth[hidden_feature]
-        model.fit(synth[qi], y)
-        reconstructed_targets[hidden_feature] = model.predict(targets)
+        model.fit(synth[qi], synth[hidden_feature])
+        reconstructed_targets[hidden_feature] = model.predict(targets[qi])
     return reconstructed_targets, None, None
 
 
-
 def ridge_regression_reconstruction(cfg, synth, targets, qi, hidden_features):
-    # StandardScaler().fit(targets)
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         model = Ridge(alpha=cfg["attack_params"].get("alpha", alpha_default))
-        y = synth[hidden_feature]
-        model.fit(synth[qi], y)
-        reconstructed_targets[hidden_feature] = model.predict(targets)
+        model.fit(synth[qi], synth[hidden_feature])
+        reconstructed_targets[hidden_feature] = model.predict(targets[qi])
     return reconstructed_targets, None, None
 
 
 def lasso_regression_reconstruction(cfg, synth, targets, qi, hidden_features):
-    # StandardScaler().fit(targets)
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         model = Lasso(alpha=cfg["attack_params"].get("alpha", alpha_default))
-        y = synth[hidden_feature]
-        model.fit(synth[qi], y)
-        reconstructed_targets[hidden_feature] = model.predict(targets)
+        model.fit(synth[qi], synth[hidden_feature])
+        reconstructed_targets[hidden_feature] = model.predict(targets[qi])
     return reconstructed_targets, None, None
 
 
 def sdgregressor_reconstruction(cfg, synth, targets, qi, hidden_features):
-    # StandardScaler().fit(targets)
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         model = SGDRegressor(
@@ -224,72 +216,59 @@ def sdgregressor_reconstruction(cfg, synth, targets, qi, hidden_features):
             penalty=cfg["attack_params"].get("penalty", penalty_default),
             alpha=cfg["attack_params"].get("alpha_sdg", alpha_sdg_default)
         )
-        y = synth[hidden_feature]
-        model.fit(synth[qi], y)
-        reconstructed_targets[hidden_feature] = model.predict(targets)
+        model.fit(synth[qi], synth[hidden_feature])
+        reconstructed_targets[hidden_feature] = model.predict(targets[qi])
     return reconstructed_targets, None, None
 
 
-
-
 def bayesian_ridge_reconstruction(cfg, synth, targets, qi, hidden_features):
-    # StandardScaler().fit(targets)
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         model = BayesianRidge()
-        y = synth[hidden_feature]
-        model.fit(synth[qi], y)
-        reconstructed_targets[hidden_feature] = model.predict(targets)
+        model.fit(synth[qi], synth[hidden_feature])
+        reconstructed_targets[hidden_feature] = model.predict(targets[qi])
     return reconstructed_targets, None, None
 
 
 def elastic_net_reconstruction(cfg, synth, targets, qi, hidden_features):
-    # StandardScaler().fit(targets)
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         model = ElasticNet(
-            alpha=cfg["attack_params"].get("alpha",alpha_default),
-            l1_ratio=cfg["attack_params"].get("l1_ratio",l1_ratio_default)
+            alpha=cfg["attack_params"].get("alpha", alpha_default),
+            l1_ratio=cfg["attack_params"].get("l1_ratio", l1_ratio_default)
         )
-        y = synth[hidden_feature]
-        model.fit(synth[qi], y)
-        reconstructed_targets[hidden_feature] = model.predict(targets)
+        model.fit(synth[qi], synth[hidden_feature])
+        reconstructed_targets[hidden_feature] = model.predict(targets[qi])
     return reconstructed_targets, None, None
 
 
 def huber_regressor_reconstruction(cfg, synth, targets, qi, hidden_features):
-    # StandardScaler().fit(targets)
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         model = HuberRegressor(epsilon=cfg["attack_params"].get("epsilon", epsilon_default))
-        y = synth[hidden_feature]
-        model.fit(synth[qi], y)
-        reconstructed_targets[hidden_feature] = model.predict(targets)
+        model.fit(synth[qi], synth[hidden_feature])
+        reconstructed_targets[hidden_feature] = model.predict(targets[qi])
     return reconstructed_targets, None, None
 
 
 def ransac_regressor_reconstruction(cfg, synth, targets, qi, hidden_features):
-    # StandardScaler().fit(targets)
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         model = RANSACRegressor()
-        y = synth[hidden_feature]
-        model.fit(synth[qi], y)
-        reconstructed_targets[hidden_feature] = model.predict(targets)
+        model.fit(synth[qi], synth[hidden_feature])
+        reconstructed_targets[hidden_feature] = model.predict(targets[qi])
     return reconstructed_targets, None, None
 
 
 def polynomial_regressor_reconstruction(cfg, synth, targets, qi, hidden_features):
-    # StandardScaler().fit(targets)
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         model = Pipeline([
-            ('poly', PolynomialFeatures(degree=cfg["attack_params"].get("degree",degree_default))),
+            ('poly', PolynomialFeatures(degree=cfg["attack_params"].get("degree", degree_default))),
             ('linear', LinearRegression())
         ])
-        y = synth[hidden_feature]
-        model.fit(synth[qi], y)
-        reconstructed_targets[hidden_feature] = model.predict(targets)
+        model.fit(synth[qi], synth[hidden_feature])
+        reconstructed_targets[hidden_feature] = model.predict(targets[qi])
     return reconstructed_targets, None, None
 
 

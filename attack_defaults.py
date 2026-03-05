@@ -52,15 +52,15 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
     },
 
     # ── ML regressors (attacks/ML_regression.py) ─────────────────────────────
-    "LinearRegression":    {},
-    "Ridge":               {},
-    "Lasso":               {},
-    "ElasticNet":          {},
-    "PolynomialRegression": {},
-    "BayesianRidge":       {},
-    "HuberRegressor":      {},
-    "RANSACRegressor":     {},
-    "SGDRegressor":        {},
+    "LinearRegression":     {},
+    "Ridge":                {"alpha": 1.0},
+    "Lasso":                {"alpha": 1.0},
+    "ElasticNet":           {"alpha": 1.0, "l1_ratio": 0.5},
+    "PolynomialRegression": {"degree": 2},
+    "BayesianRidge":        {},
+    "HuberRegressor":       {"epsilon": 1.35},
+    "RANSACRegressor":      {},
+    "SGDRegressor":         {"max_iter_sdg": 1000, "penalty": "l2", "alpha_sdg": 0.0001},
 
     # ── Neural networks (attacks/NN_classifier.py) ───────────────────────────
     "MLP": {
