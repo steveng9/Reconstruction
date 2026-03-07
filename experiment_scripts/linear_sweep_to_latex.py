@@ -50,7 +50,7 @@ COLUMNS = [
     ("adult",        1_000,  "QI_binary_sex",          "sex",      "Adult 1k"),
     ("adult",        10_000, "QI_linear_lowcard",      "income",   "Adult 10k"),
     ("adult",        10_000, "QI_binary_sex_lowcard",  "sex",      "Adult 10k"),
-    ("arizona",      1_000,  "QI_binary_SEX_lowcard",  "SEX",      "Arizona 1k"),
+    ("arizona",      10_000,  "QI_binary_SEX_lowcard",  "SEX",      "Arizona 10k"),
     ("cdc_diabetes", 1_000,  "QI_linear",              "Diabetes", "CDC 1k"),
     ("cdc_diabetes", 1_000,  "QI_binary_HighBP",       "HighBP",   "CDC 1k"),
     ("cdc_diabetes", 1_000,  "QI_binary_Stroke",       "Stroke",   "CDC 1k"),
@@ -63,8 +63,8 @@ ATTACKS = ["Random", "KNN", "NaiveBayes", "RandomForest", "MLP", "LinearReconstr
 
 ATTACK_LABELS: dict[str, str] = {
     "Random":               "Random",
-    "KNN":                  r"\textsc{knn}",
-    "NaiveBayes":           "Naive Bayes",
+    #"KNN":                  r"\textsc{knn}",
+    #"NaiveBayes":           "Naive Bayes",
     "RandomForest":         "Random Forest",
     "MLP":                  r"\textsc{mlp}",
     "LinearReconstruction": "Linear Recon.",
@@ -104,64 +104,95 @@ def _sdg_label(method: str, params: dict | None) -> str:
     return f"{method}_eps{float(eps):g}" if eps is not None else method
 
 
+def _fetch_group(path: str, group: str, qi_variants: list[str]) -> list[dict]:
+    """
+    Fetch one WandB group with server-side filters for attacks and QI variants.
+    Called from a thread — returns a list of row dicts.
+    """
+    api = wandb.Api(timeout=120)
+    filters = {
+        "group": group,
+        "config.attack_method": {"$in": ATTACKS},
+        "config.qi":            {"$in": qi_variants},
+    }
+    runs = api.runs(path, filters=filters, per_page=500)
+
+    rows = []
+    for run in runs:
+        cfg  = run.config
+        summ = run.summary
+
+        attack     = cfg.get("attack_method")
+        sdg_method = cfg.get("sdg_method")
+        sdg_params = cfg.get("sdg_params") or {}
+        qi         = cfg.get("qi")
+        sample     = cfg.get("sample_idx")
+        dk         = cfg.get("dataset_key")
+        sz         = cfg.get("size")
+
+        train_ra    = summ.get("RA_train_mean")
+        nontrain_ra = summ.get("RA_nontraining_mean")
+
+        if None in (attack, sdg_method, qi, sample, dk, sz) or train_ra is None:
+            continue
+
+        rows.append({
+            "dataset_key": str(dk),
+            "size":        int(sz),
+            "qi":          str(qi),
+            "attack":      str(attack),
+            "sdg":         _sdg_label(sdg_method, sdg_params),
+            "sample":      int(sample),
+            "train_ra":    float(train_ra),
+            "nontrain_ra": float(nontrain_ra) if nontrain_ra is not None else float("nan"),
+            "created_at":  run.created_at,
+        })
+    return rows
+
+
 def fetch_runs() -> pd.DataFrame:
     """
     Fetch all linear-sweep runs from WandB across every (dataset_key, size)
     combination referenced in COLUMNS.  Returns a flat DataFrame with one row
     per completed run, deduplicated to the most-recent per unique experiment.
+
+    Uses server-side filters (attack_method, qi) and parallel thread fetching
+    to minimise round-trips.
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     api    = wandb.Api(timeout=120)
     entity = api.default_entity
     path   = f"{entity}/{WANDB_PROJECT}"
 
-    groups_needed = sorted({
-        f"linear-sweep-{dk}-{sz}"
-        for dk, sz, *_ in COLUMNS
-    })
+    # Build per-group qi_variants so the server filter is tight
+    group_qi: dict[str, list[str]] = {}
+    for dk, sz, qi, *_ in COLUMNS:
+        group = f"linear-sweep-{dk}-{sz}"
+        group_qi.setdefault(group, [])
+        if qi not in group_qi[group]:
+            group_qi[group].append(qi)
 
-    rows = []
-    for group in groups_needed:
-        print(f"  Querying group: {group!r} ...")
-        runs = api.runs(path, filters={"group": group})
-        n = 0
-        for run in runs:
-            cfg  = run.config
-            summ = run.summary
+    print(f"  Fetching {len(group_qi)} groups in parallel "
+          f"(attacks={len(ATTACKS)}, server-filtered) ...")
 
-            attack     = cfg.get("attack_method")
-            sdg_method = cfg.get("sdg_method")
-            sdg_params = cfg.get("sdg_params") or {}
-            qi         = cfg.get("qi")
-            sample     = cfg.get("sample_idx")
-            dk         = cfg.get("dataset_key")
-            sz         = cfg.get("size")
+    all_rows: list[dict] = []
+    with ThreadPoolExecutor(max_workers=len(group_qi)) as pool:
+        futures = {
+            pool.submit(_fetch_group, path, group, qis): group
+            for group, qis in sorted(group_qi.items())
+        }
+        for future in as_completed(futures):
+            group = futures[future]
+            rows  = future.result()
+            print(f"    {group}: {len(rows)} runs")
+            all_rows.extend(rows)
 
-            train_ra    = summ.get("RA_train_mean")
-            nontrain_ra = summ.get("RA_nontraining_mean")
-
-            if None in (attack, sdg_method, qi, sample, dk, sz) or train_ra is None:
-                continue
-
-            rows.append({
-                "dataset_key": str(dk),
-                "size":        int(sz),
-                "qi":          str(qi),
-                "attack":      str(attack),
-                "sdg":         _sdg_label(sdg_method, sdg_params),
-                "sample":      int(sample),
-                "train_ra":    float(train_ra),
-                "nontrain_ra": float(nontrain_ra) if nontrain_ra is not None else float("nan"),
-                "created_at":  run.created_at,
-            })
-            n += 1
-        print(f"    → {n} valid runs")
-
-    if not rows:
+    if not all_rows:
         return pd.DataFrame(columns=["dataset_key", "size", "qi", "attack",
                                      "sdg", "sample", "train_ra", "nontrain_ra"])
 
-    df = pd.DataFrame(rows)
-    # Keep most recent run per unique experiment
+    df = pd.DataFrame(all_rows)
     df = (df.sort_values("created_at")
             .drop_duplicates(
                 subset=["dataset_key", "size", "qi", "attack", "sdg", "sample"],
@@ -339,63 +370,56 @@ def build_table1(df: pd.DataFrame, decimals: int = 2) -> str:
 
 
 # ── Table 2: per SDG method, averaged over samples ────────────────────────────
+# Emitted as one table* per SDG method — avoids longtable's two-column
+# restriction and lets each sub-table be individually \resizebox-scaled.
 
 def build_table2(df: pd.DataFrame, decimals: int = 2) -> str:
     col_spec, row1, row2, row3 = _build_header(COLUMNS)
-    col_keys    = [(dk, sz, qi) for dk, sz, qi, *_ in COLUMNS]
-    n_total     = 1 + len(COLUMNS) * 2
+    col_keys = [(dk, sz, qi) for dk, sz, qi, *_ in COLUMNS]
 
-    # Determine which SDGs have data, in preferred display order
     sdgs_present = set(df["sdg"].unique())
     sdg_order    = [s for s in SDG_ORDER if s in sdgs_present]
-    # Append anything not in SDG_ORDER
     for s in sorted(sdgs_present - set(sdg_order)):
         sdg_order.append(s)
 
-    continued = f"\\multicolumn{{{n_total}}}{{r}}{{\\textit{{Continued on next page}}}}"
-
-    lines = [
-        f"\\begin{{longtable}}{{{col_spec}}}",
-        r"\caption{%",
-        r"  Reconstruction accuracy by SDG method, averaged over 5 samples.",
-        r"  \textbf{Tr} = training targets; \textbf{NT} = non-training targets.",
-        r"  Best \textbf{Tr} per (SDG, column) in \textbf{bold}.",
-        r"} \label{tab:linear_sweep_by_sdg} \\",
-        r"\toprule",
-        row1,
-        row2,
-        row3,
-        r"\midrule \endfirsthead",
-        r"\toprule",
-        row1,
-        row2,
-        row3,
-        r"\midrule \endhead",
-        r"\midrule",
-        continued + r" \\",
-        r"\endfoot",
-        r"\bottomrule \endlastfoot",
-    ]
-
+    blocks = []
     for i, sdg in enumerate(sdg_order):
         sdg_lbl = SDG_LABELS.get(sdg, sdg)
         maxes   = _col_max(df, col_keys, ATTACKS, sdg=sdg)
 
-        if i > 0:
-            lines.append(r"\midrule")
-        lines.append(
-            f"\\multicolumn{{{n_total}}}{{l}}"
-            r"{\textbf{" + sdg_lbl + r"}} \\"
-        )
+        lines = [
+            r"\begin{table*}[htbp]",
+            r"\centering",
+            r"\caption{%",
+            f"  RA (Tr / NT) for binary hidden features --- {sdg_lbl}.",
+            r"  Averaged over 5 samples.",
+            r"  Best Tr per column in \textbf{bold}.",
+            r"}",
+            f"\\label{{tab:linear_sweep_{sdg.replace(' ', '_')}}}",
+            r"\resizebox{\textwidth}{!}{%",
+            f"\\begin{{tabular}}{{{col_spec}}}",
+            r"\toprule",
+            row1,
+            row2,
+            row3,
+            r"\midrule",
+        ]
 
         for atk in ATTACKS:
             shade = (atk == "LinearReconstruction")
             lines.append(_data_row(df, col_keys, atk, decimals, maxes, sdg=sdg, shade=shade))
 
-        lines.append(_avg_row(df, col_keys, ATTACKS, decimals, sdg=sdg))
+        lines += [
+            r"\midrule",
+            _avg_row(df, col_keys, ATTACKS, decimals, sdg=sdg),
+            r"\bottomrule",
+            r"\end{tabular}%",
+            r"}",
+            r"\end{table*}",
+        ]
+        blocks.append("\n".join(lines))
 
-    lines.append(r"\end{longtable}")
-    return "\n".join(lines)
+    return "\n\n".join(blocks)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -414,8 +438,8 @@ def main():
                         help="Decimal places in cells (default 2).")
     args = parser.parse_args()
 
-    global WANDB_PROJECT
-    WANDB_PROJECT = args.project
+    if args.project != WANDB_PROJECT:
+        globals()["WANDB_PROJECT"] = args.project
 
     print("Fetching WandB runs ...")
     df = fetch_runs()

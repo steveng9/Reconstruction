@@ -62,8 +62,9 @@ DATASET_CONFIGS: dict[str, dict] = {
         "name":        "adult",
         "data_type":   "categorical",
         "n_features":  None,
-        "qi_variants": ["QI_linear", "QI_binary_sex",
-                        "QI_linear_lowcard", "QI_binary_sex_lowcard"],
+        "qi_variants": [
+                 "QI_linear", "QI_binary_sex"],
+                 #"QI_linear_lowcard", "QI_binary_sex_lowcard"],
     },
     "cdc_diabetes": {
         "base":        "cdc_diabetes",
@@ -77,7 +78,7 @@ DATASET_CONFIGS: dict[str, dict] = {
         "name":        "nist_arizona_25feat",
         "data_type":   "categorical",
         "n_features":  25,
-        "qi_variants": ["QI_binary_SEX", "QI_binary_SEX_lowcard"],
+        "qi_variants": ["QI_binary_SEX_lowcard"],
     },
 }
 
@@ -101,14 +102,14 @@ SDG_METHODS = [
 # All are "categorical" registry lookups (LinearReconstruction is in
 # ATTACK_REGISTRY["categorical"] so data_type="categorical" works for all).
 ATTACK_CONFIGS = [
-    ("Random",        {}),
+    #("Random",        {}),
     ("NaiveBayes",        {}),
     ("KNN",        {}),
-    ("RandomForest",        {}),
-    ("LogisticRegression",  {}),
-    ("LightGBM",            {}),
-    ("MLP",                 {}),
-    ("LinearReconstruction", {}),
+    #("RandomForest",        {}),
+    #("LogisticRegression",  {}),
+    #("LightGBM",            {}),
+    #("MLP",                 {}),
+    #("LinearReconstruction", {}),
 ]
 
 SAMPLE_RANGE  = list(range(5))   # samples 00–04; holdout is (idx+1)%5
