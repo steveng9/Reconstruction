@@ -51,9 +51,11 @@ from attack_defaults import ATTACK_PARAM_DEFAULTS
 #   suffix to the size directory, matching what generate_synth.py creates).
 #DATASET_BASE  = "nist_arizona_data"
 #DATASET_NAME  = "nist_arizona_25feat"   # QI lookup key — change with N_FEATURES
-DATASET_BASE  = "adult"
-DATASET_NAME  = "adult"   # QI lookup key — change with N_FEATURES
-DATASET_SIZE  = 10_000
+#DATASET_BASE  = "adult"
+#DATASET_NAME  = "adult"   # QI lookup key — change with N_FEATURES
+DATASET_BASE  = "california"
+DATASET_NAME  = "california"   # QI lookup key — change with N_FEATURES
+DATASET_SIZE  = 1_000
 #N_FEATURES    = 25                      # None | 25 | 50
 N_FEATURES    = None                      # None | 25 | 50
 DATA_ROOT     = (
@@ -61,7 +63,8 @@ DATA_ROOT     = (
     + (f"_{N_FEATURES}feat" if N_FEATURES is not None else "")
 )
 SAMPLE_RANGE  = list(reversed(range(5)))          # sample_00 through sample_04
-DATASET_TYPE  = "categorical"     # "categorical" or "continuous"
+#DATASET_TYPE  = "categorical"     # "categorical" or "continuous"
+DATASET_TYPE  = "continuous"     # "categorical" or "continuous"
 
 # Set HOLDOUT_SAMPLE_IDX to use a fixed sample as holdout for memorization test.
 # Set to None to disable memorization test entirely.
@@ -71,59 +74,87 @@ QI_VARIANTS = ["QI1"]   # "QI2" only defined for nist_arizona_data (98-col full 
 
 # SDG methods: (method_name, sdg_params)
 SDG_METHODS = [
-    #("MST",            {"epsilon": 0.1}),
+    ("MST",            {"epsilon": 0.1}),
     ("MST",            {"epsilon": 1.0}),
     ("MST",            {"epsilon": 10.0}),
     ("MST",            {"epsilon": 100.0}),
     ("MST",            {"epsilon": 1000.0}),
     ("AIM",            {"epsilon": 1.0}),
-    #("AIM",            {"epsilon": 10.0}),
+    ("AIM",            {"epsilon": 10.0}),
     #("AIM",            {"epsilon": 100.0}),
     ("TVAE",           {}),
     ("CTGAN",          {}),
     ("ARF",            {}),
     ("TabDDPM",        {}),
     ("Synthpop",       {}),
-    ("CellSuppression", {}),
+    #("CellSuppression", {}),
     ("RankSwap",       {}),
 ]
 
 # (attack_method, method_specific_params)
+# NOTE: attack names resolve via get_attack(name, data_type=DATASET_TYPE).
+# For DATASET_TYPE="continuous", names shared across registries (Random, Mean,
+# MeasureDeid, KNN, RandomForest, LightGBM, MLP) automatically route to their
+# continuous (regression/baseline_cont) variants. Categorical-only attacks
+# (NaiveBayes, LogisticRegression, Attention, etc.) are kept below but commented.
 ATTACK_CONFIGS = [
-    # Baselines
-    #("Mode",                    {}),
-    #("Random",                  {}),
-    #("Mean",                    {}),
-    #("MeasureDeid",             {}),
-    # ML classifiers
-    #("KNN",                     {}),
-    #("NaiveBayes",              {}),
-    #("LogisticRegression",      {}),
-    #("SVM",                     {}),   # O(n²–n³) — impractical at n=10k
-    #("RandomForest",            {}),
-    #("LightGBM",                {}),
-    # Neural networks
-    #("MLP",                     {}),
+    # ── Baselines ─────────────────────────────────────────────────────────────
+    # continuous variants (same name, routed by DATASET_TYPE)
+    #("Random",       {}),
+    #("Mean",         {}),
+    #("Median",       {}),        # continuous-only (no categorical equivalent)
+    #("MeasureDeid",  {}),
+    #("RandomNormal",    {}),    # continuous-only
+    #("NearestNeighbor", {}),    # continuous-only
+    # categorical-only baselines — uncomment for categorical datasets:
+    #("Mode",         {}),
+
+    # ── ML regressors (continuous) / classifiers (categorical) ────────────────
+    #("KNN",          {}),
+    #("RandomForest", {}),
+    #("LightGBM",     {}),
+    #("SVM",         {}),        # O(n²–n³) — impractical at n=10k
+    # continuous-only regressors — uncomment as needed:
+    ("LinearRegression",    {}),
+    ("Ridge",               {}),
+    ("Lasso",               {}),
+    ("ElasticNet",          {}),
+    ("BayesianRidge",       {}),
+    ("HuberRegressor",      {}),
+    ("RANSACRegressor",     {}),
+    ("SGDRegressor",        {}),
+    #("PolynomialRegression",{}),
+    # categorical-only classifiers — uncomment for categorical datasets:
+    #("NaiveBayes",          {}),
+    #("LogisticRegression",  {}),
+
+    # ── Neural networks ───────────────────────────────────────────────────────
+    #("MLP",          {}),        # continuous → MLPRegressor; categorical → MLPClassifier
+    #("MLP",          {"hidden_dims": [128, 264, 64], "learning_rate": 0.0001, "patience": 60, "epochs": 400}),
+    # categorical-only neural networks — uncomment for categorical datasets:
     #("Attention",               {}),
     #("AttentionAutoregressive", {}),
-    # SOTA (requires Gurobi academic licence)
-    # ("LinearReconstruction",    {}),
-    # Partial diffusion (agnostic — work on categorical and continuous)
+
+    # ── SOTA (requires Gurobi academic licence) ───────────────────────────────
+    # ("LinearReconstruction",  {}),
+
+    # ── Partial diffusion (agnostic — work on categorical and continuous) ──────
     # TabDDPM and ConditionedRePaint share the same artifact dir and trained model
     # (identical QI-conditioned training; differ only in sampling). Whichever runs
     # second will find model_ckpt.pkl already present and skip retraining automatically.
     # Pass retrain=True to force retraining from scratch.
-    ("TabDDPM",            {"retrain": True}),   # QI-conditioned + TabDDPM sampling
+    #("TabDDPM",            {"retrain": True}),   # QI-conditioned + TabDDPM sampling
     # ("RePaint",           {"retrain": False}),   # standard training + RePaint sampling
-    ("ConditionedRePaint", {"retrain": False}),   # QI-conditioned + RePaint sampling
-    ("TabDDPMWithMLP",     {"retrain": False, "retrain_mlp": True}),
-    # Partial MST
+    #("ConditionedRePaint", {"retrain": False}),   # QI-conditioned + RePaint sampling
+    #("TabDDPMWithMLP",     {"retrain": False, "retrain_mlp": True}),
+
+    # ── Partial MST (agnostic) ─────────────────────────────────────────────────
     #("PartialMST",            {"retrain": False}),
     #("PartialMST",            {"retrain": False, "sample_mode": "argmax"}),
-    #("PartialMST",            {"retrain": False, "sample_mode": "top_pct", "top_pct": 20.0}),
+    #("PartialMST",            {"retrain": False, "sample_mode": "top_pct", "top_pct": 10.0}),
     #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3}),
     #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "argmax"}),
-    #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 20.0}),
+    #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 10.0}),
     #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 10.0}),
     #("PartialMSTIndependent", {"retrain": False, "sample_mode": "top_pct", "top_pct": 20.0}),
 
@@ -136,7 +167,7 @@ ATTACK_CONFIGS = [
 # Explicitly passed params in ATTACK_CONFIGS override those defaults; the merged result
 # is logged to WandB so every run records the full effective parameter set.
 
-N_WORKERS     = 1
+N_WORKERS     = 8
 WANDB_PROJECT = "tabular-reconstruction-attacks"
 WANDB_GROUP   = "main attack sweep 1"
 WANDB_TAGS    = [DATASET_NAME, f"size_{DATASET_SIZE}", "production"]
