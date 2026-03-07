@@ -62,7 +62,8 @@ DATASET_CONFIGS: dict[str, dict] = {
         "name":        "adult",
         "data_type":   "categorical",
         "n_features":  None,
-        "qi_variants": ["QI_linear", "QI_binary_sex"],
+        "qi_variants": ["QI_linear", "QI_binary_sex",
+                        "QI_linear_lowcard", "QI_binary_sex_lowcard"],
     },
     "cdc_diabetes": {
         "base":        "cdc_diabetes",
@@ -76,7 +77,8 @@ DATASET_CONFIGS: dict[str, dict] = {
         "name":        "nist_arizona_25feat",
         "data_type":   "categorical",
         "n_features":  25,
-        "qi_variants": ["QI_binary_FARM", "QI_binary_URBAN"],
+        "qi_variants": ["QI_binary_FARM", "QI_binary_URBAN",
+                        "QI_binary_FARM_lowcard", "QI_binary_URBAN_lowcard"],
     },
 }
 
@@ -84,7 +86,14 @@ DATASET_CONFIGS: dict[str, dict] = {
 SDG_METHODS = [
     ("MST",      {"epsilon": 1.0}),
     ("MST",      {"epsilon": 10.0}),
+    ("MST",      {"epsilon": 100.0}),
+    ("MST",      {"epsilon": 1000.0}),
+    ("AIM",    {"epsilon": 1.0}),
+    ("ARF",    {}),
+    ("TVAE",    {}),
     ("CTGAN",    {}),
+    ("RankSwap",    {}),
+    ("CellSuppression",    {}),
     ("Synthpop", {}),
     ("TabDDPM",  {}),
 ]
@@ -93,6 +102,9 @@ SDG_METHODS = [
 # All are "categorical" registry lookups (LinearReconstruction is in
 # ATTACK_REGISTRY["categorical"] so data_type="categorical" works for all).
 ATTACK_CONFIGS = [
+    ("Random",        {}),
+    ("NaiveBayes",        {}),
+    ("KNN",        {}),
     ("RandomForest",        {}),
     ("LogisticRegression",  {}),
     ("LightGBM",            {}),
@@ -103,7 +115,7 @@ ATTACK_CONFIGS = [
 SAMPLE_RANGE  = list(range(5))   # samples 00–04; holdout is (idx+1)%5
 
 WANDB_PROJECT = "tabular-reconstruction-attacks"
-N_WORKERS_DEFAULT = 4
+N_WORKERS_DEFAULT = 12
 
 
 # ── Job specification ──────────────────────────────────────────────────────────

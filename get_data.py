@@ -31,6 +31,14 @@ QIs = {
                           "marital-status", "occupation", "relationship", "race",
                           "capital-gain", "capital-loss", "hours-per-week", "native-country",
                           "income"],
+        # Low-cardinality variants: drop fnlwgt (8477), capital-gain (98),
+        # capital-loss (69), hours-per-week (86) to reduce LP memory pressure.
+        "QI_linear_lowcard":     ["age", "workclass", "education", "education-num",
+                                  "marital-status", "occupation", "relationship", "race",
+                                  "sex", "native-country"],
+        "QI_binary_sex_lowcard": ["age", "workclass", "education", "education-num",
+                                  "marital-status", "occupation", "relationship", "race",
+                                  "native-country", "income"],
     },
     "cdc_diabetes": {
         "QI1": ["Sex", "Age", "Education", "Income", "BMI", "HighBP", "HighChol",
@@ -77,6 +85,16 @@ QIs = {
                             'EMPSTAT', 'FAMSIZE', 'FARM', 'GQ', 'GQTYPE', 'HISPAN',
                             'INCWAGE', 'IND', 'LABFORCE', 'MARST', 'MIGRATE5', 'MTONGUE',
                             'NATIVITY', 'OWNERSHP', 'RACE', 'SEX', 'VETSTAT', 'WKSWORK1'],
+        # Low-cardinality variants: drop INCWAGE (2836), DURUNEMP (348), IND (131),
+        # BPL (118), AGE (101), WKSWORK1 (53), AGEMARR (43) to reduce LP memory pressure.
+        "QI_binary_FARM_lowcard":  ['CITIZEN', 'EDUC', 'EMPSTAT', 'FAMSIZE', 'GQ',
+                                    'GQTYPE', 'HISPAN', 'LABFORCE', 'MARST', 'MIGRATE5',
+                                    'MTONGUE', 'NATIVITY', 'OWNERSHP', 'RACE', 'SEX',
+                                    'URBAN', 'VETSTAT'],
+        "QI_binary_URBAN_lowcard": ['CITIZEN', 'EDUC', 'EMPSTAT', 'FAMSIZE', 'FARM',
+                                    'GQ', 'GQTYPE', 'HISPAN', 'LABFORCE', 'MARST',
+                                    'MIGRATE5', 'MTONGUE', 'NATIVITY', 'OWNERSHP', 'RACE',
+                                    'SEX', 'VETSTAT'],
     },
     "nist_arizona_50feat": {
         "QI1": ['RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT'],
@@ -92,10 +110,13 @@ QIs = {
 }
 minus_QIs = {
     "adult": {
-        "QI1":           ["workclass", "fnlwgt", "education-num", "occupation", "relationship",
-                          "capital-gain", "capital-loss", "hours-per-week", "income"],
-        "QI_linear":     ["income"],
-        "QI_binary_sex": ["sex"],
+        "QI1":                   ["workclass", "fnlwgt", "education-num", "occupation",
+                                  "relationship", "capital-gain", "capital-loss",
+                                  "hours-per-week", "income"],
+        "QI_linear":             ["income"],
+        "QI_binary_sex":         ["sex"],
+        "QI_linear_lowcard":     ["income"],
+        "QI_binary_sex_lowcard": ["sex"],
     },
     "cdc_diabetes": {
         "QI1":               ["Diabetes_binary", "Stroke", "HeartDiseaseorAttack", "CholCheck",
@@ -114,8 +135,10 @@ minus_QIs = {
                             'FARM', 'GQ', 'HISPAN', 'INCWAGE', 'LABFORCE', 'MARST', 'MIGRATE5',
                             'NATIVITY', 'OWNERSHP', 'URBAN', 'WKSWORK1'],
         "QI3":             ['EDUC', 'FARM', 'GQ', 'INCWAGE', 'LABFORCE', 'MIGRATE5', 'NATIVITY'],
-        "QI_binary_FARM":  ['FARM'],
-        "QI_binary_URBAN": ['URBAN'],
+        "QI_binary_FARM":        ['FARM'],
+        "QI_binary_URBAN":       ['URBAN'],
+        "QI_binary_FARM_lowcard":  ['FARM'],
+        "QI_binary_URBAN_lowcard": ['URBAN'],
     },
     # 50-feat: focused economic/labor/education outcomes
     "nist_arizona_50feat": {
