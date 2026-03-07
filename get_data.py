@@ -28,6 +28,8 @@ QIs = {
                       "capital-gain", "capital-loss", "hours-per-week", "native-country"],
     },
     "cdc_diabetes": {
+        "QI1": ["Sex", "Age", "Education", "Income", "BMI", "HighBP", "HighChol",
+                "Smoker", "PhysActivity", "GenHlth"],
         # All features except target Diabetes_binary — for single-feature reconstruction comparison
         "QI_linear": ["HighBP", "HighChol", "CholCheck", "BMI", "Smoker", "Stroke",
                       "HeartDiseaseorAttack", "PhysActivity", "Fruits", "Veggies",
@@ -68,6 +70,9 @@ minus_QIs = {
         "QI_linear": ["income"],
     },
     "cdc_diabetes": {
+        "QI1": ["Diabetes_binary", "Stroke", "HeartDiseaseorAttack", "CholCheck",
+                "Fruits", "Veggies", "HvyAlcoholConsump", "AnyHealthcare",
+                "NoDocbcCost", "MentHlth", "PhysHlth", "DiffWalk"],
         "QI_linear": ["Diabetes_binary"],
     },
     "california": {
