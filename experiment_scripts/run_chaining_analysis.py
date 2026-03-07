@@ -63,7 +63,7 @@ DATA_ROOT = '/home/golobs/data/reconstruction_data'
 DATASETS = {
     "adult": {
         "name":       "adult",
-        "root":       f"{DATA_ROOT}/adult/size_10000",
+        "root":       f"{DATA_ROOT}/adult/size_1000",
         "data_type":  "categorical",
         "qi_variant": "QI1",
         "sdg_method": "TabDDPM",
@@ -77,17 +77,21 @@ DATASETS = {
     #},
 }
 
-SAMPLES            = [0]
-ATTACKS            = ["RandomForest"]
+SAMPLES            = [2, 3, 4]
+ATTACKS            = ["MLP"]
 #DET_STRATEGIES     = ["correlation", "reverse_correlation", "mutual_info", "dynamic_mutual_info"]
-DET_STRATEGIES     = ["mutual_info", "dynamic_mutual_info"]
+DET_STRATEGIES     = ["dynamic_mutual_info"]
 N_RANDOM_ORDERINGS = 2   # per sample; total random runs = len(SAMPLES) * N_RANDOM_ORDERINGS
 
 # ── Chaining variant toggles ──────────────────────────────────────────────────
 # Hard chaining always runs. These add extra variants per strategy.
-ORACLE_CHAINING = True    # upper bound: condition each step on TRUE previous values
-SOFT_CHAINING   = True    # probabilistic: one-hot training, RF probas at inference
-                          # (categorical + RandomForest only; falls back to hard otherwise)
+ORACLE_CHAINING        = True    # upper bound: condition each step on TRUE previous values
+SOFT_CHAINING          = True    # probabilistic: one-hot training, probas at inference
+                                 # (categorical only; falls back to hard for unsupported attacks)
+CONFIDENCE_GATED_CHAINING = True  # soft chaining variant: rows below threshold get uniform
+                                   # conditioning (treated as unknown) instead of propagating
+                                   # a low-confidence prediction. Requires SOFT_CHAINING=True.
+CONFIDENCE_THRESHOLD   = 0.7    # max-prob threshold for confidence gating
 
 OUT_DIR = os.path.join(RECON_ROOT, 'experiment_scripts', 'chaining_analysis')
 
@@ -199,12 +203,16 @@ def run_oracle_chained_attack(attack_fn, cfg, synth, train, qi, chain_order):
     return reconstructed
 
 
-def run_soft_chained_attack(attack_name, cfg, synth, train, qi, chain_order):
+def run_soft_chained_attack(attack_name, cfg, synth, train, qi, chain_order,
+                            confidence_threshold=None):
     """
     Soft/probabilistic chaining dispatcher.
     Delegates to _run_soft_chained_sklearn (from chaining_wrapper) for any
     supported categorical classifier (RF, MLP, LightGBM, LR, NaiveBayes, KNN).
     Falls back to hard chaining for continuous data or unsupported attacks.
+
+    confidence_threshold: if set, passed to _run_soft_chained_sklearn to enable
+      confidence gating (low-confidence rows get uniform conditioning for next step).
     """
     data_type = cfg["data_type"]
     if data_type == "continuous":
@@ -217,7 +225,8 @@ def run_soft_chained_attack(attack_name, cfg, synth, train, qi, chain_order):
         attack_fn = get_attack(attack_name, data_type)
         return run_chained_attack(attack_fn, cfg, synth, train, qi, chain_order)
     return _run_soft_chained_sklearn(
-        attack_name, cfg.get("attack_params", {}), synth, train, qi, chain_order)
+        attack_name, cfg.get("attack_params", {}), synth, train, qi, chain_order,
+        confidence_threshold=confidence_threshold)
 
 
 # ── Scoring helpers ───────────────────────────────────────────────────────────
@@ -270,16 +279,20 @@ def _get_conditions(data_type):
     conds, labels = ["none"], ["No Chain"]
     for s in DET_STRATEGIES:
         lbl = _STRATEGY_LABELS.get(s, s)
-        conds.append(s);                    labels.append(lbl)
+        conds.append(s);                          labels.append(lbl)
         if SOFT_CHAINING and data_type == "categorical":
-            conds.append(f"{s}_soft");      labels.append(f"{lbl}(soft)")
+            conds.append(f"{s}_soft");            labels.append(f"{lbl}(soft)")
+            if CONFIDENCE_GATED_CHAINING:
+                conds.append(f"{s}_soft_gated");  labels.append(f"{lbl}(soft-gated)")
         if ORACLE_CHAINING:
-            conds.append(f"{s}_oracle");    labels.append(f"{lbl}(oracle)")
-    conds.append("random_avg");             labels.append("Rand")
+            conds.append(f"{s}_oracle");          labels.append(f"{lbl}(oracle)")
+    conds.append("random_avg");                   labels.append("Rand")
     if SOFT_CHAINING and data_type == "categorical":
-        conds.append("random_soft_avg");    labels.append("Rand(soft)")
+        conds.append("random_soft_avg");          labels.append("Rand(soft)")
+        if CONFIDENCE_GATED_CHAINING:
+            conds.append("random_soft_gated_avg"); labels.append("Rand(soft-gated)")
     if ORACLE_CHAINING:
-        conds.append("random_oracle_avg");  labels.append("Rand(oracle)")
+        conds.append("random_oracle_avg");        labels.append("Rand(oracle)")
     return conds, labels
 
 
@@ -322,6 +335,8 @@ def run_dataset(dataset_key, dataset_cfg):
         all_det_conds.append(s)
         if SOFT_CHAINING:
             all_det_conds.append(f"{s}_soft")
+            if CONFIDENCE_GATED_CHAINING:
+                all_det_conds.append(f"{s}_soft_gated")
         if ORACLE_CHAINING:
             all_det_conds.append(f"{s}_oracle")
 
@@ -330,9 +345,9 @@ def run_dataset(dataset_key, dataset_cfg):
         for atk in ATTACKS
     }
     rand_feat = {atk: {"hard": defaultdict(list), "soft": defaultdict(list),
-                        "oracle": defaultdict(list)}
+                        "soft_gated": defaultdict(list), "oracle": defaultdict(list)}
                  for atk in ATTACKS}
-    rand_pos  = {atk: {p: {"hard": [], "soft": [], "oracle": []}
+    rand_pos  = {atk: {p: {"hard": [], "soft": [], "soft_gated": [], "oracle": []}
                         for p in range(n_feats)}
                  for atk in ATTACKS}
     all_num_classes = defaultdict(list)
@@ -376,6 +391,16 @@ def run_dataset(dataset_key, dataset_cfg):
                     print(f"      {strategy} (soft):   "
                           f"{ {f: round(s,2) for f,s in s_scores.items()} }")
 
+                    if CONFIDENCE_GATED_CHAINING:
+                        recon_sg  = run_soft_chained_attack(
+                            attack_name, cfg, synth, train, qi, order,
+                            confidence_threshold=CONFIDENCE_THRESHOLD)
+                        sg_scores = score_features(train, recon_sg, hidden_features, data_type)
+                        for f, s in sg_scores.items():
+                            det_scores[attack_name][f"{strategy}_soft_gated"][f].append(s)
+                        print(f"      {strategy} (soft-gated,τ={CONFIDENCE_THRESHOLD}): "
+                              f"{ {f: round(s,2) for f,s in sg_scores.items()} }")
+
                 if ORACLE_CHAINING:
                     recon_o  = run_oracle_chained_attack(
                         attack_fn, cfg, synth, train, qi, order)
@@ -400,6 +425,13 @@ def run_dataset(dataset_key, dataset_cfg):
                 rs_scores = (score_features(train, recon_rs, hidden_features, data_type)
                              if SOFT_CHAINING else {})
 
+                recon_rsg = (run_soft_chained_attack(
+                                 attack_name, cfg, synth, train, qi, order,
+                                 confidence_threshold=CONFIDENCE_THRESHOLD)
+                             if SOFT_CHAINING and CONFIDENCE_GATED_CHAINING else None)
+                rsg_scores = (score_features(train, recon_rsg, hidden_features, data_type)
+                              if SOFT_CHAINING and CONFIDENCE_GATED_CHAINING else {})
+
                 recon_ro = (run_oracle_chained_attack(attack_fn, cfg, synth, train, qi, order)
                             if ORACLE_CHAINING else None)
                 ro_scores = (score_features(train, recon_ro, hidden_features, data_type)
@@ -411,6 +443,9 @@ def run_dataset(dataset_key, dataset_cfg):
                     if SOFT_CHAINING:
                         rand_feat[attack_name]["soft"][feat].append(rs_scores[feat])
                         rand_pos[attack_name][pos_idx]["soft"].append(rs_scores[feat])
+                    if SOFT_CHAINING and CONFIDENCE_GATED_CHAINING:
+                        rand_feat[attack_name]["soft_gated"][feat].append(rsg_scores[feat])
+                        rand_pos[attack_name][pos_idx]["soft_gated"].append(rsg_scores[feat])
                     if ORACLE_CHAINING:
                         rand_feat[attack_name]["oracle"][feat].append(ro_scores[feat])
                         rand_pos[attack_name][pos_idx]["oracle"].append(ro_scores[feat])
@@ -435,6 +470,10 @@ def run_dataset(dataset_key, dataset_cfg):
             avg_scores[atk]["random_soft_avg"] = {
                 f: float(np.mean(v)) for f, v in rand_feat[atk]["soft"].items()
             }
+        if SOFT_CHAINING and CONFIDENCE_GATED_CHAINING:
+            avg_scores[atk]["random_soft_gated_avg"] = {
+                f: float(np.mean(v)) for f, v in rand_feat[atk]["soft_gated"].items()
+            }
         if ORACLE_CHAINING:
             avg_scores[atk]["random_oracle_avg"] = {
                 f: float(np.mean(v)) for f, v in rand_feat[atk]["oracle"].items()
@@ -443,9 +482,10 @@ def run_dataset(dataset_key, dataset_cfg):
     random_pos_avg = {
         atk: {
             pos: {
-                "hard":   float(np.mean(d["hard"])),
-                "soft":   float(np.mean(d["soft"]))   if SOFT_CHAINING   else float('nan'),
-                "oracle": float(np.mean(d["oracle"])) if ORACLE_CHAINING else float('nan'),
+                "hard":       float(np.mean(d["hard"])),
+                "soft":       float(np.mean(d["soft"]))       if SOFT_CHAINING                        else float('nan'),
+                "soft_gated": float(np.mean(d["soft_gated"])) if SOFT_CHAINING and CONFIDENCE_GATED_CHAINING else float('nan'),
+                "oracle":     float(np.mean(d["oracle"]))     if ORACLE_CHAINING                      else float('nan'),
             }
             for pos, d in pos_dict.items()
         }
@@ -522,6 +562,8 @@ def print_chain_position_table(dataset_key, avg_scores, random_pos_avg,
             hdr = f"{'Pos':<4}  {'Feature':<{FW}}  {'No Chain':>{CW}}  {'Hard':>{CW}}"
             if SOFT_CHAINING and data_type == "categorical":
                 hdr += f"  {'Soft':>{CW}}"
+                if CONFIDENCE_GATED_CHAINING:
+                    hdr += f"  {'Soft-Gated':>{CW}}"
             if ORACLE_CHAINING:
                 hdr += f"  {'Oracle':>{CW}}"
             print(hdr)
@@ -534,6 +576,9 @@ def print_chain_position_table(dataset_key, avg_scores, random_pos_avg,
                 if SOFT_CHAINING and data_type == "categorical":
                     soft = scores.get(f"{strategy}_soft", {}).get(feat, float('nan'))
                     row += f"  {soft:>{CW}.3f}"
+                    if CONFIDENCE_GATED_CHAINING:
+                        sg = scores.get(f"{strategy}_soft_gated", {}).get(feat, float('nan'))
+                        row += f"  {sg:>{CW}.3f}"
                 if ORACLE_CHAINING:
                     oracle = scores.get(f"{strategy}_oracle", {}).get(feat, float('nan'))
                     row += f"  {oracle:>{CW}.3f}"
@@ -552,6 +597,8 @@ def print_chain_position_table(dataset_key, avg_scores, random_pos_avg,
         hdr = f"{'Pos':<5}  {'Hard':>{CW}}"
         if SOFT_CHAINING and data_type == "categorical":
             hdr += f"  {'Soft':>{CW}}"
+            if CONFIDENCE_GATED_CHAINING:
+                hdr += f"  {'Soft-Gated':>{CW}}"
         if ORACLE_CHAINING:
             hdr += f"  {'Oracle':>{CW}}"
         print(hdr)
@@ -562,6 +609,8 @@ def print_chain_position_table(dataset_key, avg_scores, random_pos_avg,
             row = f"{pos_idx+1:<5}  {d['hard']:>{CW}.3f}"
             if SOFT_CHAINING and data_type == "categorical":
                 row += f"  {d['soft']:>{CW}.3f}"
+                if CONFIDENCE_GATED_CHAINING:
+                    row += f"  {d['soft_gated']:>{CW}.3f}"
             if ORACLE_CHAINING:
                 row += f"  {d['oracle']:>{CW}.3f}"
             print(row)
@@ -612,6 +661,9 @@ def save_csvs(dataset_key, avg_scores, random_pos_avg, det_orders,
                 if SOFT_CHAINING:
                     sv = scores.get(f"{strategy}_soft", {}).get(feat, float('nan'))
                     r["soft"] = round(sv, 5)
+                if SOFT_CHAINING and CONFIDENCE_GATED_CHAINING:
+                    sgv = scores.get(f"{strategy}_soft_gated", {}).get(feat, float('nan'))
+                    r["soft_gated"] = round(sgv, 5)
                 if ORACLE_CHAINING:
                     ov = scores.get(f"{strategy}_oracle", {}).get(feat, float('nan'))
                     r["oracle"] = round(ov, 5)
@@ -629,6 +681,8 @@ def save_csvs(dataset_key, avg_scores, random_pos_avg, det_orders,
             r = {"position": pos_idx + 1, "hard": round(d["hard"], 5)}
             if SOFT_CHAINING:
                 r["soft"]   = round(d["soft"],   5)
+            if SOFT_CHAINING and CONFIDENCE_GATED_CHAINING:
+                r["soft_gated"] = round(d["soft_gated"], 5)
             if ORACLE_CHAINING:
                 r["oracle"] = round(d["oracle"], 5)
             rows_r.append(r)

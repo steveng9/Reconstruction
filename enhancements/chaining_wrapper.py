@@ -311,7 +311,8 @@ def _make_soft_chain_clf(attack_name, attack_params):
         return None
 
 
-def _run_soft_chained_sklearn(attack_name, attack_params, synth, targets, qi, chain_order):
+def _run_soft_chained_sklearn(attack_name, attack_params, synth, targets, qi, chain_order,
+                              confidence_threshold=None):
     """
     Generic soft/probabilistic chaining for any sklearn classifier with predict_proba.
 
@@ -326,6 +327,11 @@ def _run_soft_chained_sklearn(attack_name, attack_params, synth, targets, qi, ch
       probas_j is the K_j-length predicted probability distribution from step j.
       When confident, probas ≈ one-hot (matches training). When uncertain, mass spreads,
       propagating uncertainty to downstream steps rather than a single wrong hard label.
+
+    confidence_threshold: if set, rows whose max predicted probability falls below this
+      value have their conditioning block replaced with a uniform distribution for the
+      next step, signalling "unknown" rather than propagating a low-confidence guess.
+      The reconstruction of the current feature still uses the model's best-guess label.
     """
     from sklearn.preprocessing import OrdinalEncoder
 
@@ -343,7 +349,15 @@ def _run_soft_chained_sklearn(attack_name, attack_params, synth, targets, qi, ch
 
         y_synth = synth[feat].astype(str)
         clf = _make_soft_chain_clf(attack_name, attack_params)
-        clf.fit(X_synth_step, y_synth)
+        if attack_name == "MLP":
+            classes = np.unique(y_synth)
+            n_epochs = clf.max_iter
+            for ep in range(n_epochs):
+                clf.partial_fit(X_synth_step, y_synth, classes=classes)
+                if (ep + 1) % 20 == 0:
+                    print(f'    Epoch {ep+1}/{n_epochs}, loss={clf.loss_:.6f}')
+        else:
+            clf.fit(X_synth_step, y_synth)
 
         classes      = clf.classes_
         n_classes    = len(classes)
@@ -356,11 +370,21 @@ def _run_soft_chained_sklearn(attack_name, attack_params, synth, targets, qi, ch
         except (ValueError, TypeError):
             reconstructed[feat] = pred_labels
 
+        # Confidence gating: for rows below threshold, replace the conditioning block
+        # with a uniform distribution so the next step treats this feature as unknown.
+        probas_for_next = probas_test
+        if confidence_threshold is not None:
+            max_probs = probas_test.max(axis=1)
+            low_conf  = max_probs < confidence_threshold
+            if low_conf.any():
+                probas_for_next = probas_test.copy()
+                probas_for_next[low_conf] = 1.0 / n_classes
+
         # Synth block: one-hot of true synth values
         synth_codes  = synth[feat].astype(str).map(class_to_idx).fillna(0).astype(int)
         onehot_synth = np.zeros((len(synth), n_classes))
         onehot_synth[np.arange(len(synth)), synth_codes.values] = 1.0
         X_synth_blocks.append(onehot_synth)
-        X_test_blocks.append(probas_test)
+        X_test_blocks.append(probas_for_next)
 
     return reconstructed
