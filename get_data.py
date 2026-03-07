@@ -26,6 +26,11 @@ QIs = {
         "QI_linear": ["age", "workclass", "fnlwgt", "education", "education-num",
                       "marital-status", "occupation", "relationship", "race", "sex",
                       "capital-gain", "capital-loss", "hours-per-week", "native-country"],
+        # Single binary hidden feature — for LinearReconstruction comparison
+        "QI_binary_sex": ["age", "workclass", "fnlwgt", "education", "education-num",
+                          "marital-status", "occupation", "relationship", "race",
+                          "capital-gain", "capital-loss", "hours-per-week", "native-country",
+                          "income"],
     },
     "cdc_diabetes": {
         "QI1": ["Sex", "Age", "Education", "Income", "BMI", "HighBP", "HighChol",
@@ -35,6 +40,17 @@ QIs = {
                       "HeartDiseaseorAttack", "PhysActivity", "Fruits", "Veggies",
                       "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost", "GenHlth",
                       "MentHlth", "PhysHlth", "DiffWalk", "Sex", "Age", "Education", "Income"],
+        # Additional single binary hidden features — for LinearReconstruction comparison
+        "QI_binary_HighBP": ["Diabetes_binary", "HighChol", "CholCheck", "BMI", "Smoker",
+                             "Stroke", "HeartDiseaseorAttack", "PhysActivity", "Fruits",
+                             "Veggies", "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost",
+                             "GenHlth", "MentHlth", "PhysHlth", "DiffWalk", "Sex", "Age",
+                             "Education", "Income"],
+        "QI_binary_Stroke": ["Diabetes_binary", "HighBP", "HighChol", "CholCheck", "BMI",
+                             "Smoker", "HeartDiseaseorAttack", "PhysActivity", "Fruits",
+                             "Veggies", "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost",
+                             "GenHlth", "MentHlth", "PhysHlth", "DiffWalk", "Sex", "Age",
+                             "Education", "Income"],
     },
     # California Housing: geographic + structural features as QI
     # Story: given publicly observable location/age/population, reconstruct economic features
@@ -50,6 +66,17 @@ QIs = {
         "QI3": ['RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT',
                 'AGE', 'BPL', 'CITIZEN', 'DURUNEMP', 'EMPSTAT', 'FAMSIZE', 'HISPAN',
                  'OWNERSHP', 'URBAN', 'WKSWORK1', 'MARST'],
+        # Single binary hidden features — for LinearReconstruction comparison
+        # NOTE: FARM and URBAN use IPUMS {1,2} encoding, not {0,1}. Verify
+        # that LinearReconstruction handles this correctly before interpreting results.
+        "QI_binary_FARM":  ['AGE', 'AGEMARR', 'BPL', 'CITIZEN', 'DURUNEMP', 'EDUC',
+                            'EMPSTAT', 'FAMSIZE', 'GQ', 'GQTYPE', 'HISPAN', 'INCWAGE',
+                            'IND', 'LABFORCE', 'MARST', 'MIGRATE5', 'MTONGUE', 'NATIVITY',
+                            'OWNERSHP', 'RACE', 'SEX', 'URBAN', 'VETSTAT', 'WKSWORK1'],
+        "QI_binary_URBAN": ['AGE', 'AGEMARR', 'BPL', 'CITIZEN', 'DURUNEMP', 'EDUC',
+                            'EMPSTAT', 'FAMSIZE', 'FARM', 'GQ', 'GQTYPE', 'HISPAN',
+                            'INCWAGE', 'IND', 'LABFORCE', 'MARST', 'MIGRATE5', 'MTONGUE',
+                            'NATIVITY', 'OWNERSHP', 'RACE', 'SEX', 'VETSTAT', 'WKSWORK1'],
     },
     "nist_arizona_50feat": {
         "QI1": ['RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT'],
@@ -65,25 +92,30 @@ QIs = {
 }
 minus_QIs = {
     "adult": {
-        "QI1":      ["workclass", "fnlwgt", "education-num", "occupation", "relationship",
-                     "capital-gain", "capital-loss", "hours-per-week", "income"],
-        "QI_linear": ["income"],
+        "QI1":           ["workclass", "fnlwgt", "education-num", "occupation", "relationship",
+                          "capital-gain", "capital-loss", "hours-per-week", "income"],
+        "QI_linear":     ["income"],
+        "QI_binary_sex": ["sex"],
     },
     "cdc_diabetes": {
-        "QI1": ["Diabetes_binary", "Stroke", "HeartDiseaseorAttack", "CholCheck",
-                "Fruits", "Veggies", "HvyAlcoholConsump", "AnyHealthcare",
-                "NoDocbcCost", "MentHlth", "PhysHlth", "DiffWalk"],
-        "QI_linear": ["Diabetes_binary"],
+        "QI1":               ["Diabetes_binary", "Stroke", "HeartDiseaseorAttack", "CholCheck",
+                              "Fruits", "Veggies", "HvyAlcoholConsump", "AnyHealthcare",
+                              "NoDocbcCost", "MentHlth", "PhysHlth", "DiffWalk"],
+        "QI_linear":         ["Diabetes_binary"],
+        "QI_binary_HighBP":  ["HighBP"],
+        "QI_binary_Stroke":  ["Stroke"],
     },
     "california": {
         "QI1": ["MedInc", "AveRooms", "AveBedrms", "AveOccup", "MedHouseVal"],
     },
     # 25-feat: all 18 non-QI features (mirrors NIST CRC competition format)
     "nist_arizona_25feat": {
-        "QI1": ['AGE', 'BPL', 'CITIZEN', 'DURUNEMP', 'EDUC', 'EMPSTAT', 'FAMSIZE',
-                'FARM', 'GQ', 'HISPAN', 'INCWAGE', 'LABFORCE', 'MARST', 'MIGRATE5',
-                'NATIVITY', 'OWNERSHP', 'URBAN', 'WKSWORK1'],
-        "QI3": ['EDUC', 'FARM', 'GQ', 'INCWAGE', 'LABFORCE', 'MIGRATE5', 'NATIVITY'],
+        "QI1":             ['AGE', 'BPL', 'CITIZEN', 'DURUNEMP', 'EDUC', 'EMPSTAT', 'FAMSIZE',
+                            'FARM', 'GQ', 'HISPAN', 'INCWAGE', 'LABFORCE', 'MARST', 'MIGRATE5',
+                            'NATIVITY', 'OWNERSHP', 'URBAN', 'WKSWORK1'],
+        "QI3":             ['EDUC', 'FARM', 'GQ', 'INCWAGE', 'LABFORCE', 'MIGRATE5', 'NATIVITY'],
+        "QI_binary_FARM":  ['FARM'],
+        "QI_binary_URBAN": ['URBAN'],
     },
     # 50-feat: focused economic/labor/education outcomes
     "nist_arizona_50feat": {
