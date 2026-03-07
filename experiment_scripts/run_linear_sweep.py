@@ -77,8 +77,7 @@ DATASET_CONFIGS: dict[str, dict] = {
         "name":        "nist_arizona_25feat",
         "data_type":   "categorical",
         "n_features":  25,
-        "qi_variants": ["QI_binary_FARM", "QI_binary_URBAN",
-                        "QI_binary_FARM_lowcard", "QI_binary_URBAN_lowcard"],
+        "qi_variants": ["QI_binary_SEX", "QI_binary_SEX_lowcard"],
     },
 }
 

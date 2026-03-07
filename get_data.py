@@ -85,6 +85,17 @@ QIs = {
                             'EMPSTAT', 'FAMSIZE', 'FARM', 'GQ', 'GQTYPE', 'HISPAN',
                             'INCWAGE', 'IND', 'LABFORCE', 'MARST', 'MIGRATE5', 'MTONGUE',
                             'NATIVITY', 'OWNERSHP', 'RACE', 'SEX', 'VETSTAT', 'WKSWORK1'],
+        # SEX is in QI1 but is binary (IPUMS {1=male,2=female}) and sensitive —
+        # move it to hidden for a more meaningful LinearReconstruction target.
+        # NOTE: same {1,2} encoding caveat applies as for FARM/URBAN.
+        "QI_binary_SEX":  ['AGE', 'AGEMARR', 'BPL', 'CITIZEN', 'DURUNEMP', 'EDUC',
+                           'EMPSTAT', 'FAMSIZE', 'FARM', 'GQ', 'GQTYPE', 'HISPAN',
+                           'INCWAGE', 'IND', 'LABFORCE', 'MARST', 'MIGRATE5', 'MTONGUE',
+                           'NATIVITY', 'OWNERSHP', 'RACE', 'URBAN', 'VETSTAT', 'WKSWORK1'],
+        "QI_binary_SEX_lowcard": ['CITIZEN', 'EDUC', 'EMPSTAT', 'FAMSIZE', 'FARM', 'GQ',
+                                  'GQTYPE', 'HISPAN', 'LABFORCE', 'MARST', 'MIGRATE5',
+                                  'MTONGUE', 'NATIVITY', 'OWNERSHP', 'RACE', 'URBAN',
+                                  'VETSTAT'],
         # Low-cardinality variants: drop INCWAGE (2836), DURUNEMP (348), IND (131),
         # BPL (118), AGE (101), WKSWORK1 (53), AGEMARR (43) to reduce LP memory pressure.
         "QI_binary_FARM_lowcard":  ['CITIZEN', 'EDUC', 'EMPSTAT', 'FAMSIZE', 'GQ',
@@ -135,8 +146,10 @@ minus_QIs = {
                             'FARM', 'GQ', 'HISPAN', 'INCWAGE', 'LABFORCE', 'MARST', 'MIGRATE5',
                             'NATIVITY', 'OWNERSHP', 'URBAN', 'WKSWORK1'],
         "QI3":             ['EDUC', 'FARM', 'GQ', 'INCWAGE', 'LABFORCE', 'MIGRATE5', 'NATIVITY'],
-        "QI_binary_FARM":        ['FARM'],
-        "QI_binary_URBAN":       ['URBAN'],
+        "QI_binary_SEX":           ['SEX'],
+        "QI_binary_SEX_lowcard":   ['SEX'],
+        "QI_binary_FARM":          ['FARM'],
+        "QI_binary_URBAN":         ['URBAN'],
         "QI_binary_FARM_lowcard":  ['FARM'],
         "QI_binary_URBAN_lowcard": ['URBAN'],
     },
