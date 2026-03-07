@@ -74,7 +74,7 @@ attack_params:
     enabled: false  # Set to true to enable chaining
     order_strategy: "default"  # Options: "default", "manual", "correlation", "reverse_correlation", "mutual_info", "random"
     # order: ["F23", "F13", "F11", "F43"]  # Only used if order_strategy is "manual"
-    log_intermediate: true  # Log per-feature accuracy during chaining
+    log_intermediate: false  # Log per-feature accuracy during chaining
     random_seed: 42  # Seed for "random" order_strategy
 
   # TODO: Future enhancements

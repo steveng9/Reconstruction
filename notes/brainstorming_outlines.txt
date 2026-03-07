@@ -1,0 +1,244 @@
+a. Abstract                                                                                           
+                                                                                                                                                                                
+  ____                                                                                                                                                                          
+  1. Introduction                                                                                                                                                           
+                                                                                                                                                                            
+                                                                                                                                                                            
+  1.1 Definition of RA, QI, of (rarity-weighted) R_adv score                                                                                                                
+  1.2 Definition of Differential Privacy, 𝜀 (is this a good spot for this? It probably shouldn't be moved to the appendix)                                                  
+  1.3 Problem formulation (also threat model here?)                                                                                                                         
+                                                                                                                                                                            
+  (point to appendix for prelims on synthetic data, SDG methods, membership inference)                                                                                      
+                                                                                                                                                                            
+                                                                                                                                                                            
+                                                                                                                                                                            
+  ____                                                                                                                                                                      
+  2. Taxonomy of Attacks                                                                                                                                                    
+                                                                                                                                                                            
+  2.1 baselines                                                                                                                                                             
+                                                                                                                                                                            
+  2.2 State-of-the-art (linear method)                                                                                                                                      
+                                                                                                                                                                            
+  2.3 (Stadler's) ML-based classification                                                                                                                                   
+                                                                                                                                                                            
+  2.4 Novel: Partially-instantiated SDGs                                                                                                                                    
+                                                                                                                                                                            
+  2.5 Note on similarity to health-care imputation techniques commonly used                                                                                                 
+                                                                                                                                                                            
+  2.6 Acknowledging other similar "reconstruction attacks" that do not fit in our analysis                                                                                  
+                                                                                                                                                                            
+                                                                                                                                                                            
+  ____                                                                                                                                                                      
+  3. Attack Modifications                                                                                                                                                   
+                                                                                                                                                                            
+  Show and discuss NIST CRC competition results                                                                                                                             
+                                                                                                                                                                            
+  3.1 Chaining (i.e. auto-regressively predicting features)                                                                                                                 
+      -show various chain-orders                                                                                                                                            
+      -show accuracy of each feature, non-chained vs. chained. (accuracy should gradually diverge for later-in-the-chain features)                                          
+                                                                                                                                                                            
+  3.2 Ensembling                                                                                                                                                            
+      -finding ensembles:                                                                                                                                                   
+      (1) Grid search (brute force)                                                                                                                                         
+      (2) Greedy forward selection                                                                                                                                          
+      (3) Stacking (meta learning)                                                                                                                                          
+      (4) Bayesian model averaging                                                                                                                                          
+      -demonstrating ensembling:                                                                                                                                            
+      (1) heatmap                                                                                                                                                           
+      (2) graph, y = accuracy, x = num attacks in ensemble                                                                                                                  
+      (3) shapley values                                                                                                                                                    
+      (4) some sort of dimension reduction (PCA?)?                                                                                                                          
+                                                                                                                                                                            
+  comment on "auxiliary data enhancement" threat model, how it contributed to winning the NIST CRC, and why it's not applicable for true privacy auditing                   
+                                                                                                                                                                            
+                                                                                                                                                                            
+  ____                                                                                                                                                                      
+  4. Varying evaluation scenario                                                                                                                                            
+                                                                                                                                                                            
+  (accompanying analysis of data quality here)                                                                                                                              
+                                                                                                                                                                            
+  4.1 data types                                                                                                                                                            
+      -demographic datasets                                                                                                                                                 
+      -continuous data                                                                                                                                                      
+      -healthcare data                                                                                                                                                      
+      -finance data                                                                                                                                                         
+  4.2 data size                                                                                                                                                             
+      -num rows                                                                                                                                                             
+      -num columns                                                                                                                                                          
+      -feature cardinality                                                                                                                                                  
+  4.3 QI                                                                                                                                                                    
+      -which features                                                                                                                                                       
+      -size of QI / hidden features                                                                                                                                         
+                                                                                                                                                                            
+                                                                                                                                                                            
+                                                                                                                                                                            
+                                                                                                                                                                            
+  ____                                                                                                                                                                      
+  5. Rigorously evaluating RAs                                                                                                                                              
+                                                                                                                                                                            
+  5.1 "memorization" tests                                                                                                                                                  
+                                                                                                                                                                            
+  5.2 comparing with MIA                                                                                                                                                    
+                                                                                                                                                                            
+  5.3 disparate impact on outliers, subgroups, types of features                                                                                                            
+                                                                                                                                                                            
+                                                                                                                                                                            
+                                                                                                                                                                            
+                                                                                                                                                                            
+  ____                                                                                                                                                                      
+  6. Discussion of results, and relate to policy                                                                                                                            
+                                                                                                                                                                            
+                                                                                                                                                                            
+                                                                                                                                                                            
+  ____                                                                                                                                                                      
+  Appendix:                                                                                                                                                                 
+                                                                                                                                                                            
+  A. prelims on                                                                                                                                                             
+   -De-identification                                                                                                                                                       
+       -RankSwap                                                                                                                                                            
+       -Cell Suppression                                                                                                                                                    
+   -synthetic data generation                                                                                                                                               
+       -Synthpop                                                                                                                                                            
+       -TVAE                                                                                                                                                                
+       -CTGAN                                                                                                                                                               
+       -ARF                                                                                                                                                                 
+       -TabDDPM                                                                                                                                                             
+       -MST, 𝜀                                                                                                                                                              
+       -AIM, 𝜀                                                                                                                                                              
+   -membership inference                                                                                                                                                    
+                                                                                                                                                                            
+  B. Hyperparameters                                                                                                                                                        
+                                                                                                                                                                            
+  C. Implementation Details                                                                                                                                                 
+      -Modified MST for Reconstruction                                                                                                                                      
+      -Modified TabDDPM for Reconstruction                                                                                                                                  
+                                                                                                                                                                            
+  D Additional Results                                                                                                                                                      
+      -Runtimes                                                                                                                                                             
+
+● Critical Assessment                              
+
+  What Works Well                                                                                                                                                               
+   
+  - Jumping to Section 2 immediately is the right call. No reader wants four pages of setup before seeing anything happen.                                                      
+  - Section 5's structure (memorization → MIA → disparate impact) is the strongest in the outline. These three build on each other naturally: "do attacks work?" → "what do they
+   mean for privacy?" → "who is most at risk?"
+  - NIST CRC as anchor in Section 3 is a great device — it gives the reader a concrete, real-world benchmark to orient around before you discuss modifications.
+  - Appendix organization is clean. Pushing SDG method descriptions there is correct — they'd kill the main paper's pace.
+
+  ---
+  What Won't Work
+
+  1. The intro subsections read like a prelims section in disguise.
+  Subsections 1.1–1.3 with formal definitions will feel like a textbook. The intro should tell a story and make the reader care. Definitions can be woven in inline (one
+  sentence each), or deferred. DP in particular — do you need the full ε definition in 1.2, or just "DP is a mathematical privacy guarantee parameterized by ε; smaller ε =
+  stronger privacy"? The reader who doesn't know DP won't be helped by a one-paragraph subsection, and the reader who does doesn't need it.
+
+  2. Section 2 promises results but delivers a survey.
+  You said you'd distribute experiments 2–5, but Section 2 as written is pure taxonomy — descriptions of attacks with no numbers. The reader asks: which attack wins? You don't
+  answer that until Section 4 at the earliest. This is the most serious flow problem.
+
+  3. Section 3 has too many sub-experiments, especially ensembling.
+  Four ensemble-finding methods × four visualization types = 16 mini-experiments stuffed into one subsection. The reader will get lost. What's the one insight ensembling
+  delivers? Build around that.
+
+  4. 2.5 and 2.6 are sidebars that interrupt the taxonomy.
+  "Note on similarity to healthcare imputation" and "Acknowledging other similar RAs" don't belong in the taxonomy section. 2.6 is related work in disguise. Move it to the
+  intro or a footnote. 2.5 is a one-line observation — make it a footnote or drop it.
+
+  5. Section 4's organizing principle is just "experimental variables."
+  Data type / data size / QI = three axes of a grid search. This will read like an experimental appendix. There's no argument being made. What's the insight each subsection
+  delivers? You need a claim (e.g., "DP's protective effect collapses above ε = 1") not just a variable (e.g., "4.2 data size").
+
+  6. No "main result moment."
+  A reader finishing Section 5 should feel they've been on a journey. But right now there's no clear climactic result — no table or figure the reader can point to and say "this
+   is the paper's core finding." The structure needs a spine.
+
+  ---
+  Three Alternative Outlines
+
+  ---
+  Option A: "Rising Stakes" (recommended)
+
+  The logic: start with a simple question, complicate it progressively, and arrive at policy implications with the reader fully equipped.
+
+  1. Introduction
+     - Hook: what can an adversary learn from synthetic data alone?
+     - RA definition, R_adv (inline, 2 sentences each)
+     - DP definition (1 paragraph, motivated by: "this is the guarantee we're stress-testing")
+     - Paper roadmap
+
+  2. A Taxonomy of Reconstruction Attacks
+     - 2.1 Baselines (Mode, Random, Mean)
+     - 2.2 ML classifiers (Stadler et al.)
+     - 2.3 Novel: Partially-instantiated SDGs (PartialMST, TabDDPM variants)
+     - 2.4 Linear reconstruction (state-of-the-art, LP/Gurobi)
+     [EXPERIMENT: one main table — all attacks × all SDG methods, single dataset, QI1]
+     [KEY INSIGHT: simple baselines are deceptively competitive / diffusion is best / etc.]
+
+  3. Making Attacks Stronger
+     - 3.1 Chaining: sequential feature prediction
+       [EXPERIMENT: chain order matters; show one figure of per-feature accuracy with/without chaining]
+     - 3.2 Ensembling: combining attack predictions
+       [EXPERIMENT: one figure — accuracy vs. ensemble size; one heatmap of pairwise attack correlations]
+     - 3.3 NIST CRC: a real-world stress test
+       [where auxiliary data enhancement changes the threat model — frame why it's out-of-scope for auditing]
+
+  4. How Does the Scenario Shape Risk?
+     - 4.1 SDG method and DP epsilon
+       [EXPERIMENT: RA vs. ε curves — the key privacy-utility question]
+       [+ data quality sidebar: does better synthetic data = higher attack success?]
+     - 4.2 Dataset characteristics (type, size, column count, cardinality)
+       [EXPERIMENT: 2–3 datasets showing qualitatively different regimes]
+     - 4.3 The choice of quasi-identifiers
+       [EXPERIMENT: QI size vs. RA — how much does the adversary's prior knowledge matter?]
+
+  5. What Do Attacks Actually Reveal?
+     - 5.1 Memorization vs. inference
+       [EXPERIMENT: memorization test — RA_train vs. RA_nontraining delta]
+     - 5.2 Relationship to membership inference
+       [EXPERIMENT: RA-as-MIA vs. dedicated MIA, on same models]
+     - 5.3 Disparate impact: who is most at risk?
+       [EXPERIMENT: RA by subgroup / feature rarity — ties back to R_adv weighting]
+
+  6. Implications for Privacy Auditing and Policy
+
+  Appendix: prelims, hyperparams, implementation details, additional results
+
+  Why this works: each section answers one question, experiments are one or two per section, and there's a clear spine: what attacks exist → how strong can we make them → what
+  determines risk → what do results mean.
+
+  ---
+  Option B: "Question-Driven"
+
+  Replace section titles with research questions. More provocative, better for engagement.
+
+  2. Which Attacks Work? (taxonomy + main results table)
+  3. Can We Do Better? (modifications + NIST CRC)
+  4. Under What Conditions? (scenario variation)
+  5. What Does "Success" Actually Mean? (memorization, MIA, disparate impact)
+  6. Should We Worry? (policy + discussion)
+
+  Same content as Option A, but framed as questions throughout. Works well if your venue allows it (workshop papers, PETS, FAccT). Riskier for traditional ML venues.
+
+  ---
+  Option C: Lead with the Punchline
+
+  Open Section 2 with your most striking result — e.g., "a simple majority-vote baseline achieves X% of the best attack's performance" or "DP at ε=1 reduces attack success by
+  only Y%" — then spend Sections 3–5 explaining why. This is a "conclusion first" structure that works well for readers who are skeptical or short on time. Riskier to execute
+  but highest potential impact.
+
+  2. The Core Finding: [your most surprising result, fully displayed]
+  3. Understanding the Attacks (taxonomy, justified by Section 2)
+  4. Stress-Testing the Finding (modifications, scenarios)
+  5. Interrogating the Finding (memorization, MIA, disparate impact)
+  6. Implications
+
+  ---
+  Specific Recommendations
+
+  - Drop 2.5 and 2.6 from the taxonomy; integrate 2.6 into the intro's "related work" paragraph.
+  - Put one concrete result table in Section 2 — even a partial one (e.g., adult dataset only). Give the reader something to hold.
+  - Ensembling: pick two things to show — the accuracy-vs-size curve and one heatmap. The four-method ensemble-finding exercise belongs in the appendix.
+  - Section 4's claim should be about DP, not "data types." DP epsilon is the central policy lever. Structure 4 around that, with data types as evidence.
+  - Threat model should appear in the intro, not buried in 1.3 as an afterthought.

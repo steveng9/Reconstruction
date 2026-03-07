@@ -68,8 +68,8 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "hidden_dims":   [300],
         "batch_size":    264,
         "learning_rate": 0.0003,
-        "epochs":        250,
-        "patience":      200,
+        "epochs":        500,
+        "patience":      60,
         "dropout_rate":  0.2,
     },
 
