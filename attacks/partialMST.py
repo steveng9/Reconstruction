@@ -560,7 +560,7 @@ def _encode_qi(model, targets_qi, qi, bin_edges):
 
 
 def _conditional_sample(model, encoded_qi, n_targets,
-                        sample_mode="sample", top_pct=20.0):
+                        sample_mode="sample", top_pct=20.0, return_probas=False):
     """Sample all columns from the GraphicalModel, fixing QI columns.
 
     Follows the same elimination-order traversal as GraphicalModel.synthetic_data,
@@ -570,14 +570,18 @@ def _conditional_sample(model, encoded_qi, n_targets,
     strategy specified by sample_mode / top_pct.
 
     Args:
-        model      : fitted _PartialMSTSynthesizer
-        encoded_qi : dict {model_col -> np.int array(n_targets)} for QI columns
-        n_targets  : number of target rows
-        sample_mode: "sample" | "argmax" | "top_pct"  (see _sample_from_proba)
-        top_pct    : float in (0, 100] — top-% cutoff for "top_pct" mode
+        model        : fitted _PartialMSTSynthesizer
+        encoded_qi   : dict {model_col -> np.int array(n_targets)} for QI columns
+        n_targets    : number of target rows
+        sample_mode  : "sample" | "argmax" | "top_pct"  (see _sample_from_proba)
+        top_pct      : float in (0, 100] — top-% cutoff for "top_pct" mode
+        return_probas: if True, also return per-row probability distributions
+                       for each hidden column in the compressed domain
 
     Returns:
-        Dataset in the compressed domain with all columns filled in
+        Dataset in the compressed domain with all columns filled in.
+        If return_probas=True, returns (Dataset, col_probas) where
+        col_probas is a dict {model_col -> np.array(n_targets, n_compressed_classes)}.
     """
     est = model.synthesizer  # GraphicalModel
     order = est.elimination_order[::-1]
@@ -600,6 +604,8 @@ def _conditional_sample(model, encoded_qi, n_targets,
     # nothing and degenerate to unconditional/random sampling).
     used = set(encoded_qi.keys())
 
+    col_probas = {} if return_probas else None
+
     for col in order:
         if col in qi_model_cols:
             continue  # already filled and pre-marked in used
@@ -614,12 +620,15 @@ def _conditional_sample(model, encoded_qi, n_targets,
 
         # Joint marginal over (relevant..., col); shape = (card_rel0, ..., card_col)
         marg = est.project(relevant + (col,)).datavector(flatten=False)
+        col_card = int(est.domain[col])
 
         if len(relevant) == 0:
             proba = marg.astype(float)
             total = proba.sum()
             proba = proba / total if total > 0 else np.ones_like(proba) / proba.size
             df[col] = _sample_from_proba(proba, n_targets, sample_mode, top_pct)
+            if return_probas:
+                col_probas[col] = np.tile(proba, (n_targets, 1))
         else:
             # Vectorised conditional sampling: group rows by their values in
             # `relevant`, sample `col` from the conditional distribution for
@@ -627,6 +636,8 @@ def _conditional_sample(model, encoded_qi, n_targets,
             # guaranteed to be preserved.
             rel_vals = df[list(relevant)].values          # shape (n_targets, |relevant|)
             new_col = np.zeros(n_targets, dtype=np.int64)
+            if return_probas:
+                row_probas = np.zeros((n_targets, col_card))
 
             # np.unique on 2D arrays works row-wise; for single relevant col
             # the array is still 2D so we always get a consistent shape.
@@ -638,10 +649,17 @@ def _conditional_sample(model, encoded_qi, n_targets,
                 proba = counts / total if total > 0 else np.ones(counts.size) / counts.size
                 mask = inverse == i
                 new_col[mask] = _sample_from_proba(proba, int(mask.sum()), sample_mode, top_pct)
+                if return_probas:
+                    row_probas[mask] = proba
 
             df[col] = new_col
+            if return_probas:
+                col_probas[col] = row_probas
 
-    return Dataset(df, est.domain)
+    dataset = Dataset(df, est.domain)
+    if return_probas:
+        return dataset, col_probas
+    return dataset
 
 
 def _decode_hidden(model, sampled_dataset, hidden_cols, bin_edges):
@@ -691,6 +709,91 @@ def _decode_hidden(model, sampled_dataset, hidden_cols, bin_edges):
     return result
 
 
+def _decode_probas(model, col_probas, hidden_cols, bin_edges):
+    """Decode per-row compressed-domain probability distributions to original label space.
+
+    For each hidden column, maps the compressed-domain proba array
+    (shape n_targets × n_compressed_classes) to the original value space:
+      - Supported compressed classes map 1-to-1 to original label codes.
+      - The catch-all compressed class (if present) distributes its probability
+        uniformly across all unsupported original values.
+
+    Args:
+        model     : fitted _PartialMSTSynthesizer
+        col_probas: dict {model_col -> np.array(n_targets, n_compressed_classes)}
+        hidden_cols: list of original column names
+        bin_edges : dict {col -> bin_edge_array} for pre-binned continuous columns
+
+    Returns:
+        (probas_list, classes_list) where each element corresponds to a hidden column:
+            probas_list[i]  : np.array(n_targets, n_orig_classes)
+            classes_list[i] : np.array of original class label values
+    """
+    transformer = model._transformer
+    col_names   = list(transformer._columns)
+    supports    = model._supports
+
+    probas_list  = []
+    classes_list = []
+
+    for orig_col in hidden_cols:
+        if orig_col not in col_names:
+            probas_list.append(None)
+            classes_list.append(None)
+            continue
+
+        col_idx   = col_names.index(orig_col)
+        model_col = f"col{col_idx}"
+        t         = transformer.transformers[col_idx]
+
+        if model_col not in col_probas:
+            probas_list.append(None)
+            classes_list.append(None)
+            continue
+
+        compressed_proba = col_probas[model_col]   # (n_targets, n_compressed)
+        sup              = supports[model_col]       # bool array, length = n_orig_label_codes
+        n_orig           = sup.size
+        n_supported      = int(sup.sum())
+        has_catchall     = (compressed_proba.shape[1] == n_supported + 1)
+
+        supported_codes   = np.where(sup)[0]
+        unsupported_codes = np.where(~sup)[0]
+
+        # Build (n_targets, n_orig) probability array in original label-code space
+        n_targets   = compressed_proba.shape[0]
+        orig_proba  = np.zeros((n_targets, n_orig))
+
+        # Each supported compressed index k → original label code supported_codes[k]
+        for k, orig_code in enumerate(supported_codes):
+            orig_proba[:, orig_code] += compressed_proba[:, k]
+
+        # Catch-all bin → distribute evenly among unsupported original codes
+        if has_catchall and len(unsupported_codes) > 0:
+            catch_all_p = compressed_proba[:, n_supported]          # (n_targets,)
+            per_unsupported = catch_all_p / len(unsupported_codes)  # (n_targets,)
+            orig_proba[:, unsupported_codes] += per_unsupported[:, np.newaxis]
+
+        # Decode original label codes → original values
+        all_orig_values = np.array([t._inverse_transform(int(c)) for c in range(n_orig)])
+
+        # For pre-binned continuous columns, map bin-index values to bin midpoints
+        if orig_col in bin_edges:
+            edges = bin_edges[orig_col]
+            if len(edges) == 2:
+                all_orig_values = np.array([float(edges[0])] * n_orig)
+            else:
+                n_bins    = len(edges) - 1
+                midpoints = (edges[:-1] + edges[1:]) / 2
+                bin_idxs  = np.clip([int(v) for v in all_orig_values], 0, n_bins - 1)
+                all_orig_values = midpoints[bin_idxs]
+
+        probas_list.append(orig_proba)
+        classes_list.append(all_orig_values)
+
+    return probas_list, classes_list
+
+
 def partial_mst_independent_reconstruction(cfg, synth, targets, qi, hidden_features):
     """Partial MST reconstruction, predicting each hidden feature independently.
 
@@ -705,16 +808,21 @@ def partial_mst_independent_reconstruction(cfg, synth, targets, qi, hidden_featu
     single-feature synth, so the two attacks never share a checkpoint.
     """
     reconstructed = pd.DataFrame(index=targets.index)
+    all_probas  = []
+    all_classes = []
     for feat in hidden_features:
         synth_sub = synth[qi + [feat]].copy()
         # Give each feature its own artifact dir by tagging the QI key with
         # the feature name — otherwise all per-feature runs share one checkpoint.
         cfg_sub = {**cfg, "QI": f"{cfg.get('QI', 'QI1')}_{feat}"}
-        recon_single, _, _ = partial_mst_reconstruction(
+        recon_single, feat_probas, feat_classes = partial_mst_reconstruction(
             cfg_sub, synth_sub, targets, qi, [feat]
         )
         reconstructed[feat] = recon_single[feat]
-    return reconstructed, None, None
+        # feat_probas/feat_classes are single-element lists (one hidden feature)
+        all_probas.append(feat_probas[0] if feat_probas else None)
+        all_classes.append(feat_classes[0] if feat_classes else None)
+    return reconstructed, all_probas, all_classes
 
 
 def _needs_training(artifact_dir, cfg):
@@ -801,11 +909,15 @@ def partial_mst_reconstruction(cfg, synth, targets, qi, hidden_features):
 
     # Conditional sampling of ALL columns (QI fixed, hidden sampled)
     n_targets = len(targets)
-    sampled = _conditional_sample(model, encoded_qi, n_targets,
-                                  sample_mode=sample_mode, top_pct=top_pct)
+    sampled, col_probas = _conditional_sample(model, encoded_qi, n_targets,
+                                              sample_mode=sample_mode, top_pct=top_pct,
+                                              return_probas=True)
 
     # Decode hidden columns back to original values
     decoded = _decode_hidden(model, sampled, hidden_features, bin_edges)
+
+    # Decode compressed-domain probability distributions to original label space
+    probas_list, classes_list = _decode_probas(model, col_probas, hidden_features, bin_edges)
 
     # Build output DataFrame with correct dtypes
     reconstructed = pd.DataFrame(index=range(n_targets))
@@ -819,7 +931,7 @@ def partial_mst_reconstruction(cfg, synth, targets, qi, hidden_features):
             # Fallback: use the mode from synth (shouldn't happen in practice)
             reconstructed[col] = synth[col].mode().iloc[0] if col in synth.columns else 0
 
-    return reconstructed, None, None
+    return reconstructed, probas_list, classes_list
 
 
 # ---------------------------------------------------------------------------

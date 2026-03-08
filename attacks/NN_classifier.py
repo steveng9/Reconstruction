@@ -101,7 +101,7 @@ def mlp_classification_reconstruction(cfg, synth, targets, known_features, hidde
         cfg["attack_params"].get("epochs", epochs_default),
         cfg["attack_params"].get("patience", patience_default),
         cfg["attack_params"].get("dropout_rate", dropout_rate_default)
-    ), None, None
+    )
 
 
 def chained_mlp_classification_reconstruction(cfg, synth, targets, known_features, hidden_features):
@@ -128,7 +128,7 @@ def chained_mlp_classification_reconstruction(cfg, synth, targets, known_feature
         # Get epochs for this feature if specified, otherwise use default
         feature_epochs = adequate_epochs.get(hidden_feature, 50)
 
-        recon = nn_classification_reconstruction(cfg,
+        recon, _, _ = nn_classification_reconstruction(cfg,
             synth, reconstructed_targets, known_features_copy, [hidden_feature],
             test_size=0.2,
             hidden_dims=[dim_size],
@@ -306,6 +306,24 @@ def predict(model, test_loader, device):
     return np.array(predictions), np.array(true_labels)
 
 
+def predict_with_probas(model, test_loader, device):
+    """Like predict(), but also returns softmax probability distributions."""
+    model.eval()
+    predictions = []
+    all_probas = []
+
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            inputs = inputs.to(device)
+            outputs = model(inputs)
+            probas = torch.softmax(outputs, dim=1)
+            _, preds = torch.max(outputs, 1)
+            predictions.extend(preds.cpu().numpy())
+            all_probas.append(probas.cpu().numpy())
+
+    return np.array(predictions), np.concatenate(all_probas, axis=0)
+
+
 # Process categorical features
 def process_categorical_data(df, target_column, targets):
     # Separate features and target
@@ -328,6 +346,8 @@ def nn_classification_reconstruction(cfg, synth, targets, known_features, hidden
                                      test_size, hidden_dims, batch_size, learning_rate,
                                      epochs, patience, dropout_rate):
     reconstructed_targets = targets.copy()
+    probas = []
+    classes_ = []
 
     for hidden_feature in hidden_features:
         print(f'\n\nHidden feature: {hidden_feature}')
@@ -365,9 +385,11 @@ def nn_classification_reconstruction(cfg, synth, targets, known_features, hidden
             model, train_loader, test_loader, criterion, optimizer, device, epochs, patience
         )
 
-        predictions, _ = predict(trained_model, targets_loader, device)
+        predictions, feat_probas = predict_with_probas(trained_model, targets_loader, device)
 
         original_predictions = label_encoder.inverse_transform(predictions)
         reconstructed_targets[hidden_feature] = original_predictions
+        probas.append(feat_probas)
+        classes_.append(label_encoder.classes_)
 
-    return reconstructed_targets
+    return reconstructed_targets, probas, classes_

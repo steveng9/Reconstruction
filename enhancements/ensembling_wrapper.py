@@ -209,7 +209,7 @@ def _aggregate_predictions(predictions, all_probas, all_classes, hidden_features
     result = predictions[0].copy()
 
     # Aggregate each feature
-    for feature in hidden_features:
+    for feat_idx, feature in enumerate(hidden_features):
         feature_predictions = [pred[feature] for pred in predictions]
 
         if aggregation == "voting" or aggregation == "hard_voting":
@@ -217,13 +217,9 @@ def _aggregate_predictions(predictions, all_probas, all_classes, hidden_features
             result[feature] = _hard_voting(feature_predictions)
 
         elif aggregation == "soft_voting" or aggregation == "weighted_voting":
-            # Soft voting: weighted by probabilities (if available)
-            if all_probas[0] is not None and len(all_probas) > 0:
-                result[feature] = _soft_voting(feature_predictions, all_probas, all_classes, weights)
-            else:
-                # Fall back to hard voting if no probabilities available
-                print(f"  WARNING: Soft voting requested but no probabilities available. Using hard voting.")
-                result[feature] = _hard_voting(feature_predictions)
+            result[feature] = _soft_voting(
+                feature_predictions, all_probas, all_classes, feat_idx, weights
+            )
 
         elif aggregation == "averaging" or aggregation == "mean":
             # Averaging: for continuous values
@@ -259,23 +255,71 @@ def _hard_voting(predictions):
     return stacked.mode(axis=1)[0]
 
 
-def _soft_voting(predictions, all_probas, all_classes, weights):
+def _soft_voting(predictions, all_probas, all_classes, feat_idx, weights):
     """
-    Soft voting: weighted by predicted probabilities.
+    Soft voting: aggregate predicted probability distributions, take argmax.
+
+    For models that return probas + classes (RF, LGB, NaiveBayes, SVM): uses their
+    probability distribution directly, aligned to a common class space.
+    For models without probas (KNN, Mode, Random, etc.): converts the hard prediction
+    to a one-hot distribution (probability 1.0 on predicted class).
+    Models with probas but no classes (NaiveBayes classes=None): treated as no-proba
+    and one-hotted from hard predictions.
 
     Args:
-        predictions: List of Series (used for fallback)
-        all_probas: List of probability arrays
-        all_classes: List of class arrays
-        weights: Model weights
+        predictions: List of Series with hard predictions (one per model)
+        all_probas:  List of proba-lists (all_probas[i][feat_idx] = (n_targets, n_classes))
+        all_classes: List of classes-lists (all_classes[i][feat_idx] = class label array)
+        feat_idx:    Index of this feature in hidden_features
+        weights:     Per-model weights (already normalised to sum=1)
 
     Returns:
-        Series with probability-weighted predictions
+        Series with soft-voted predictions
     """
-    # This is complex to implement generically, so for now fall back to hard voting
-    # TODO: Implement proper soft voting when probabilities are available
-    print("  INFO: Soft voting not fully implemented yet. Using weighted hard voting.")
-    return _hard_voting(predictions)
+    n_targets = len(predictions[0])
+
+    # Gather per-model (proba_array, class_labels) or one-hot from hard pred
+    model_probas = []
+    model_classes = []
+
+    for i, hard_pred in enumerate(predictions):
+        feat_probas  = all_probas[i][feat_idx]  if (all_probas[i]  is not None) else None
+        feat_classes = all_classes[i][feat_idx] if (all_classes[i] is not None) else None
+
+        if feat_probas is not None and feat_classes is not None:
+            model_probas.append(feat_probas)
+            model_classes.append(np.asarray(feat_classes))
+        else:
+            # One-hot fallback: probability 1.0 on the hard-predicted class
+            unique_vals = np.array(sorted(hard_pred.unique()))
+            val_to_idx  = {v: j for j, v in enumerate(unique_vals)}
+            ohe = np.zeros((n_targets, len(unique_vals)))
+            for row, val in enumerate(hard_pred):
+                ohe[row, val_to_idx[val]] = 1.0
+            model_probas.append(ohe)
+            model_classes.append(unique_vals)
+
+    # Build union of all class labels seen across models (preserve original dtype)
+    all_unique = sorted(set(c for cls in model_classes for c in cls),
+                        key=lambda x: (str(type(x)), x))
+    n_classes  = len(all_unique)
+    cls_to_idx = {c: j for j, c in enumerate(all_unique)}
+
+    # Align each model's proba to the common class space
+    aligned = []
+    for p, cls in zip(model_probas, model_classes):
+        a = np.zeros((n_targets, n_classes))
+        for j, c in enumerate(cls):
+            if c in cls_to_idx:
+                a[:, cls_to_idx[c]] = p[:, j]
+        aligned.append(a)
+
+    # Weighted sum over models → argmax → class label
+    agg = sum(w * a for w, a in zip(weights, aligned))
+    pred_indices = np.argmax(agg, axis=1)
+    predicted    = np.array([all_unique[k] for k in pred_indices])
+
+    return pd.Series(predicted, index=predictions[0].index)
 
 
 def _averaging(predictions, weights):
