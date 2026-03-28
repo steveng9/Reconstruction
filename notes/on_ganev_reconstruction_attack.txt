@@ -1,0 +1,68 @@
+  Search results:                                                                                                               
+  - Ganev's GitHub (ganevgv) has only 8 repos — none for this paper. His publications page links only to preprint/paper PDFs, no
+   code. OpenReview explicitly certifies no code URL was provided.                                                              
+  - The related synthetic-society/recon-synth repo (https://github.com/synthetic-society/recon-synth) is for a different paper  
+  (arxiv 2301.10053), despite the similar name.
+                                                                                                                                
+  What ReconSyn actually does (threat model):                                                                                   
+                                                                                                                                
+  It's notably different from your framework's setup:
+  - Requires black-box query access to the generative model itself (can request multiple new synthetic datasets)
+  - Also requires access to the privacy metrics being evaluated
+  - Uses those to iteratively identify low-density outlier records and reconstruct their attributes
+  - Recovers 78–100% of outliers, but targets only outliers (low-density records)
+
+  Relevance to your experiments: Partial. It's an attribute inference / reconstruction attack on synthetic data, which fits the
+  theme. But the threat model is stronger than yours (needs model query access + metric access, not just a single synth
+  release). Without code, integrating it would require implementing from scratch based on the paper's description. Could be
+  worth noting in your paper's related work, but I'd put it lower priority than experiments you can actually run.
+
+  Sources:
+  - https://arxiv.org/abs/2312.05114
+  - https://ganevgv.github.io/publications/
+  - https://github.com/ganevgv
+  - https://openreview.net/forum?id=g16vmAtJ8x
+  - https://github.com/synthetic-society/recon-synth
+
+✻ Cooked for 1m 23s                     
+
+❯ Did you read the paper? How do they define "outlier" records, and I wonder if it's at all similar to how we define them in    
+our row-wise outlier attack that we've implemented. Also are you sure that the attacks won't work / aren't meant for without    
+having the matrics?                                                                                                             
+                                                                                                                                
+● Fetch(https://arxiv.org/html/2312.05114v2)                                                                                    
+  ⎿  Received 754.2KB (200 OK)                                                                                                  
+                                                                                                                                
+● Apologies — I was summarizing loosely rather than reading carefully. Now with the full paper content:                         
+                                                                                                                                
+  On the metric requirement: I was right the first time — both attacks do require querying a privacy metrics API. That's
+  actually central to their argument: the vulnerability is in the metrics themselves leaking information, not the synthetic data
+   release per se. So the threat model is fundamentally different from yours.                                                   
+                                                                                                                                
+  On outlier definition: They fit a GMM on the synthetic data and identify records that fall in the smallest/most isolated      
+  clusters. The logic is: outliers are hard to model accurately by the generator, so they tend to appear distinctively when the 
+  generator does produce them.
+
+  Comparison to your row-level outlier analysis: Conceptually similar intuition — rare/atypical records are more vulnerable —
+  but operationally different:
+
+  ┌─────────────────────────────┬────────────────────────┬────────────────────────────────────────────┐
+  │                             │      Ganev et al.      │               Your framework               │
+  ├─────────────────────────────┼────────────────────────┼────────────────────────────────────────────┤
+  │ Outlier detection fitted on │ Synthetic data (GMM)   │ Training targets (isolation forest on QI)  │
+  ├─────────────────────────────┼────────────────────────┼────────────────────────────────────────────┤
+  │ Purpose                     │ Select who to attack   │ Analyze who was successfully reconstructed │
+  ├─────────────────────────────┼────────────────────────┼────────────────────────────────────────────┤
+  │ Metric                      │ GMM cluster membership │ Isolation forest score                     │
+  └─────────────────────────────┴────────────────────────┴────────────────────────────────────────────┘
+
+  Bottom line on relevance: The threat model (repeated metric API queries + model queries) is quite distinct from your
+  single-release attribute inference setup, so these attacks aren't directly integrable. But two things are relevant:
+
+  1. The GMM-on-synth outlier identification is an interesting alternative to isolation forest worth mentioning in your related
+  work when you discuss your rarity-weighted scoring
+  2. The DifferenceAttack's attribute inference variant (testing candidate values for unknown attributes via metric queries) is
+  conceptually related to your attack framing, even if the access model differs
+
+  Not a practical implementation target, but worth citing in the paper.
+

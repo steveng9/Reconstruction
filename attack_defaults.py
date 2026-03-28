@@ -195,8 +195,8 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "retrain":                  False,
         "clique_variant":           "bounded",
         "max_clique_size":          3,
-        "sample_mode":              "sample",
-        "top_pct":                  20.0,
+        "sample_mode":              "top_pct",
+        "top_pct":                  10.0,
     },
     "PartialMSTHub": {
         "bin_continuous_as_ordinal": True,
@@ -212,5 +212,13 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
     "LinearReconstruction": {
         "k":       3,   # k-way marginal queries
         "n_procs": 4,   # Gurobi threads
+    },
+    "LinearReconstructionCategorical": {
+        "k":       3,
+        "n_procs": 4,
+    },
+    "LinearReconstructionJoint": {
+        "k":       3,
+        "n_procs": 4,
     },
 }

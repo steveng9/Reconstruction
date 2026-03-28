@@ -388,3 +388,95 @@ def _run_soft_chained_sklearn(attack_name, attack_params, synth, targets, qi, ch
         X_test_blocks.append(probas_for_next)
 
     return reconstructed
+
+
+def _run_masked_hard_chained_sklearn(attack_name, attack_params, synth, targets, qi,
+                                     chain_order, confidence_threshold=0.7):
+    """
+    Confidence-gated hard chaining for any sklearn classifier with predict_proba.
+
+    Works for: RandomForest, MLP, LightGBM, LogisticRegression, NaiveBayes, KNN.
+
+    The key difference from soft chaining: the conditioning block sent to the next
+    step is always a one-hot vector (or uniform), never a raw probability distribution.
+    This avoids the collapse seen in soft chaining for high-cardinality features,
+    where spreading probability mass over hundreds of classes creates a noisy,
+    high-dimensional input that overwhelms the QI signal.
+
+    Training (on synth), step k:
+      X_train = [OrdinalEncode(QI)] | [OneHot(synth[feat_1])] | ... | [OneHot(synth[feat_{k-1}])]
+      Synth always uses one-hot (true value is certain).
+
+    Inference (on targets), step k:
+      High-confidence rows (max_prob >= threshold): one-hot at predicted class
+        → matches training distribution, propagates a confident hard prediction
+      Low-confidence rows (max_prob < threshold): uniform (1/n_classes per class)
+        → signals "unknown" without injecting a likely-wrong hard label
+
+    Returns
+    -------
+    reconstructed : pd.DataFrame
+        Full reconstruction of targets (same shape, all hidden features predicted).
+    conf_stats : dict[str, float]
+        {feature: fraction_of_rows_above_threshold} — diagnostic for how often the
+        model is confident enough to propagate a prediction for each feature.
+    """
+    from sklearn.preprocessing import OrdinalEncoder
+
+    qi_enc     = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+    X_synth_qi = qi_enc.fit_transform(synth[qi].astype(str))
+    X_test_qi  = qi_enc.transform(targets[qi].astype(str))
+
+    X_synth_blocks = [X_synth_qi]
+    X_test_blocks  = [X_test_qi]
+    reconstructed  = targets.copy()
+    conf_stats     = {}  # feature → fraction of high-confidence rows
+
+    for feat in chain_order:
+        X_synth_step = np.hstack(X_synth_blocks)
+        X_test_step  = np.hstack(X_test_blocks)
+
+        y_synth = synth[feat].astype(str)
+        clf = _make_soft_chain_clf(attack_name, attack_params)
+        if attack_name == "MLP":
+            classes  = np.unique(y_synth)
+            n_epochs = clf.max_iter
+            for ep in range(n_epochs):
+                clf.partial_fit(X_synth_step, y_synth, classes=classes)
+                if (ep + 1) % 20 == 0:
+                    print(f'    Epoch {ep+1}/{n_epochs}, loss={clf.loss_:.6f}')
+        else:
+            clf.fit(X_synth_step, y_synth)
+
+        classes      = clf.classes_
+        n_classes    = len(classes)
+        class_to_idx = {c: i for i, c in enumerate(classes)}
+
+        probas_test  = clf.predict_proba(X_test_step)
+        pred_indices = np.argmax(probas_test, axis=1)
+        pred_labels  = classes[pred_indices]
+        try:
+            reconstructed[feat] = pred_labels.astype(synth[feat].dtype)
+        except (ValueError, TypeError):
+            reconstructed[feat] = pred_labels
+
+        # Confidence gating: build a one-hot-or-uniform conditioning block.
+        # Uniform (1/K) for all rows by default (low-confidence / unknown signal).
+        max_probs        = probas_test.max(axis=1)
+        high_conf        = max_probs >= confidence_threshold
+        conf_stats[feat] = float(high_conf.mean())
+
+        cond_block = np.full((len(targets), n_classes), 1.0 / n_classes)
+        if high_conf.any():
+            hi_idx             = np.where(high_conf)[0]
+            cond_block[hi_idx] = 0.0
+            cond_block[hi_idx, pred_indices[hi_idx]] = 1.0
+
+        # Synth block: one-hot of true synth values (always certain)
+        synth_codes  = synth[feat].astype(str).map(class_to_idx).fillna(0).astype(int)
+        onehot_synth = np.zeros((len(synth), n_classes))
+        onehot_synth[np.arange(len(synth)), synth_codes.values] = 1.0
+        X_synth_blocks.append(onehot_synth)
+        X_test_blocks.append(cond_block)
+
+    return reconstructed, conf_stats

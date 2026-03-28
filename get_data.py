@@ -39,6 +39,16 @@ QIs = {
         "QI_binary_sex_lowcard": ["age", "workclass", "education", "education-num",
                                   "marital-status", "occupation", "relationship", "race",
                                   "native-country", "income"],
+        # Multi-valued hidden feature — for LinearReconstructionCategorical comparison
+        # race has 5 categories: Amer-Indian-Eskimo, Asian-Pac-Islander, Black, Other, White
+        "QI_race_lowcard":       ["age", "workclass", "education", "education-num",
+                                  "marital-status", "occupation", "relationship", "sex",
+                                  "native-country", "income"],
+        # Joint two-binary hidden features — for LinearReconstructionJoint comparison
+        # hidden = [income, sex]; both are binary
+        "QI_joint_income_sex_lowcard": ["age", "workclass", "education", "education-num",
+                                        "marital-status", "occupation", "relationship",
+                                        "race", "native-country"],
     },
     "cdc_diabetes": {
         "QI1": ["Sex", "Age", "Education", "Income", "BMI", "HighBP", "HighChol",
@@ -128,6 +138,8 @@ minus_QIs = {
         "QI_binary_sex":         ["sex"],
         "QI_linear_lowcard":     ["income"],
         "QI_binary_sex_lowcard": ["sex"],
+        "QI_race_lowcard":             ["race"],
+        "QI_joint_income_sex_lowcard": ["income", "sex"],
     },
     "cdc_diabetes": {
         "QI1":               ["Diabetes_binary", "Stroke", "HeartDiseaseorAttack", "CholCheck",

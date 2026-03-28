@@ -28,6 +28,7 @@ WANDB_PROJECT = "tabular-reconstruction-attacks"
 WANDB_GROUP   = "main attack sweep 1"
 #DATASET       = "nist_arizona_25feat"   # filter to this dataset; None = all datasets
 DATASET       = "adult"   # filter to this dataset; None = all datasets
+#DATASET       = "california"   # filter to this dataset; None = all datasets
 
 
 # ── Display order & groupings ──────────────────────────────────────────────────

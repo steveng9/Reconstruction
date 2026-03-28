@@ -233,6 +233,14 @@ def _aggregate_predictions(predictions, all_probas, all_classes, hidden_features
             # Weighted average
             result[feature] = _averaging(feature_predictions, weights)
 
+        elif aggregation == "confidence_routing":
+            # Per-row: pick the attack with the highest max predicted probability.
+            # Attacks without real probas get confidence=0.0 and only win if no
+            # other attack in the combo has probas.
+            result[feature] = _confidence_routing(
+                feature_predictions, all_probas, all_classes, feat_idx
+            )
+
         else:
             print(f"WARNING: Unknown aggregation strategy '{aggregation}'. Using voting.")
             result[feature] = _hard_voting(feature_predictions)
@@ -320,6 +328,51 @@ def _soft_voting(predictions, all_probas, all_classes, feat_idx, weights):
     predicted    = np.array([all_unique[k] for k in pred_indices])
 
     return pd.Series(predicted, index=predictions[0].index)
+
+
+def _confidence_routing(predictions, all_probas, all_classes, feat_idx):
+    """
+    Per-row routing: for each target record, use the prediction from whichever
+    attack has the highest max predicted probability on this feature.
+
+    Attacks without real probas (KNN, Mode, etc.) are assigned confidence=0.0
+    so they only win if every attack in the combo lacks probas, in which case
+    we fall back to hard voting.
+
+    Args:
+        predictions: List of Series with hard predictions (one per model)
+        all_probas:  List of proba-lists (all_probas[i][feat_idx] = (n_targets, n_classes))
+        all_classes: List of classes-lists (all_classes[i][feat_idx] = class label array)
+        feat_idx:    Index of this feature in hidden_features
+
+    Returns:
+        Series with confidence-routed predictions
+    """
+    n_targets = len(predictions[0])
+    n_models  = len(predictions)
+
+    # conf[i, row] = max predicted probability for model i on this row
+    conf = np.zeros((n_models, n_targets))
+    any_real_probas = False
+
+    for i in range(n_models):
+        feat_probas  = all_probas[i][feat_idx]  if (all_probas[i]  is not None) else None
+        feat_classes = all_classes[i][feat_idx] if (all_classes[i] is not None) else None
+
+        if feat_probas is not None and feat_classes is not None:
+            conf[i] = np.max(feat_probas, axis=1)
+            any_real_probas = True
+        # else: conf[i] stays 0.0 — lowest priority
+
+    if not any_real_probas:
+        return _hard_voting(predictions)
+
+    # For each row, pick the attack with the highest confidence
+    chosen = np.argmax(conf, axis=0)               # (n_targets,)
+    stacked = np.stack([p.values for p in predictions])  # (n_models, n_targets)
+    result_vals = stacked[chosen, np.arange(n_targets)]
+
+    return pd.Series(result_vals, index=predictions[0].index)
 
 
 def _averaging(predictions, weights):

@@ -76,7 +76,11 @@ import os
 sota_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'SOTA_attacks')
 if sota_path not in sys.path:
     sys.path.insert(0, sota_path)
-from linear_reconstruction import linear_reconstruction_attack
+from linear_reconstruction import (
+    linear_reconstruction_attack,
+    linear_reconstruction_attack_categorical,
+    linear_reconstruction_attack_joint,
+)
 
 
 # =============================================================================
@@ -106,7 +110,9 @@ ATTACK_REGISTRY = {
         "MeasureDeid": simply_measure_deid_itself_baseline,
 
         # SOTA attacks (published methods)
-        "LinearReconstruction": linear_reconstruction_attack,
+        "LinearReconstruction":            linear_reconstruction_attack,
+        "LinearReconstructionCategorical": linear_reconstruction_attack_categorical,
+        "LinearReconstructionJoint":       linear_reconstruction_attack_joint,
     },
 
     "continuous": {

@@ -44,6 +44,7 @@ ATTACK_ORDER = [
     "RandomForest",
     "LightGBM",
     "MLP",
+    "TabDDPM",
     "PartialMSTBounded",
 ]
 
@@ -148,7 +149,7 @@ def plot_heatmap(matrix: np.ndarray, delta: np.ndarray, attacks: list[str],
         vmin=vmin, vmax=vmax,
         cmap=cmap,
         annot=True,
-        fmt=".3f",
+        fmt=".1f",
         annot_kws={"size": 8},
         linewidths=0.4,
         linecolor="white",

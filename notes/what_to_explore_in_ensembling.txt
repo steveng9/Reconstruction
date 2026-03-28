@@ -1,0 +1,45 @@
+This is a really common finding and worth thinking through carefully. Here's my honest take:                                  
+                                                                                                                                
+  Why 2-attack ensembles aren't helping                                                                                         
+                                                                                                                                
+  The core requirement for ensembling to help is error complementarity — attack A must be right on records where B is wrong, and
+   vice versa. Your 8 attacks are actually quite correlated in their error patterns: RF, LGB, MLP, and LR are all discriminative
+   classifiers trained on the same QI features, so they tend to fail on the same hard records (rare/outlier values where the
+  QI→hidden relationship is weak). Voting just reinforces the shared mistakes.
+
+  What I'd explore, roughly in order of promise:
+
+  1. Oracle analysis first (diagnostic, not a paper experiment)
+  Before trying anything, compute the per-record "oracle ensemble" — for each target row, take the correct answer if any attack
+  got it right. If the oracle is only marginally better than the best single attack, there's genuinely little complementarity
+  and ensembling is a dead end. If it's substantially better, the potential exists and you just need smarter aggregation.
+
+  2. Feature-level attack selection
+  Rather than a single attack for all hidden features, use different attacks per feature — e.g., whichever attack historically
+  scores highest on that feature type across the synth samples. This isn't really an ensemble in the voting sense, but it's a
+  natural composition that often beats any single attack.
+
+  3. Include fundamentally different attack types
+  Your 8 attacks are architecturally similar. TabDDPM/ConditionedRePaint are generative models that reason about the full joint
+  distribution rather than feature-by-feature classification — they make structurally different errors. Even if slow, including
+  one diffusion attack in a 2-attack ensemble is the most likely combination to find genuine complementarity.
+
+  4. Weighted soft voting by per-feature accuracy
+  Equal weights assume all attacks are equally good at all features, which isn't true. If you weight each attack's probability
+  contribution by its historical accuracy on that specific feature (estimated from synth), the ensemble can learn to trust the
+  right expert per feature. This is essentially a lightweight stacking approach without a meta-classifier.
+
+  5. Agreement-based selection
+  When attacks agree, use the agreed prediction. When they disagree, fall back to the single strongest attack (rather than
+  voting, which can produce the minority answer). This is conservative but safe — it can't hurt relative to the best single
+  attack.
+
+  6. Larger ensembles of diverse attacks
+  Going to 3-4 attacks only helps if the added attacks are diverse. Adding a 3rd tree-based classifier to RF+LGB won't move the
+  needle. A more productive 3-attack ensemble might be something like RF + PartialMST + ConditionedRePaint — one discriminative,
+   one graphical model, one generative.
+
+  My honest overall take: if the best single attack is already well-calibrated and your QI→hidden signal is genuinely weak for
+  hard records, no ensemble will beat it on mean RA. The more interesting paper result might actually be why ensembling doesn't
+  help — it speaks to the nature of the residual uncertainty after conditioning on QI. The oracle analysis would make that
+  argument precisely.
