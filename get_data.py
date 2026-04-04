@@ -69,6 +69,13 @@ QIs = {
                              "Veggies", "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost",
                              "GenHlth", "MentHlth", "PhysHlth", "DiffWalk", "Sex", "Age",
                              "Education", "Income"],
+        # Joint three-binary hidden features — for LinearReconstructionJoint (C=8) comparison
+        # hidden = [Diabetes_binary, HighBP, Stroke]; lowcard drops BMI (42), MentHlth (23), PhysHlth (23)
+        "QI_joint_Diabetes_HighBP_Stroke_lowcard": [
+            "HighChol", "CholCheck", "Smoker", "HeartDiseaseorAttack", "PhysActivity",
+            "Fruits", "Veggies", "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost",
+            "GenHlth", "DiffWalk", "Sex", "Age", "Education", "Income",
+        ],
     },
     # California Housing: geographic + structural features as QI
     # Story: given publicly observable location/age/population, reconstruct economic features
@@ -148,6 +155,7 @@ minus_QIs = {
         "QI_linear":         ["Diabetes_binary"],
         "QI_binary_HighBP":  ["HighBP"],
         "QI_binary_Stroke":  ["Stroke"],
+        "QI_joint_Diabetes_HighBP_Stroke_lowcard": ["Diabetes_binary", "HighBP", "Stroke"],
     },
     "california": {
         "QI1": ["MedInc", "AveRooms", "AveBedrms", "AveOccup", "MedHouseVal"],
@@ -332,6 +340,32 @@ def get_meta_data_for_diffusion(cfg):
     elif cfg["dataset"]["name"] == "nist_arizona_data":
         meta = {"relation_order": [[None, "crc_data"]], "tables": {"crc_data": {"children": [], "parents": []}}}
         domain = {"F1": {"size": 101, "type": "discrete"}, "F2": {"size": 36, "type": "discrete"}, "F3": {"size": 114, "type": "discrete"}, "F5": {"size": 5, "type": "discrete"}, "F9": {"size": 924, "type": "discrete"}, "F10": {"size": 13, "type": "discrete"}, "F11": {"size": 3, "type": "discrete"}, "F12": {"size": 24, "type": "discrete"}, "F13": {"size": 2, "type": "discrete"}, "F15": {"size": 5, "type": "discrete"}, "F17": {"size": 7, "type": "discrete"}, "F18": {"size": 5, "type": "discrete"}, "F21": {"size": 7511, "type": "continuous"}, "F22": {"size": 128, "type": "discrete"}, "F23": {"size": 3, "type": "discrete"}, "F25": {"size": 5, "type": "discrete"}, "F30": {"size": 5, "type": "discrete"}, "F32": {"size": 30, "type": "discrete"}, "F33": {"size": 6, "type": "discrete"}, "F36": {"size": 3, "type": "discrete"}, "F37": {"size": 6, "type": "discrete"}, "F41": {"size": 2, "type": "discrete"}, "F43": {"size": 2, "type": "discrete"}, "F47": {"size": 4, "type": "discrete"}, "F50": {"size": 53, "type": "discrete"}, "F4": {"size": 19, "type": "discrete"}, "F6": {"size": 3, "type": "discrete"}, "F7": {"size": 4, "type": "discrete"}, "F8": {"size": 14, "type": "discrete"}, "F14": {"size": 102, "type": "continuous"}, "F16": {"size": 8, "type": "discrete"}, "F19": {"size": 94, "type": "continuous"}, "F20": {"size": 3, "type": "discrete"}, "F24": {"size": 4, "type": "discrete"}, "F26": {"size": 103, "type": "continuous"}, "F27": {"size": 2, "type": "discrete"}, "F28": {"size": 3, "type": "discrete"}, "F29": {"size": 313, "type": "continuous"}, "F31": {"size": 5, "type": "discrete"}, "F34": {"size": 6, "type": "discrete"}, "F35": {"size": 211, "type": "continuous"}, "F38": {"size": 161, "type": "continuous"}, "F39": {"size": 3, "type": "discrete"}, "F40": {"size": 2, "type": "discrete"}, "F42": {"size": 3, "type": "discrete"}, "F44": {"size": 338, "type": "continuous"}, "F45": {"size": 5, "type": "discrete"}, "F46": {"size": 8, "type": "discrete"}, "F48": {"size": 2, "type": "discrete"}, "F49": {"size": 7, "type": "discrete"}}
+    elif cfg["dataset"]["name"] == "cdc_diabetes":
+        meta = {"relation_order": [[None, "cdc_data"]], "tables": {"cdc_data": {"children": [], "parents": []}}}
+        domain = {
+            "HighBP":               {"size": 2,  "type": "discrete"},
+            "HighChol":             {"size": 2,  "type": "discrete"},
+            "CholCheck":            {"size": 2,  "type": "discrete"},
+            "BMI":                  {"size": 62, "type": "continuous"},  # range 16–77
+            "Smoker":               {"size": 2,  "type": "discrete"},
+            "Stroke":               {"size": 2,  "type": "discrete"},
+            "HeartDiseaseorAttack": {"size": 2,  "type": "discrete"},
+            "PhysActivity":         {"size": 2,  "type": "discrete"},
+            "Fruits":               {"size": 2,  "type": "discrete"},
+            "Veggies":              {"size": 2,  "type": "discrete"},
+            "HvyAlcoholConsump":    {"size": 2,  "type": "discrete"},
+            "AnyHealthcare":        {"size": 2,  "type": "discrete"},
+            "NoDocbcCost":          {"size": 2,  "type": "discrete"},
+            "GenHlth":              {"size": 5,  "type": "discrete"},
+            "MentHlth":             {"size": 31, "type": "continuous"},  # 0–30
+            "PhysHlth":             {"size": 31, "type": "continuous"},  # 0–30
+            "DiffWalk":             {"size": 2,  "type": "discrete"},
+            "Sex":                  {"size": 2,  "type": "discrete"},
+            "Age":                  {"size": 13, "type": "discrete"},
+            "Education":            {"size": 6,  "type": "discrete"},
+            "Income":               {"size": 8,  "type": "discrete"},
+            "Diabetes_binary":      {"size": 2,  "type": "discrete"},
+        }
     elif cfg["dataset"]["name"] in ("california", "california_housing_data"):
         meta = {"relation_order": [[None, "cali_data"]], "tables": {"cali_data": {"children": [], "parents": []}}}
         domain = {
