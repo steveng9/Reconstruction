@@ -51,11 +51,11 @@ from attack_defaults import ATTACK_PARAM_DEFAULTS
 #   suffix to the size directory, matching what generate_synth.py creates).
 #DATASET_BASE  = "nist_arizona_data"
 #DATASET_NAME  = "nist_arizona_25feat"   # QI lookup key — change with N_FEATURES
-#DATASET_BASE  = "adult"
-#DATASET_NAME  = "adult"   # QI lookup key — change with N_FEATURES
-DATASET_BASE  = "california"
-DATASET_NAME  = "california"   # QI lookup key — change with N_FEATURES
-DATASET_SIZE  = 1_000
+DATASET_BASE  = "adult"
+DATASET_NAME  = "adult"   # QI lookup key — change with N_FEATURES
+#DATASET_BASE  = "california"
+#DATASET_NAME  = "california"   # QI lookup key — change with N_FEATURES
+DATASET_SIZE  = 10_000
 #N_FEATURES    = 25                      # None | 25 | 50
 N_FEATURES    = None                      # None | 25 | 50
 DATA_ROOT     = (
@@ -63,8 +63,8 @@ DATA_ROOT     = (
     + (f"_{N_FEATURES}feat" if N_FEATURES is not None else "")
 )
 SAMPLE_RANGE  = list(reversed(range(5)))          # sample_00 through sample_04
-#DATASET_TYPE  = "categorical"     # "categorical" or "continuous"
-DATASET_TYPE  = "continuous"     # "categorical" or "continuous"
+DATASET_TYPE  = "categorical"     # "categorical" or "continuous"
+#DATASET_TYPE  = "continuous"     # "categorical" or "continuous"
 
 # Set HOLDOUT_SAMPLE_IDX to use a fixed sample as holdout for memorization test.
 # Set to None to disable memorization test entirely.
@@ -91,6 +91,29 @@ SDG_METHODS = [
     ("RankSwap",       {}),
 ]
 
+SDG_METHODS = [                                                                                                                                                
+      ("MST",             {"epsilon": 0.1}),                                                                                                                     
+      ("MST",             {"epsilon": 0.3}),                                                                                                                     
+      ("MST",             {"epsilon": 1.0}),                                                                                                                   
+      ("MST",             {"epsilon": 3.0}),                                                                                                                     
+      ("MST",             {"epsilon": 10.0}),                                                                                                                    
+      ("MST",             {"epsilon": 30.0}),
+      ("MST",             {"epsilon": 100.0}),                                                                                                                   
+      ("MST",             {"epsilon": 300.0}),                                                                                                                 
+      ("MST",             {"epsilon": 1000.0}),                                                                                                                  
+      ("AIM",             {"epsilon": 0.3}),   
+      ("AIM",             {"epsilon": 1.0}),                                                                                                                     
+      ("AIM",             {"epsilon": 3.0}),                                                                                                                     
+      #("AIM",             {"epsilon": 10.0}),
+      ("TVAE",            {}),                                                                                                                                   
+      ("CTGAN",           {}),                                                                                                                                   
+      ("ARF",             {}),
+      ("TabDDPM",         {}),                                                                                                                                   
+      ("Synthpop",        {}),                                                                                                                                 
+      ("CellSuppression", {}),
+      ("RankSwap",        {}),                                                                                                                                   
+  ] 
+
 # (attack_method, method_specific_params)
 # NOTE: attack names resolve via get_attack(name, data_type=DATASET_TYPE).
 # For DATASET_TYPE="continuous", names shared across registries (Random, Mean,
@@ -115,18 +138,18 @@ ATTACK_CONFIGS = [
     #("LightGBM",     {}),
     #("SVM",         {}),        # O(n²–n³) — impractical at n=10k
     # continuous-only regressors — uncomment as needed:
-    ("LinearRegression",    {}),
-    ("Ridge",               {}),
-    ("Lasso",               {}),
-    ("ElasticNet",          {}),
-    ("BayesianRidge",       {}),
-    ("HuberRegressor",      {}),
-    ("RANSACRegressor",     {}),
-    ("SGDRegressor",        {}),
+    #("LinearRegression",    {}),
+    #("Ridge",               {}),
+    #("Lasso",               {}),
+    #("ElasticNet",          {}),
+    #("BayesianRidge",       {}),
+    #("HuberRegressor",      {}),
+    #("RANSACRegressor",     {}),
+    #("SGDRegressor",        {}),
     #("PolynomialRegression",{}),
     # categorical-only classifiers — uncomment for categorical datasets:
-    #("NaiveBayes",          {}),
-    #("LogisticRegression",  {}),
+    ("NaiveBayes",          {}),
+    ("LogisticRegression",  {}),
 
     # ── Neural networks ───────────────────────────────────────────────────────
     #("MLP",          {}),        # continuous → MLPRegressor; categorical → MLPClassifier
@@ -151,12 +174,12 @@ ATTACK_CONFIGS = [
     # ── Partial MST (agnostic) ─────────────────────────────────────────────────
     #("PartialMST",            {"retrain": False}),
     #("PartialMST",            {"retrain": False, "sample_mode": "argmax"}),
-    #("PartialMST",            {"retrain": False, "sample_mode": "top_pct", "top_pct": 10.0}),
+    #("PartialMST",            {"retrain": False, "sample_mode": "top_pct", "top_pct": 15.0}),
     #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3}),
     #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "argmax"}),
+    #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 15.0}),
     #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 10.0}),
-    #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 10.0}),
-    #("PartialMSTIndependent", {"retrain": False, "sample_mode": "top_pct", "top_pct": 20.0}),
+    #("PartialMSTIndependent", {"retrain": False, "sample_mode": "top_pct", "top_pct": 15.0}),
 
 
 

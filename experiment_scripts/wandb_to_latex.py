@@ -39,13 +39,17 @@ SDG_ORDER = [
     "CellSuppression",
     "Synthpop",
     "MST_eps0.1",
+    "MST_eps0.3",
     "MST_eps1",
+    "MST_eps3",
     "MST_eps10",
+    "MST_eps30",
     "MST_eps100",
+    "MST_eps300",
     "MST_eps1000",
+    "AIM_eps0.3",
     "AIM_eps1",
-    "AIM_eps10",
-    "AIM_eps100",
+    "AIM_eps3",
     "TVAE",
     "CTGAN",
     "ARF",
@@ -59,7 +63,7 @@ ATTACK_GROUPS = [
     ("ML Classifiers", ["KNN", "NaiveBayes", "LogisticRegression", "SVM",
                         "RandomForest", "LightGBM"]),
     ("Neural",         ["MLP", "Attention", "AttentionAutoregressive"]),
-    ("Partial SDG",      ["TabDDPM", "ConditionedRePaint", "RePaint", "PartialMST", "PartialMSTIndependent", "PartialMSTBounded"]),
+    ("Partial SDG",      ["TabDDPM", "TabDDPMWithMLP", "ConditionedRePaint", "RePaint", "PartialMST", "PartialMSTIndependent", "PartialMSTBounded"]),
     ("SOTA",           ["LinearReconstruction"]),
 ]
 
@@ -78,7 +82,8 @@ ATTACK_DISPLAY: dict[str, str] = {
     "AttentionAutoregressive": "Attention (AR)",
     "TabDDPM":                 "TabDDPM",
     "ConditionedRePaint":      r"Cond.\ RePaint",
-    "RePaint":                 "RePaint",
+    "TabDDPMWithMLP":         r"TabDDPM+MLP",
+    #"RePaint":                 "RePaint",
     "LinearReconstruction":    "Linear Recon.",
     "PartialMST":              "MST",
     "PartialMSTIndependent":   "MST (1 ft./time)",
@@ -90,11 +95,17 @@ SDG_DISPLAY: dict[str, str] = {
     "CellSuppression": "Cell Supp.",
     "Synthpop":      "Synthpop",
     "MST_eps0.1":    r"MST $\varepsilon{=}0.1$",
+    "MST_eps0.3":    r"MST $\varepsilon{=}0.3$",
     "MST_eps1":      r"MST $\varepsilon{=}1$",
+    "MST_eps3":      r"MST $\varepsilon{=}3$",
     "MST_eps10":     r"MST $\varepsilon{=}10$",
+    "MST_eps30":     r"MST $\varepsilon{=}30$",
     "MST_eps100":    r"MST $\varepsilon{=}100$",
+    "MST_eps300":    r"MST $\varepsilon{=}300$",
     "MST_eps1000":   r"MST $\varepsilon{=}1000$",
+    "AIM_eps0.3":    r"AIM $\varepsilon{=}0.3$",
     "AIM_eps1":      r"AIM $\varepsilon{=}1$",
+    "AIM_eps3":      r"AIM $\varepsilon{=}3$",
     "AIM_eps10":     r"AIM $\varepsilon{=}10$",
     "AIM_eps100":    r"AIM $\varepsilon{=}100$",
     "TVAE":          "TVAE",
@@ -296,10 +307,19 @@ def to_latex(pivot: pd.DataFrame, df_raw: pd.DataFrame,
     lines.append(r"    \bottomrule")
     lines.append(r"  \end{tabular}")
     lines.append(r"  }% end resizebox")
+    any_flagged = any(
+        _n_samples(df_raw, atk, col) < 5
+        for _, attacks in atk_groups for atk in attacks
+        for col in cols
+        if not np.isnan(pivot.at[atk, col] if atk in pivot.index and col in pivot.columns else float("nan"))
+    )
     lines.append(r"  \caption{Mean reconstruction accuracy (\texttt{RA\_mean}) "
                  r"averaged over 5 disjoint training samples.")
     lines.append(f"           WandB group: \\textit{{{group}}}. QI variant: {qi}.")
-    lines.append(r"           $^*$Fewer than 5 samples available for this cell.}")
+    if any_flagged:
+        lines.append(r"           $^*$Fewer than 5 samples available for this cell.}")
+    else:
+        lines.append(r"           }")
     lines.append(r"  \label{tab:ra_mean}")
     lines.append(r"\end{table*}")
 
@@ -323,17 +343,37 @@ def main():
     parser.add_argument("--dataset", default=None,
                         help="Filter to this dataset name (overrides DATASET constant at top of file; "
                              "use 'all' to disable filtering).")
+    parser.add_argument("--from-csv", nargs="+", default=None, metavar="CSV",
+                        help="Load results from one or more local sweep CSVs instead of querying WandB. "
+                             "CSVs are concatenated and deduplicated. Expected columns: "
+                             "sample, sdg, attack, qi, ra_mean.")
     args = parser.parse_args()
 
     qi_filter = None if args.qi.lower() == "all" else args.qi
-    dataset_filter = ("" if args.dataset and args.dataset.lower() == "all" else args.dataset)
 
-    df = fetch_runs(args.group, qi_filter, attack_filter=args.attacks,
-                    dataset_filter=dataset_filter)
-    if not df.empty:
-        df = deduplicate(df)
+    if args.from_csv:
+        frames = []
+        for path in args.from_csv:
+            frames.append(pd.read_csv(path))
+            print(f"Loaded {path}: {len(frames[-1])} rows")
+        df = pd.concat(frames, ignore_index=True)
+        if qi_filter:
+            df = df[df["qi"] == qi_filter]
+        if args.attacks:
+            df = df[df["attack"].isin(args.attacks)]
+        # Dedup: keep last (latest file wins for same key)
+        key = ["attack", "sdg", "qi", "sample"]
+        df = df.drop_duplicates(subset=key, keep="last").reset_index(drop=True)
+        print(f"Combined: {len(df)} rows after dedup")
+    else:
+        dataset_filter = ("" if args.dataset and args.dataset.lower() == "all" else args.dataset)
+        df = fetch_runs(args.group, qi_filter, attack_filter=args.attacks,
+                        dataset_filter=dataset_filter)
+        if not df.empty:
+            df = deduplicate(df)
+
     if df.empty:
-        print("No runs found — check group name and `wandb login`.")
+        print("No runs found.")
         return
 
     print(f"  {len(df)} runs  |  "

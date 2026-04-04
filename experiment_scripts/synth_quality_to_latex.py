@@ -59,6 +59,7 @@ SDG_ORDER = [
     "MST_eps10",
     "MST_eps30",
     "MST_eps100",
+    "MST_eps300",
     "MST_eps1000",
     "AIM_eps0.1",
     "AIM_eps0.3",
@@ -81,7 +82,7 @@ SDG_ORDER = [
 SDG_GROUPS = [
     ("Differentially private",  ["MST_eps0.1", "MST_eps0.3", "MST_eps1",
                                   "MST_eps3", "MST_eps10", "MST_eps30",
-                                  "MST_eps100", "MST_eps1000",
+                                  "MST_eps100", "MST_eps300", "MST_eps1000",
                                   "AIM_eps0.1", "AIM_eps0.3", "AIM_eps1",
                                   "AIM_eps3", "AIM_eps10", "AIM_eps30",
                                   "AIM_eps100"]),
@@ -98,6 +99,7 @@ SDG_DISPLAY: dict[str, str] = {
     "MST_eps10":       r"MST $(\varepsilon{=}10)$",
     "MST_eps30":       r"MST $(\varepsilon{=}30)$",
     "MST_eps100":      r"MST $(\varepsilon{=}100)$",
+    "MST_eps300":      r"MST $(\varepsilon{=}300)$",
     "MST_eps1000":     r"MST $(\varepsilon{=}1000)$",
     "AIM_eps0.1":        r"AIM $(\varepsilon{=}0.1)$",
     "AIM_eps0.3":        r"AIM $(\varepsilon{=}0.3)$",
@@ -105,6 +107,7 @@ SDG_DISPLAY: dict[str, str] = {
     "AIM_eps3":        r"AIM $(\varepsilon{=}3)$",
     "AIM_eps10":       r"AIM $(\varepsilon{=}10)$",
     "AIM_eps30":        r"AIM $(\varepsilon{=}30)$",
+    "AIM_eps100":        r"AIM $(\varepsilon{=}100)$",
     "RankSwap":        "RankSwap",
     "CellSuppression": r"Cell Supp.",
     "Synthpop":        "Synthpop",
@@ -157,6 +160,7 @@ METRIC_META: dict[str, dict] = {
     "tstr_score":        {"dir": "↑", "latex": r"TSTR score"},
     "trtr_score":        {"dir": "↑", "latex": r"TRTR score"},
     "tstr_ratio":        {"dir": "↑", "latex": r"TSTR ratio"},
+    "wasserstein_ohe":   {"dir": "↓", "latex": r"Wasserstein (OHE)"},
 }
 
 MIN_SAMPLES_FLAG = 4   # cells averaged from fewer samples get a $^*$ marker
@@ -375,10 +379,11 @@ def main() -> None:
     )
     parser.add_argument("results_csv",
                         help="Path to synth_quality_results_*.csv")
-    parser.add_argument("--metric",   default="tstr_ratio",
-                        help="Metric column to tabulate (default: tstr_ratio)")
+    parser.add_argument("--metric",   default="tstr_ratio", nargs="+",
+                        help="Metric(s) to tabulate (default: tstr_ratio). "
+                             "Pass --metric all to generate every metric in METRIC_META.")
     parser.add_argument("--out",      default=None,
-                        help="Output .tex path (default: <csv_dir>/synth_quality_<metric>.tex)")
+                        help="Output .tex path. Only used when a single metric is specified.")
     parser.add_argument("--decimals", type=int, default=3,
                         help="Decimal places (default: 3)")
     parser.add_argument("--no-bold",  action="store_true",
@@ -400,52 +405,64 @@ def main() -> None:
                        if ds in args.dataset]
     col_keys = [f"{ds}|{sz}" for ds, sz, _ in active_cols]
 
-    pivot_mean, pivot_cnt = build_pivot(df, args.metric, col_keys)
+    # Resolve metric list
+    metrics = args.metric
+    if len(metrics) == 1 and metrics[0] == "all":
+        metrics = list(METRIC_META.keys())
+    # Filter to metrics present in the CSV
+    metrics = [m for m in metrics if m in df.columns]
+    if not metrics:
+        raise ValueError("None of the requested metrics are present in the CSV.")
 
-    # Reorder rows into SDG_ORDER (intersect with what's present)
-    present_methods = [m for m in SDG_ORDER if m in pivot_mean.index]
-    others = [m for m in pivot_mean.index if m not in present_methods]
-    pivot_mean = pivot_mean.loc[present_methods + others]
-    pivot_cnt  = pivot_cnt.loc[present_methods + others]
-
-    print(f"Metric     : {args.metric}  ({METRIC_META.get(args.metric, {}).get('dir', '?')})")
-    print(f"Columns    : {col_keys}")
-    print(f"Methods    : {list(pivot_mean.index)}")
-    print(f"Samples/cell (min/max): "
-          f"{int(pivot_cnt.values[~np.isnan(pivot_cnt.values.astype(float))].min()) if pivot_cnt.notna().any().any() else 0}"
-          f" / "
-          f"{int(pivot_cnt.values[~np.isnan(pivot_cnt.values.astype(float))].max()) if pivot_cnt.notna().any().any() else 0}")
-
-    latex = to_latex(
-        pivot_mean, pivot_cnt,
-        metric=args.metric,
-        decimals=args.decimals,
-        bold_best=not args.no_bold,
-        active_cols=active_cols,
-        source_note=str(csv_path),
-    )
-
-    out_path = (Path(args.out) if args.out else
-                csv_path.parent / f"synth_quality_{args.metric}.tex")
-    out_path.write_text(latex + "\n")
-    print(f"\nLaTeX table written to: {out_path}")
-
-    print("\n" + "─" * 80)
-    print(latex)
-    print("─" * 80)
-
-    # Plain-text pivot preview
-    print(f"\n── Plain-text pivot ({args.metric}) ──")
-    # Build readable column labels: "Dataset (size)"
     col_labels = {
         f"{ds}|{sz}": f"{DATASET_DISPLAY.get(ds, ds)} ({lbl})"
         for ds, sz, lbl in COLUMN_ORDER
     }
-    disp = pivot_mean[[ck for ck in col_keys if ck in pivot_mean.columns]].copy()
-    disp.columns = [col_labels.get(c, c) for c in disp.columns]
-    disp.index   = [SDG_DISPLAY.get(m, m) for m in disp.index]
-    fmt = lambda x: f"{x:.{args.decimals}f}" if not np.isnan(x) else "--"
-    print(disp.to_string(float_format=fmt))
+
+    all_latex = []
+    for metric in metrics:
+        pivot_mean, pivot_cnt = build_pivot(df, metric, col_keys)
+
+        # Reorder rows into SDG_ORDER (intersect with what's present)
+        present_methods = [m for m in SDG_ORDER if m in pivot_mean.index]
+        others = [m for m in pivot_mean.index if m not in present_methods]
+        pivot_mean = pivot_mean.loc[present_methods + others]
+        pivot_cnt  = pivot_cnt.loc[present_methods + others]
+
+        print(f"Metric     : {metric}  ({METRIC_META.get(metric, {}).get('dir', '?')})")
+        print(f"Columns    : {col_keys}")
+        print(f"Methods    : {list(pivot_mean.index)}")
+
+        latex = to_latex(
+            pivot_mean, pivot_cnt,
+            metric=metric,
+            decimals=args.decimals,
+            bold_best=not args.no_bold,
+            active_cols=active_cols,
+            source_note=str(csv_path),
+        )
+
+        all_latex.append(latex)
+        print(f"  Generated table for: {metric}")
+
+        # Plain-text pivot preview
+        print(f"\n── Plain-text pivot ({metric}) ──")
+        disp = pivot_mean[[ck for ck in col_keys if ck in pivot_mean.columns]].copy()
+        disp.columns = [col_labels.get(c, c) for c in disp.columns]
+        disp.index   = [SDG_DISPLAY.get(m, m) for m in disp.index]
+        fmt = lambda x: f"{x:.{args.decimals}f}" if not np.isnan(x) else "--"
+        print(disp.to_string(float_format=fmt))
+        print()
+
+    if len(metrics) == 1 and args.out:
+        out_path = Path(args.out)
+    elif len(metrics) == 1:
+        out_path = csv_path.parent / f"synth_quality_{metrics[0]}.tex"
+    else:
+        out_path = Path(args.out) if args.out else csv_path.parent / "synth_quality_all.tex"
+
+    out_path.write_text("\n\n".join(all_latex) + "\n")
+    print(f"LaTeX written to: {out_path}")
 
 
 if __name__ == "__main__":

@@ -55,11 +55,12 @@ N_FEATURES   = None           # no _Nfeat suffix
 # ── SDG methods ───────────────────────────────────────────────────────────────
 
 SDG_METHODS = [
-    #("MST",      {"epsilon": 10.0}),
+    ("MST",      {"epsilon": 10.0}),
     ("MST",      {"epsilon": 1000.0}),
     #("AIM",      {"epsilon": 1.0}),
-    #("TVAE",     {}),
+    ("TVAE",     {}),
     ("TabDDPM",  {}),
+    #("ARF",     {}),
     ("Synthpop", {}),
 ]
 
@@ -89,7 +90,7 @@ EXPERIMENTS: dict[str, dict] = {
     },
 }
 
-SAMPLE_RANGE      = list(range(5))   # samples 00–04; holdout is (idx+1)%5
+SAMPLE_RANGE      = list(range(4))   # samples 00–03; sample_04 is NO_HOLDOUT on 10k
 WANDB_PROJECT     = "tabular-reconstruction-attacks"
 N_WORKERS_DEFAULT = 8
 
@@ -108,6 +109,7 @@ class Job:
     attack_method: str
     attack_params: dict
     qi:            str
+    no_holdout:    bool = False
 
     @property
     def sdg_label(self) -> str:
@@ -137,7 +139,8 @@ def _data_root(size: int) -> str:
     return f"/home/golobs/data/reconstruction_data/{DATASET_BASE}/size_{size}{suffix}"
 
 
-def generate_jobs(size: int, experiment_filter: str | None = None) -> list[Job]:
+def generate_jobs(size: int, experiment_filter: str | None = None,
+                  no_holdout: bool = False) -> list[Job]:
     data_root = _data_root(size)
     jobs = []
     exps = (
@@ -154,12 +157,13 @@ def generate_jobs(size: int, experiment_filter: str | None = None) -> list[Job]:
                 dataset_size=size,
                 data_root=data_root,
                 sample_idx=sample_idx,
-                holdout_idx=(sample_idx + 1) % 5,
+                holdout_idx=(sample_idx + 1) % 4,
                 sdg_method=sdg_method,
                 sdg_params=dict(sdg_params),
                 attack_method=attack_method,
                 attack_params=dict(attack_params),
                 qi=exp_cfg["qi"],
+                no_holdout=no_holdout,
             ))
     return jobs
 
@@ -213,8 +217,8 @@ def run_job(job: Job) -> dict[str, Any]:
         "sdg_params":  job.sdg_params or None,
         "attack_method": job.attack_method,
         "memorization_test": {
-            "enabled":     True,
-            "holdout_dir": job.holdout_dir,
+            "enabled":     not job.no_holdout,
+            "holdout_dir": job.holdout_dir if not job.no_holdout else None,
         },
         "attack_params": {
             "ensembling": {"enabled": False},
@@ -249,23 +253,26 @@ def run_job(job: Job) -> dict[str, Any]:
     try:
         train, synth, qi, hidden_features, holdout = load_data(prepared)
 
-        recon_train   = _run_attack(prepared, synth, train,   qi, hidden_features)
-        recon_holdout = _run_attack(prepared, synth, holdout, qi, hidden_features)
-
-        train_scores   = _score_reconstruction(train,   recon_train,   hidden_features, DATASET_TYPE)
-        holdout_scores = _score_reconstruction(holdout, recon_holdout, hidden_features, DATASET_TYPE)
+        recon_train = _run_attack(prepared, synth, train, qi, hidden_features)
+        train_scores = _score_reconstruction(train, recon_train, hidden_features, DATASET_TYPE)
+        train_mean = round(float(np.mean(train_scores)), 4)
 
         metrics = {}
-        for feat, ts, hs in zip(hidden_features, train_scores, holdout_scores):
-            metrics[f"RA_train_{feat}"]       = round(float(ts), 4)
-            metrics[f"RA_nontraining_{feat}"] = round(float(hs), 4)
-            metrics[f"RA_delta_{feat}"]       = round(float(ts - hs), 4)
+        for feat, ts in zip(hidden_features, train_scores):
+            metrics[f"RA_train_{feat}"] = round(float(ts), 4)
+        metrics["RA_train_mean"] = train_mean
 
-        train_mean   = round(float(np.mean(train_scores)), 4)
-        holdout_mean = round(float(np.mean(holdout_scores)), 4)
-        metrics["RA_train_mean"]       = train_mean
-        metrics["RA_nontraining_mean"] = holdout_mean
-        metrics["RA_delta_mean"]       = round(train_mean - holdout_mean, 4)
+        holdout_mean = None
+        if not job.no_holdout:
+            recon_holdout = _run_attack(prepared, synth, holdout, qi, hidden_features)
+            holdout_scores = _score_reconstruction(holdout, recon_holdout, hidden_features, DATASET_TYPE)
+            holdout_mean = round(float(np.mean(holdout_scores)), 4)
+            for feat, ts, hs in zip(hidden_features, train_scores, holdout_scores):
+                metrics[f"RA_nontraining_{feat}"] = round(float(hs), 4)
+                metrics[f"RA_delta_{feat}"]       = round(float(ts - hs), 4)
+            metrics["RA_nontraining_mean"] = holdout_mean
+            metrics["RA_delta_mean"]       = round(train_mean - holdout_mean, 4)
+
         wandb.log(metrics)
 
         return {
@@ -277,7 +284,7 @@ def run_job(job: Job) -> dict[str, Any]:
             "size":          job.dataset_size,
             "train_mean":    train_mean,
             "nontrain_mean": holdout_mean,
-            "delta_mean":    metrics["RA_delta_mean"],
+            "delta_mean":    round(train_mean - holdout_mean, 4) if holdout_mean is not None else None,
             "error":         None,
         }
 
@@ -358,12 +365,14 @@ def main():
                         help="Run only this SDG method name.")
     parser.add_argument("--attack",     type=str, default=None,
                         help="Run only this attack name.")
+    parser.add_argument("--no-holdout", action="store_true",
+                        help="Skip memorization test (no holdout scoring).")
     parser.add_argument("--progress-log", type=str,
                         default=str(Path(__file__).parent.parent / "outfiles" / "linear_extended_progress.log"),
                         metavar="FILE")
     args = parser.parse_args()
 
-    all_jobs = generate_jobs(args.size, args.experiment)
+    all_jobs = generate_jobs(args.size, args.experiment, no_holdout=args.no_holdout)
 
     if args.sample is not None:
         all_jobs = [j for j in all_jobs if j.sample_idx == args.sample]
@@ -392,13 +401,15 @@ def main():
 
     if args.dry_run:
         for i, j in enumerate(all_jobs):
-            print(f"  [{i+1:>4d}]  {j.run_name}  holdout=sample_{j.holdout_idx:02d}")
+            holdout_str = "  no-holdout" if j.no_holdout else f"  holdout=sample_{j.holdout_idx:02d}"
+            print(f"  [{i+1:>4d}]  {j.run_name}{holdout_str}")
         print(f"\n{len(all_jobs)} jobs total.")
         return
 
     missing = []
     for job in all_jobs:
-        for d in (job.sample_dir, job.holdout_dir):
+        dirs = [job.sample_dir] if job.no_holdout else [job.sample_dir, job.holdout_dir]
+        for d in dirs:
             if not Path(d).exists():
                 missing.append(d)
     missing = list(dict.fromkeys(missing))
@@ -427,10 +438,14 @@ def main():
             line = f"[FAIL]  {job.run_name}  {error[:120]}\n"
         else:
             row = result
+            nt = result['nontrain_mean']
+            dl = result['delta_mean']
+            nt_str = f"{nt:.4f}" if nt is not None else "n/a"
+            dl_str = f"{dl:.4f}" if dl is not None else "n/a"
             line = (f"[OK]  {job.run_name}"
                     f"  train={result['train_mean']:.4f}"
-                    f"  nontrain={result['nontrain_mean']:.4f}"
-                    f"  delta={result['delta_mean']:.4f}\n")
+                    f"  nontrain={nt_str}"
+                    f"  delta={dl_str}\n")
         results.append(row)
         print(line, end="")
         progress_log.write(line)
