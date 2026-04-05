@@ -286,11 +286,13 @@ def run_job(job: Job) -> dict[str, Any]:
         metrics["RA_mean"] = ra_mean
         wandb.log(metrics)
 
+        feat_scores = {k: v for k, v in metrics.items() if k.startswith("RA_") and k != "RA_mean"}
         return {
             "sample": job.sample_idx, "sdg": job.sdg_label,
             "attack": job.attack_method, "qi": QI_VARIANT,
             "size": job.dataset_size,
             "ra_mean": ra_mean, "error": None,
+            **feat_scores,
         }
 
     except Exception as exc:
@@ -306,9 +308,11 @@ def run_job(job: Job) -> dict[str, Any]:
 def _save_summary_csv(rows: list[dict], path: Path):
     if not rows:
         return
-    keys = ["size", "sample", "sdg", "attack", "qi", "ra_mean", "error"]
+    base_keys = ["size", "sample", "sdg", "attack", "qi", "ra_mean", "error"]
+    feat_keys = sorted({k for r in rows for k in r if k.startswith("RA_") and k != "RA_mean"})
+    keys = base_keys + feat_keys
     with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore")
+        writer = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore", restval="")
         writer.writeheader()
         writer.writerows(rows)
     print(f"\nSummary CSV saved to: {path}")
@@ -368,7 +372,7 @@ def main():
     if args.sample is not None:
         all_jobs = [j for j in all_jobs if j.sample_idx == args.sample]
     if args.sdg is not None:
-        all_jobs = [j for j in all_jobs if j.sdg_method == args.sdg]
+        all_jobs = [j for j in all_jobs if j.sdg_label == args.sdg or j.sdg_method == args.sdg]
     if args.attack is not None:
         all_jobs = [j for j in all_jobs if j.attack_method == args.attack]
 

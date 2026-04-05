@@ -22,6 +22,16 @@ QIs = {
     # Story: given public demographic info, reconstruct employment & income
     "adult": {
         "QI1": ["age", "sex", "race", "native-country", "education", "marital-status"],
+        # ── QI-size sweep (3 → 6 → 10 known features) ──────────────────────────
+        # Weak adversary: bare demographic identity only
+        "QI_tiny": ["age", "sex", "race"],
+        # Strong adversary: demographic + full employment context
+        "QI_large": ["age", "sex", "race", "native-country", "education", "marital-status",
+                     "occupation", "workclass", "relationship", "hours-per-week"],
+        # ── QI-composition contrast (same size=6 as QI1, different feature types) ─
+        # Employment/economic prior instead of demographic — income/identity hidden
+        "QI_behavioral": ["occupation", "workclass", "relationship", "hours-per-week",
+                          "education-num", "fnlwgt"],
         # All features except target income — for single-feature reconstruction comparison
         "QI_linear": ["age", "workclass", "fnlwgt", "education", "education-num",
                       "marital-status", "occupation", "relationship", "race", "sex",
@@ -53,6 +63,19 @@ QIs = {
     "cdc_diabetes": {
         "QI1": ["Sex", "Age", "Education", "Income", "BMI", "HighBP", "HighChol",
                 "Smoker", "PhysActivity", "GenHlth"],
+        # ── QI-size sweep (4 → 10 → 16 known features) ──────────────────────────
+        # Weak adversary: minimal demographic + one health indicator
+        "QI_tiny": ["Sex", "Age", "BMI", "GenHlth"],
+        # Strong adversary: demographic + health indicators + lifestyle behaviours
+        "QI_large": ["Sex", "Age", "Education", "Income", "BMI", "HighBP", "HighChol",
+                     "Smoker", "PhysActivity", "GenHlth",
+                     "Fruits", "Veggies", "CholCheck", "DiffWalk",
+                     "AnyHealthcare", "NoDocbcCost"],
+        # ── QI-composition contrast (same size=10 as QI1, different feature types) ─
+        # Lifestyle/behaviour prior instead of demographic — identity + outcomes hidden
+        "QI_behavioral": ["Smoker", "PhysActivity", "Fruits", "Veggies",
+                          "HvyAlcoholConsump", "CholCheck", "AnyHealthcare",
+                          "NoDocbcCost", "DiffWalk", "HeartDiseaseorAttack"],
         # All features except target Diabetes_binary — for single-feature reconstruction comparison
         "QI_linear": ["HighBP", "HighChol", "CholCheck", "BMI", "Smoker", "Stroke",
                       "HeartDiseaseorAttack", "PhysActivity", "Fruits", "Veggies",
@@ -88,6 +111,10 @@ QIs = {
     # QI1 known (7) is shared across all three; hidden features differ by available columns.
     "nist_arizona_25feat": {
         "QI1": ['RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT'],
+        # ── QI-size sweep: QI1 (7) → QI_medium (12) → QI3 (18) ─────────────────
+        # Adds age, origin, employment status to the core cultural/identity QI
+        "QI_medium": ['RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT',
+                      'AGE', 'BPL', 'EMPSTAT', 'LABFORCE', 'HISPAN'],
         "QI3": ['RACE', 'SEX', 'AGEMARR', 'GQTYPE', 'IND', 'MTONGUE', 'VETSTAT',
                 'AGE', 'BPL', 'CITIZEN', 'DURUNEMP', 'EMPSTAT', 'FAMSIZE', 'HISPAN',
                  'OWNERSHP', 'URBAN', 'WKSWORK1', 'MARST'],
@@ -141,6 +168,14 @@ minus_QIs = {
         "QI1":                   ["workclass", "fnlwgt", "education-num", "occupation",
                                   "relationship", "capital-gain", "capital-loss",
                                   "hours-per-week", "income"],
+        "QI_tiny":               ["workclass", "fnlwgt", "education", "education-num",
+                                  "marital-status", "occupation", "relationship",
+                                  "capital-gain", "capital-loss", "hours-per-week",
+                                  "native-country", "income"],
+        "QI_large":              ["fnlwgt", "education-num", "capital-gain",
+                                  "capital-loss", "income"],
+        "QI_behavioral":         ["age", "sex", "race", "native-country", "education",
+                                  "marital-status", "capital-gain", "capital-loss", "income"],
         "QI_linear":             ["income"],
         "QI_binary_sex":         ["sex"],
         "QI_linear_lowcard":     ["income"],
@@ -152,6 +187,16 @@ minus_QIs = {
         "QI1":               ["Diabetes_binary", "Stroke", "HeartDiseaseorAttack", "CholCheck",
                               "Fruits", "Veggies", "HvyAlcoholConsump", "AnyHealthcare",
                               "NoDocbcCost", "MentHlth", "PhysHlth", "DiffWalk"],
+        "QI_tiny":           ["HighBP", "HighChol", "CholCheck", "Smoker", "Stroke",
+                              "HeartDiseaseorAttack", "PhysActivity", "Fruits", "Veggies",
+                              "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost",
+                              "MentHlth", "PhysHlth", "DiffWalk",
+                              "Education", "Income", "Diabetes_binary"],
+        "QI_large":          ["Diabetes_binary", "Stroke", "HeartDiseaseorAttack",
+                              "HvyAlcoholConsump", "MentHlth", "PhysHlth"],
+        "QI_behavioral":     ["Diabetes_binary", "Stroke", "HighBP", "HighChol", "BMI",
+                              "Sex", "Age", "Education", "Income", "GenHlth",
+                              "MentHlth", "PhysHlth"],
         "QI_linear":         ["Diabetes_binary"],
         "QI_binary_HighBP":  ["HighBP"],
         "QI_binary_Stroke":  ["Stroke"],
@@ -165,6 +210,9 @@ minus_QIs = {
         "QI1":             ['AGE', 'BPL', 'CITIZEN', 'DURUNEMP', 'EDUC', 'EMPSTAT', 'FAMSIZE',
                             'FARM', 'GQ', 'HISPAN', 'INCWAGE', 'LABFORCE', 'MARST', 'MIGRATE5',
                             'NATIVITY', 'OWNERSHP', 'URBAN', 'WKSWORK1'],
+        "QI_medium":       ['CITIZEN', 'DURUNEMP', 'EDUC', 'FAMSIZE', 'FARM', 'GQ',
+                            'INCWAGE', 'MARST', 'MIGRATE5', 'NATIVITY', 'OWNERSHP',
+                            'URBAN', 'WKSWORK1'],
         "QI3":             ['EDUC', 'FARM', 'GQ', 'INCWAGE', 'LABFORCE', 'MIGRATE5', 'NATIVITY'],
         "QI_binary_SEX":           ['SEX'],
         "QI_binary_SEX_lowcard":   ['SEX'],

@@ -1,0 +1,136 @@
+ ---                                                                                                          
+  The Variables Worth Isolating                                                                                
+                                                                                                               
+  Section 4.3 wants to answer: how does the adversary's prior knowledge shape reconstruction risk? There are   
+  really three orthogonal questions:                                                                           
+                                                                                                               
+  Q1 — QI size: As the adversary knows more features, does RA increase monotonically? Does it saturate?        
+                                                                                                               
+  Q2 — QI composition (same size): Does it matter which features are known — demographic vs. behavioral,       
+  high-cardinality vs. binary, correlated with hidden vs. not?                                                 
+                                                                                                               
+  Q3 — Hidden feature difficulty: When QI changes, does reconstruction difficulty shift uniformly across hidden
+   features, or do some features become newly easy/hard?                                                       
+                                                                                                               
+  Q3 is almost free if you already have per-feature RA scores — which you now do via the new script.           
+                                                                                                               
+  ---                                                                                                          
+  Why You Don't Need New Synthetic Data                                                                        
+                                                                                                               
+  Critically: changing the QI does not require re-generating synth.csv. The synthetic data contains all        
+  features. You're just changing which columns are "known" at attack time. So the cost here is just re-running 
+  the attacks, not SDG generation.                                                                             
+                                                                                                               
+  ---                                                                                                          
+  Recommended QI Variants                                                                                      
+                                                                                                               
+  Adult (primary dataset — best for a clean story)                                                             
+                                                                                                               
+  Adult has 15 features, well-understood semantics, and a naturally interpretable demographic/employment split.
+                                                                                                               
+  Variant: QI_tiny                                                                                             
+  Size: 3                                                                                                      
+  Features in QI: age, sex, race                                                                               
+  What's hidden: 12 features                                                                                   
+  Story: near-zero adversarial knowledge                                                                       
+  ────────────────────────────────────────                                                                     
+  Variant: QI1 (existing)                                                                                      
+  Size: 6                                                                                                      
+  Features in QI: + native-country, education, marital-status                                                  
+  What's hidden: 9 features                                                                                    
+  Story: standard demographic prior                                                                            
+  ────────────────────────────────────────                                                                     
+  Variant: QI_large                                                                                            
+  Size: 10                                                                                                     
+  Features in QI: + occupation, workclass, relationship, hours-per-week                                        
+  What's hidden: income, fnlwgt, education-num, capital-gain, capital-loss                                     
+  Story: strong adversary; hides only economic outcomes                                                        
+  ────────────────────────────────────────                                                                     
+  Variant: QI_behavioral                                                                                     
+  Size: 6
+  Features in QI: occupation, workclass, relationship, hours-per-week, education-num, fnlwgt
+  What's hidden: age, sex, race, native-country, education, marital-status, capital-gain, capital-loss, income
+  Story: same size as QI1 but employment knowledge instead of demographic
+                                                                                                               
+  QI_behavioral is the most interesting comparison: same |QI|, totally different information. If QI1 and       
+  QI_behavioral give different RA profiles, you have a clean story about composition. If they're similar,      
+  that's also informative — it suggests size dominates.                                                        
+                                                                                                               
+  The QI_tiny → QI1 → QI_large progression gives your RA-vs-|QI| curve.                                        
+                                                                                                               
+  CDC Diabetes (secondary dataset — health/sensitive context)                                                  
+                                                                                                               
+  CDC has 22 mostly binary features, which makes it a clean setting for composition questions — controlling for
+   cardinality effects.                                                                                        
+                                                                                                               
+  Variant: QI_tiny                                                                                             
+  Size: 4                                                                                                    
+  Features in QI: Sex, Age, BMI, GenHlth                                                                    
+  What's hidden: 18 features                                                                                
+  Story: bare demographic knowledge                                                                            
+  ────────────────────────────────────────                                                                     
+  Variant: QI1 (existing)                                                                                      
+  Size: 10                                                                                                     
+  Features in QI: + HighBP, HighChol, Smoker, PhysActivity, Education, Income                                  
+  What's hidden: 12 features                                                                                   
+  Story: demographic + basic health indicators                                                                 
+  ────────────────────────────────────────                                                                     
+  Variant: QI_large                                                                                            
+  Size: 16                                                                                                     
+  Features in QI: + Fruits, Veggies, CholCheck, DiffWalk, AnyHealthcare, NoDocbcCost                           
+  What's hidden: 6 features                                                                                    
+  Story: strong health profile                                                                                 
+  ────────────────────────────────────────                                                                     
+  Variant: QI_behavioral                                                                                     
+  Size: 10
+  Features in QI: Smoker, PhysActivity, Fruits, Veggies, HvyAlcoholConsump, CholCheck, AnyHealthcare,
+    NoDocbcCost, DiffWalk, HeartDiseaseorAttack
+  What's hidden: Diabetes_binary, Stroke, HighBP, HighChol, Sex, Age, BMI, GenHlth, MentHlth, PhysHlth,
+    Education, Income
+  Story: same size as QI1, but lifestyle/behavioral vs. demographic
+                                                                                                               
+  Here QI_behavioral is particularly interesting because the sensitive features flip: in QI1 you're hiding     
+  health outcomes (Diabetes, Stroke); in QI_behavioral you're hiding demographic identity. This tests whether  
+  attacks work differently when the hidden set is "outcome-like" vs. "identity-like."                          
+                                                                                                               
+  NIST Arizona (optional — ties to CRC competition)                                                            
+                                                                                                               
+  You already have QI1 and QI3 defined (7 and 18 known features). QI3 is essentially your QI_large. This is    
+  worth including as a brief callout — it directly connects to the NIST CRC context you're already referencing 
+  in Section 3 — but I wouldn't build the main 4.3 analysis here since the dataset is less familiar to readers.
+                                                                                                               
+  ---                                                                                                        
+  What to Skip
+              
+  - Don't vary QI on California — it only has 9 features and all are continuous, making QI composition         
+  uninteresting (no categorical/continuous contrast in the QI itself).                                         
+  - Don't try to fully cross all combinations. The story doesn't need it. Two datasets × (size sweep + one     
+  composition contrast) is sufficient.                                                                         
+  - Skip QI variants that put high-cardinality features like fnlwgt (28k values) or capital-gain (123 values)  
+  in the hidden set — the scoring gets noisy and the narrative becomes harder to interpret.                    
+                                                                                                               
+  ---                                                                                                          
+  What the Experiments Would Produce                                                                           
+                                                                                                               
+  1. RA-vs-QI-size curve (per attack, on adult): does it saturate? Is there a "knee"? Do different attacks     
+  saturate at different points?                                                                                
+  2. Composition contrast table (QI1 vs QI_behavioral, matched size): does RA change when composition shifts?  
+  Which attacks are sensitive to this?                                                                         
+  3. Per-feature RA breakdown (using the new script): when you grow QI from 3→6→10, which hidden features      
+  become easier to reconstruct? This would show that high-cardinality or QI-correlated features are the "first 
+  to fall."                                                                                                    
+  4. DP interaction: does the RA-vs-ε curve look different under a weak vs. strong QI? This is potentially the 
+  most policy-relevant finding — DP may protect more when the adversary knows less.                            
+                                                                                                               
+  ---                                                                                                          
+  My Recommendation for Minimum Viable Experiment                                                              
+                                                                                                               
+  If compute time is the binding constraint, I'd run in this priority order:                                   
+                                                                                                               
+  1. Adult QI_tiny + QI_large (you already have QI1) → 3-point size curve, ~2 attack × 3 QI × all SDG methods  
+  2. Adult QI_behavioral → composition contrast with QI1 (same SDG data, just different attack config)         
+  3. CDC QI_tiny + QI_large → replication in health context                                                    
+                                                                                                               
+  The behavioral QI variants are essentially free since they reuse the same synth.csv and just need new entries
+   in get_data.py.                                                                                             
+                                                                                                               

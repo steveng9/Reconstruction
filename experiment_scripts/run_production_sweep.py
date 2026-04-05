@@ -51,11 +51,13 @@ from attack_defaults import ATTACK_PARAM_DEFAULTS
 #   suffix to the size directory, matching what generate_synth.py creates).
 #DATASET_BASE  = "nist_arizona_data"
 #DATASET_NAME  = "nist_arizona_25feat"   # QI lookup key — change with N_FEATURES
-DATASET_BASE  = "adult"
-DATASET_NAME  = "adult"   # QI lookup key — change with N_FEATURES
+#DATASET_BASE  = "adult"
+#DATASET_NAME  = "adult"   # QI lookup key — change with N_FEATURES
 #DATASET_BASE  = "california"
 #DATASET_NAME  = "california"   # QI lookup key — change with N_FEATURES
-DATASET_SIZE  = 10_000
+DATASET_BASE  = "cdc_diabetes"
+DATASET_NAME  = "cdc_diabetes"
+DATASET_SIZE  = 1_000
 #N_FEATURES    = 25                      # None | 25 | 50
 N_FEATURES    = None                      # None | 25 | 50
 DATA_ROOT     = (
@@ -364,6 +366,7 @@ def run_job(job: Job) -> dict[str, Any]:
                 "train_mean": train_mean, "nontrain_mean": holdout_mean,
                 "delta_mean": metrics["RA_delta_mean"],
                 "ra_mean": None, "error": None,
+                # no per-feature RA_ cols for memorization-test rows
             }
 
         else:
@@ -375,12 +378,14 @@ def run_job(job: Job) -> dict[str, Any]:
             metrics["RA_mean"] = ra_mean
             wandb.log(metrics)
 
+            feat_scores = {k: v for k, v in metrics.items() if k.startswith("RA_") and k != "RA_mean"}
             result = {
                 "sample": job.sample_idx, "sdg": job.sdg_label,
                 "attack": job.attack_method, "qi": job.qi,
                 "ra_mean": ra_mean,
                 "train_mean": None, "nontrain_mean": None, "delta_mean": None,
                 "error": None,
+                **feat_scores,
             }
 
         return result
@@ -398,10 +403,12 @@ def run_job(job: Job) -> dict[str, Any]:
 def _save_summary_csv(rows: list[dict], path: Path):
     if not rows:
         return
-    keys = ["sample", "sdg", "attack", "qi",
-            "ra_mean", "train_mean", "nontrain_mean", "delta_mean", "error"]
+    base_keys = ["sample", "sdg", "attack", "qi",
+                 "ra_mean", "train_mean", "nontrain_mean", "delta_mean", "error"]
+    feat_keys = sorted({k for r in rows for k in r if k.startswith("RA_") and k != "RA_mean"})
+    keys = base_keys + feat_keys
     with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore")
+        writer = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore", restval="")
         writer.writeheader()
         writer.writerows(rows)
     print(f"\nSummary CSV saved to: {path}")
@@ -461,7 +468,7 @@ def main():
     if args.sample is not None:
         all_jobs = [j for j in all_jobs if j.sample_idx == args.sample]
     if args.sdg is not None:
-        all_jobs = [j for j in all_jobs if j.sdg_method == args.sdg]
+        all_jobs = [j for j in all_jobs if j.sdg_label == args.sdg or j.sdg_method == args.sdg]
     if args.attack is not None:
         all_jobs = [j for j in all_jobs if j.attack_method == args.attack]
 

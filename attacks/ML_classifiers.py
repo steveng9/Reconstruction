@@ -141,13 +141,15 @@ def logistic_regression_reconstruction(cfg, deid, targets, qi, hidden_features):
     X_train, X_test = _encode_qi(deid, targets, qi)
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
-        model = LogisticRegression(max_iter=max_iter)
         y = deid[hidden_feature].astype(str)
 
-        # Handle edge case: ensure at least 2 classes
+        # If synth has only one class for this feature, fall back to mode prediction.
         if y.nunique() < 2:
-            y.iloc[0] = '1'
+            mode_val = deid[hidden_feature].mode().iloc[0]
+            reconstructed_targets[hidden_feature] = mode_val
+            continue
 
+        model = LogisticRegression(max_iter=max_iter)
         model.fit(X_train, y)
         pred = model.predict(X_test)
         # Predictions are strings (from y.astype(str)); restore original dtype.

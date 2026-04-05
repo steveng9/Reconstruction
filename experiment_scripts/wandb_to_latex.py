@@ -50,6 +50,7 @@ SDG_ORDER = [
     "AIM_eps0.3",
     "AIM_eps1",
     "AIM_eps3",
+    "AIM_eps10",
     "TVAE",
     "CTGAN",
     "ARF",
@@ -88,6 +89,16 @@ ATTACK_DISPLAY: dict[str, str] = {
     "PartialMST":              "MST",
     "PartialMSTIndependent":   "MST (1 ft./time)",
     "PartialMSTBounded":       "MST, k=3",
+}
+
+DATASET_DISPLAY: dict[str, str] = {
+    "adult":               "Adult",
+    "cdc_diabetes":        "CDC Diabetes",
+    "california":          "California Housing",
+    "nist_arizona_data":   "NIST Arizona (full)",
+    "nist_arizona_25feat": "NIST Arizona (25 feat.)",
+    "nist_arizona_50feat": "NIST Arizona (50 feat.)",
+    "nist_sbo":            "NIST SBO",
 }
 
 SDG_DISPLAY: dict[str, str] = {
@@ -252,7 +263,8 @@ def _n_samples(df: pd.DataFrame, attack: str, sdg: str) -> int:
 # ── LaTeX generation ───────────────────────────────────────────────────────────
 
 def to_latex(pivot: pd.DataFrame, df_raw: pd.DataFrame,
-             group: str, qi: str, decimals: int = 3) -> str:
+             group: str, qi: str, decimals: int = 3,
+             dataset: str | None = None, size: int | None = None) -> str:
     cols      = _ordered_cols(pivot)
     atk_groups = _ordered_attack_groups(pivot)
 
@@ -313,9 +325,13 @@ def to_latex(pivot: pd.DataFrame, df_raw: pd.DataFrame,
         for col in cols
         if not np.isnan(pivot.at[atk, col] if atk in pivot.index and col in pivot.columns else float("nan"))
     )
+    dataset_display = DATASET_DISPLAY.get(dataset, dataset) if dataset else None
+    dataset_str = f" Dataset: \\textit{{{dataset_display}}}." if dataset_display else ""
+    size_str = f" Training size: {size:,}." if size else ""
     lines.append(r"  \caption{Mean reconstruction accuracy (\texttt{RA\_mean}) "
-                 r"averaged over 5 disjoint training samples.")
-    lines.append(f"           WandB group: \\textit{{{group}}}. QI variant: {qi}.")
+                 r"averaged over 5 disjoint training samples."
+                 + dataset_str + size_str)
+    lines.append(f"           QI variant: {qi}.")
     if any_flagged:
         lines.append(r"           $^*$Fewer than 5 samples available for this cell.}")
     else:
@@ -347,6 +363,9 @@ def main():
                         help="Load results from one or more local sweep CSVs instead of querying WandB. "
                              "CSVs are concatenated and deduplicated. Expected columns: "
                              "sample, sdg, attack, qi, ra_mean.")
+    parser.add_argument("--size", type=int, default=None,
+                        help="When using --from-csv, filter to rows where the 'size' column equals this value "
+                             "(e.g. --size 1000 or --size 100000).")
     args = parser.parse_args()
 
     qi_filter = None if args.qi.lower() == "all" else args.qi
@@ -357,8 +376,17 @@ def main():
             frames.append(pd.read_csv(path))
             print(f"Loaded {path}: {len(frames[-1])} rows")
         df = pd.concat(frames, ignore_index=True)
+        before = len(df)
+        df = df[df["ra_mean"].notna()]
+        dropped = before - len(df)
+        if dropped:
+            print(f"  Dropped {dropped} rows with missing ra_mean (failed runs).")
         if qi_filter:
             df = df[df["qi"] == qi_filter]
+        if args.size is not None and "size" in df.columns:
+            # Rows from CSVs that had no 'size' column get NaN after concat — keep them
+            # (they came from single-dataset sweeps so they're implicitly the right size).
+            df = df[(df["size"] == args.size) | df["size"].isna()]
         if args.attacks:
             df = df[df["attack"].isin(args.attacks)]
         # Dedup: keep last (latest file wins for same key)
@@ -384,10 +412,13 @@ def main():
     print(f"  SDG     : {sorted(df['sdg'].unique())}")
 
     pivot  = build_pivot(df)
-    latex  = to_latex(pivot, df, args.group, args.qi, decimals=args.decimals)
+    dataset_label = args.dataset or None
+    latex  = to_latex(pivot, df, args.group, args.qi, decimals=args.decimals,
+                      dataset=dataset_label, size=args.size)
 
+    size_suffix = f"_size{args.size}" if args.size is not None else ""
     out_path = Path(args.out) if args.out else (
-        Path(__file__).parent / f"ra_table_{args.qi}.tex"
+        Path(__file__).parent / f"ra_table_{args.qi}{size_suffix}.tex"
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(latex + "\n")

@@ -13,8 +13,19 @@ where:
 """
 
 from .smartnoise_methods import mst_generate, aim_generate
-from .tvae_method import tvae_generate
-from .ctgan_method import ctgan_generate
+
+try:
+    from .tvae_method import tvae_generate
+except ImportError as _e:
+    def tvae_generate(*a, **kw):
+        raise ImportError(f"TVAE unavailable (SDV API mismatch): {_e}") from _e
+
+try:
+    from .ctgan_method import ctgan_generate
+except ImportError as _e:
+    def ctgan_generate(*a, **kw):
+        raise ImportError(f"CTGAN unavailable: {_e}") from _e
+
 from .arf_method import arf_generate
 from .tabddpm_method import tabddpm_generate
 from .r_methods import synthpop_generate, rankswap_generate, cellsuppression_generate
