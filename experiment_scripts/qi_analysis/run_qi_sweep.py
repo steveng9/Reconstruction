@@ -77,7 +77,7 @@ DATASET_CONFIGS: dict[str, dict] = {
         "dataset_size": 10_000,
         "data_type":   "categorical",
         "sample_range": list(reversed(range(5))),   # sample_04 → sample_00
-        "valid_qi_variants": ["QI_tiny", "QI_large", "QI_behavioral"],
+        "valid_qi_variants": ["QI1", "QI_tiny", "QI_large", "QI_behavioral"],
         "sdg_methods": [
             # ── Differentially private ─────────────────────────────────────
             ("MST", {"epsilon": 0.1}),
@@ -108,7 +108,7 @@ DATASET_CONFIGS: dict[str, dict] = {
         "dataset_size": 1_000,
         "data_type":   "categorical",
         "sample_range": list(reversed(range(5))),   # sample_04 → sample_00
-        "valid_qi_variants": ["QI_tiny", "QI_large", "QI_behavioral"],
+        "valid_qi_variants": ["QI1", "QI_tiny", "QI_large", "QI_behavioral"],
         "sdg_methods": [
             # ── Differentially private ─────────────────────────────────────
             # NOTE: MST eps 0.3/3/30/300 not generated for cdc_diabetes 1k

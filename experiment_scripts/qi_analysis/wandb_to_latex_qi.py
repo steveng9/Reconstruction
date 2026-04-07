@@ -3,36 +3,43 @@
 QI analysis → side-by-side LaTeX comparison table.
 
 Rows = attack methods (grouped: Baselines / ML Classifiers / Neural).
-Cols = QI_tiny | QI1 | QI_large | Δ_size  ‖  QI_behavioral | Δ_comp
+Cols = QI_tiny | QI1 | QI_large | Δ_size  ‖  QI1 | QI_behavioral | Δ_comp
 
 Two paper angles in one table:
   1. QI size effect:     QI_tiny → QI1 → QI_large (3→6→10 for adult; 4→10→16 for CDC)
-                         Δ_size = QI_large − QI_tiny
-  2. Composition effect: QI1 vs QI_behavioral at matched size
-                         Δ_comp = QI_behavioral − QI1
+                         All three columns scored on features hidden in ALL three QIs
+                         (size_intersection).  Δ_size = QI_large − QI_tiny.
+  2. Composition effect: QI1 vs QI_behavioral at matched size.
+                         Both columns scored on features hidden in BOTH QIs
+                         (comp_intersection).  Δ_comp = QI_behavioral − QI1.
                          ≈ 0 means "size is all that matters"; ≠ 0 means content matters too.
 
-Cell values: RA_mean averaged over all SDG methods × 5 samples.
-Bold = max value per row (across the 4 main QI columns, not Δ).
+QI1 appears TWICE with DIFFERENT scores — once per section — because each section averages
+over a different intersection of features.  The two QI1 columns are labeled identically in
+the table; section headers make the distinction clear.
+
+Cell values: mean RA over intersection features, averaged over all SDG methods × 5 samples.
+Bold = max value per row within each section (size or composition) separately.
 Δ columns: signed (+ or −), no bolding.
+
+NOTE: Requires per-feature RA_ columns in the CSV.  Use CSVs from run_qi_sweep.py
+(including a QI1 run); old sweep_results_*.csv files lack per-feature columns.
 
 ────────────────────────────────────────────────────────────────────────────────
 Usage (from-csv, recommended — faster, no WandB API calls):
   python wandb_to_latex_qi.py \\
       --dataset adult \\
-      --from-csv experiment_scripts/qi_analysis/qi_adult_QI_tiny_*.csv \\
+      --from-csv experiment_scripts/qi_analysis/qi_adult_QI1_*.csv \\
+                 experiment_scripts/qi_analysis/qi_adult_QI_tiny_*.csv \\
                  experiment_scripts/qi_analysis/qi_adult_QI_large_*.csv \\
-                 experiment_scripts/qi_analysis/qi_adult_QI_behavioral_*.csv \\
-                 experiment_scripts/sweep_results_adult_20260401_214300.csv
+                 experiment_scripts/qi_analysis/qi_adult_QI_behavioral_*.csv
 
   python wandb_to_latex_qi.py \\
-      --dataset cdc_diabetes \\
-      --from-csv experiment_scripts/qi_analysis/qi_cdc_diabetes_QI_*.csv \\
-                 experiment_scripts/cdc_sweep_results_20260404_092829.csv
-
-Usage (WandB):
-  python wandb_to_latex_qi.py --dataset adult
-  python wandb_to_latex_qi.py --dataset cdc_diabetes
+      --dataset cdc_diabetes --size 1000 \\
+      --from-csv experiment_scripts/qi_analysis/qi_cdc_diabetes_QI1_*.csv \\
+                 experiment_scripts/qi_analysis/qi_cdc_diabetes_QI_tiny_*.csv \\
+                 experiment_scripts/qi_analysis/qi_cdc_diabetes_QI_large_*.csv \\
+                 experiment_scripts/qi_analysis/qi_cdc_diabetes_QI_behavioral_*.csv
 
 CLI:
   --dataset    adult | cdc_diabetes                   (required)
@@ -73,11 +80,25 @@ DATASET_CONFIGS: dict[str, dict] = {
             "QI_tiny":       3,
             "QI1":           6,
             "QI_large":     10,
+            "QI1_comp":      6,   # same as QI1; separate column in composition section
             "QI_behavioral": 6,
         },
+        # Features hidden in ALL of QI_tiny, QI1, QI_large (used for size sweep columns)
+        "size_intersection": [
+            "fnlwgt", "education-num", "capital-gain", "capital-loss", "income",
+        ],
+        # Features hidden in BOTH QI1 and QI_behavioral (used for composition columns)
+        "comp_intersection": [
+            "capital-gain", "capital-loss", "income",
+        ],
+        # Features hidden in BOTH QI_tiny and QI1 (used for the pairwise Δ†_{t→1} column)
+        "tiny_qi1_intersection": [
+            "workclass", "fnlwgt", "education-num", "occupation", "relationship",
+            "capital-gain", "capital-loss", "hours-per-week", "income",
+        ],
         "wandb_groups": {
             "QI_tiny":       "qi-analysis-adult-10000",
-            "QI1":           "main attack sweep 1",
+            "QI1":           "qi-analysis-adult-10000",
             "QI_large":      "qi-analysis-adult-10000",
             "QI_behavioral": "qi-analysis-adult-10000",
         },
@@ -89,55 +110,77 @@ DATASET_CONFIGS: dict[str, dict] = {
             "QI_tiny":        4,
             "QI1":           10,
             "QI_large":      16,
+            "QI1_comp":      10,   # same as QI1; separate column in composition section
             "QI_behavioral": 10,
         },
+        # Features hidden in ALL of QI_tiny, QI1, QI_large (used for size sweep columns)
+        "size_intersection": [
+            "Diabetes_binary", "Stroke", "HeartDiseaseorAttack",
+            "HvyAlcoholConsump", "MentHlth", "PhysHlth",
+        ],
+        # Features hidden in BOTH QI1 and QI_behavioral (used for composition columns)
+        "comp_intersection": [
+            "Diabetes_binary", "Stroke", "MentHlth", "PhysHlth",
+        ],
+        # Features hidden in BOTH QI_tiny and QI1 (used for the pairwise Δ†_{t→1} column)
+        "tiny_qi1_intersection": [
+            "Diabetes_binary", "Stroke", "HeartDiseaseorAttack", "CholCheck",
+            "Fruits", "Veggies", "HvyAlcoholConsump", "AnyHealthcare",
+            "NoDocbcCost", "MentHlth", "PhysHlth", "DiffWalk",
+        ],
         "wandb_groups": {
             "QI_tiny":       "qi-analysis-cdc_diabetes-1000",
-            "QI1":           "cdc-sweep-1",
+            "QI1":           "qi-analysis-cdc_diabetes-1000",
             "QI_large":      "qi-analysis-cdc_diabetes-1000",
             "QI_behavioral": "qi-analysis-cdc_diabetes-1000",
         },
     },
 }
 
-# Ordered QI variants shown left-to-right (first three = size sweep; fourth = composition).
-QI_ORDER = ["QI_tiny", "QI1", "QI_large", "QI_behavioral"]
+# Ordered QI variants shown left-to-right.
+# QI1_comp is QI1 re-scored on comp_intersection features (separate column in comp section).
+QI_ORDER = ["QI_tiny", "QI1", "QI_large", "QI1_comp", "QI_behavioral"]
 
 # Δ definitions: (label, minuend_qi, subtrahend_qi)
 DELTAS = [
-    ("$\\Delta_{\\text{size}}$",   "QI_large",      "QI_tiny"),    # effect of more known features
-    ("$\\Delta_{\\text{comp}}$",   "QI_behavioral", "QI1"),         # effect of feature content (at matched size)
+    ("$\\Delta_{\\text{size}}$",   "QI_large",      "QI_tiny"),       # effect of more known features
+    ("$\\Delta_{\\text{comp}}$",   "QI_behavioral", "QI1_comp"),       # effect of feature content (at matched size)
 ]
 
 # ── Attack display order / groupings ──────────────────────────────────────────
 
 ATTACK_GROUPS = [
-    ("Baselines",      ["Mode", "Random", "MeasureDeid"]),
-    ("ML Classifiers", ["KNN", "NaiveBayes", "LogisticRegression",
-                        "RandomForest", "LightGBM"]),
-    ("Neural",         ["MLP", "Attention", "AttentionAutoregressive"]),
+    ("Baselines",      ["Mode", "Random"]),
+    ("ML Classifiers", ["KNN", "NaiveBayes", "RandomForest", "LightGBM"]),
+    ("Neural",         ["MLP"]),
 ]
 
 ATTACK_DISPLAY: dict[str, str] = {
-    "Mode":                    "Mode",
-    "Random":                  "Random",
-    "MeasureDeid":             "MeasureDeid",
-    "KNN":                     r"\textsc{knn}",
-    "NaiveBayes":              "Naive Bayes",
-    "LogisticRegression":      "Logistic Regression",
-    "RandomForest":            "Random Forest",
-    "LightGBM":                "LightGBM",
-    "MLP":                     r"\textsc{mlp}",
-    "Attention":               "Attention",
-    "AttentionAutoregressive": "Attention (AR)",
+    "Mode":         "Mode",
+    "Random":       "Random",
+    "KNN":          r"\textsc{knn}",
+    "NaiveBayes":   "Naive Bayes",
+    "RandomForest": "Random Forest",
+    "LightGBM":     "LightGBM",
+    "MLP":          r"\textsc{mlp}",
 }
 
 QI_DISPLAY: dict[str, str] = {
     "QI_tiny":       r"$\text{QI}_{\text{tiny}}$",
     "QI1":           r"$\text{QI}_{1}$",
     "QI_large":      r"$\text{QI}_{\text{large}}$",
+    "QI1_comp":      r"$\text{QI}_{1}$",   # same label, different section
     "QI_behavioral": r"$\text{QI}_{\text{beh.}}$",
 }
+
+# Maps internal column name → actual qi value in the raw data (for _n_obs lookup).
+QI_DATA_ALIAS: dict[str, str] = {
+    "QI1_comp": "QI1",
+}
+
+# Column label for the optional pairwise QI_tiny∩QI1 delta column.
+# Uses † to signal it is scored on a broader feature set than the three-way size intersection.
+TINY_QI1_DELTA_LABEL = r"$\Delta^{\dag}_{t{\to}1}$"
 
 QI_SECTION_LABELS = {
     "size":        r"QI size sweep ($\nearrow$ adversary knowledge)",
@@ -297,10 +340,66 @@ def fetch_from_wandb(dataset: str,
 
 # ── Pivot + delta computation ──────────────────────────────────────────────────
 
-def compute_pivot(df: pd.DataFrame) -> pd.DataFrame:
-    """Average ra_mean over (sdg × sample); return (attack × qi) pivot."""
-    avg   = df.groupby(["attack", "qi"])["ra_mean"].mean()
-    pivot = avg.unstack("qi")
+def _intersection_mean(df: pd.DataFrame, features: list[str]) -> pd.Series:
+    """For each row return mean of RA_{f} columns over the given feature list."""
+    ra_cols = [f"RA_{f}" for f in features if f"RA_{f}" in df.columns]
+    missing = [f for f in features if f"RA_{f}" not in df.columns]
+    if missing:
+        print(f"  WARNING: Missing RA_ columns for features: {missing}")
+    if not ra_cols:
+        raise ValueError(
+            "No per-feature RA_ columns found in data. "
+            "Re-run QI1 (and other QI variants) through run_qi_sweep.py to produce "
+            "CSVs with per-feature scores; old sweep_results_*.csv files lack them."
+        )
+    return df[ra_cols].mean(axis=1)
+
+
+def compute_pivot(df: pd.DataFrame, dataset: str,
+                  include_tiny_qi1_delta: bool = True) -> pd.DataFrame:
+    """Build (attack × qi) pivot using intersection-based RA means.
+
+    Size section (QI_tiny, QI1, QI_large): scored on size_intersection features.
+    Comp section (QI1, QI_behavioral):     scored on comp_intersection features.
+    QI1 in the comp section is renamed to QI1_comp so both sections can coexist
+    as separate columns in the pivot.
+
+    If include_tiny_qi1_delta is True, also computes TINY_QI1_DELTA_LABEL as
+    QI1 − QI_tiny scored on the broader tiny_qi1_intersection feature set.
+    """
+    cfg            = DATASET_CONFIGS[dataset]
+    size_feats     = cfg["size_intersection"]
+    comp_feats     = cfg["comp_intersection"]
+
+    size_qis = ["QI_tiny", "QI1", "QI_large"]
+    comp_qis = ["QI1", "QI_behavioral"]
+
+    size_df = df[df["qi"].isin(size_qis)].copy()
+    size_df["_ra"] = _intersection_mean(size_df, size_feats)
+    size_avg = (size_df.groupby(["attack", "qi"])["_ra"]
+                       .mean()
+                       .unstack("qi"))
+
+    comp_df = df[df["qi"].isin(comp_qis)].copy()
+    comp_df["_ra"] = _intersection_mean(comp_df, comp_feats)
+    comp_df["qi"]  = comp_df["qi"].replace({"QI1": "QI1_comp"})
+    comp_avg = (comp_df.groupby(["attack", "qi"])["_ra"]
+                       .mean()
+                       .unstack("qi"))
+
+    pivot = pd.concat([size_avg, comp_avg], axis=1)
+
+    if include_tiny_qi1_delta:
+        pw_feats = cfg.get("tiny_qi1_intersection")
+        if pw_feats:
+            pw_df = df[df["qi"].isin(["QI_tiny", "QI1"])].copy()
+            pw_df["_ra"] = _intersection_mean(pw_df, pw_feats)
+            pw_avg = (pw_df.groupby(["attack", "qi"])["_ra"]
+                           .mean()
+                           .unstack("qi"))
+            if "QI1" in pw_avg.columns and "QI_tiny" in pw_avg.columns:
+                pivot[TINY_QI1_DELTA_LABEL] = pw_avg["QI1"] - pw_avg["QI_tiny"]
+
     return pivot
 
 
@@ -319,7 +418,8 @@ def compute_deltas(pivot: pd.DataFrame) -> pd.DataFrame:
 
 def _n_obs(df: pd.DataFrame, attack: str, qi: str) -> int:
     """Number of (sdg × sample) observations averaged for this cell."""
-    return len(df[(df["attack"] == attack) & (df["qi"] == qi)])
+    actual_qi = QI_DATA_ALIAS.get(qi, qi)
+    return len(df[(df["attack"] == attack) & (df["qi"] == actual_qi)])
 
 
 # ── LaTeX generation ───────────────────────────────────────────────────────────
@@ -347,12 +447,6 @@ def _ordered_attack_groups(pivot: pd.DataFrame,
         if present:
             result.append((label, present))
             seen.update(present)
-    # Any attack in the data not covered by ATTACK_GROUPS goes to "Other"
-    leftover = [a for a in pivot.index
-                if a not in seen
-                and (attack_filter is None or a in attack_filter)]
-    if leftover:
-        result.append(("Other", sorted(leftover)))
     return result
 
 
@@ -361,7 +455,8 @@ def to_latex(pivot_with_deltas: pd.DataFrame,
              dataset: str,
              qi_variants: list[str],
              decimals: int = 2,
-             sdg_filter: list[str] | None = None) -> str:
+             sdg_filter: list[str] | None = None,
+             include_tiny_qi1_delta: bool = True) -> str:
 
     cfg         = DATASET_CONFIGS[dataset]
     sizes       = cfg["qi_known_sizes"]
@@ -370,20 +465,27 @@ def to_latex(pivot_with_deltas: pd.DataFrame,
 
     atk_groups = _ordered_attack_groups(pivot_with_deltas, attack_filter=None)
 
-    # Separate main QI columns from Δ columns
+    # Collect all delta column labels (fixed deltas + optional pairwise delta)
     delta_labels = [d[0] for d in DELTAS]
-    main_qi_cols = [q for q in QI_ORDER if q in pivot_with_deltas.columns]
+    has_tiny_qi1 = (include_tiny_qi1_delta
+                    and TINY_QI1_DELTA_LABEL in pivot_with_deltas.columns)
+    if has_tiny_qi1:
+        delta_labels = delta_labels + [TINY_QI1_DELTA_LABEL]
 
-    # Column order: QI_tiny, QI1, QI_large, Δ_size, QI_behavioral, Δ_comp
-    # We interleave: first 3 QI + Δ_size, then QI_behavioral + Δ_comp
+    # Column order: QI_tiny, QI1, [Δ†_{t→1}], QI_large, Δ_size  |  QI1_comp, QI_behavioral, Δ_comp
     size_qi_cols  = ["QI_tiny", "QI1", "QI_large"]
-    comp_qi_cols  = ["QI_behavioral"]
-    size_delta    = delta_labels[0] if len(delta_labels) > 0 else None
-    comp_delta    = delta_labels[1] if len(delta_labels) > 1 else None
+    comp_qi_cols  = ["QI1_comp", "QI_behavioral"]
+    size_delta    = [d[0] for d in DELTAS][0] if DELTAS else None
+    comp_delta    = [d[0] for d in DELTAS][1] if len(DELTAS) > 1 else None
 
     # Build ordered column list for the table
     all_cols: list[str] = []
-    all_cols += [q for q in size_qi_cols if q in pivot_with_deltas.columns]
+    for q in size_qi_cols:
+        if q in pivot_with_deltas.columns:
+            all_cols.append(q)
+        # Insert pairwise delta immediately after QI1
+        if q == "QI1" and has_tiny_qi1:
+            all_cols.append(TINY_QI1_DELTA_LABEL)
     if size_delta and size_delta in pivot_with_deltas.columns:
         all_cols.append(size_delta)
     all_cols += [q for q in comp_qi_cols if q in pivot_with_deltas.columns]
@@ -391,7 +493,9 @@ def to_latex(pivot_with_deltas: pd.DataFrame,
         all_cols.append(comp_delta)
 
     n_size_qi = sum(1 for q in size_qi_cols if q in pivot_with_deltas.columns)
-    n_size    = n_size_qi + (1 if size_delta and size_delta in pivot_with_deltas.columns else 0)
+    n_size    = (n_size_qi
+                 + (1 if has_tiny_qi1 else 0)
+                 + (1 if size_delta and size_delta in pivot_with_deltas.columns else 0))
     n_comp_qi = sum(1 for q in comp_qi_cols if q in pivot_with_deltas.columns)
     n_comp    = n_comp_qi + (1 if comp_delta and comp_delta in pivot_with_deltas.columns else 0)
 
@@ -404,7 +508,7 @@ def to_latex(pivot_with_deltas: pd.DataFrame,
     col_spec = "".join(col_spec_parts)
 
     lines = []
-    lines.append(r"\begin{table}[ht]")
+    lines.append(r"\begin{table*}[ht]")
     lines.append(r"  \centering")
     lines.append(r"  \small")
     lines.append(r"  % Requires: \usepackage{booktabs, graphicx}")
@@ -466,6 +570,16 @@ def to_latex(pivot_with_deltas: pd.DataFrame,
     lines.append("    " + " & ".join(row3_cells) + r" \\")
     lines.append(r"    \midrule")
 
+    # Per-section max values for bolding (bold within each section separately)
+    def _section_max(attack: str, qi_cols: list[str]) -> float:
+        vals = [
+            pivot_with_deltas.at[attack, q]
+            for q in qi_cols
+            if attack in pivot_with_deltas.index and q in pivot_with_deltas.columns
+            and not np.isnan(pivot_with_deltas.at[attack, q])
+        ]
+        return max(vals) if vals else float("nan")
+
     # Data rows
     first_group = True
     for group_label, attacks in atk_groups:
@@ -477,14 +591,8 @@ def to_latex(pivot_with_deltas: pd.DataFrame,
             display = ATTACK_DISPLAY.get(attack, attack.replace("_", r"\_"))
             cells   = [display]
 
-            # Find max across main QI columns for bolding
-            main_vals = [
-                pivot_with_deltas.at[attack, q]
-                for q in main_qi_cols
-                if attack in pivot_with_deltas.index and q in pivot_with_deltas.columns
-                and not np.isnan(pivot_with_deltas.at[attack, q])
-            ]
-            max_val = max(main_vals) if main_vals else float("nan")
+            size_max = _section_max(attack, size_qi_cols)
+            comp_max = _section_max(attack, comp_qi_cols)
 
             for col in all_cols:
                 if attack not in pivot_with_deltas.index or col not in pivot_with_deltas.columns:
@@ -497,7 +605,8 @@ def to_latex(pivot_with_deltas: pd.DataFrame,
                     cells.append(_fmt_delta(val, decimals))
                 else:
                     n = _n_obs(df_raw, attack, col)
-                    is_bold = (not np.isnan(max_val)) and abs(val - max_val) < 1e-9
+                    sec_max = size_max if col in size_qi_cols else comp_max
+                    is_bold = (not np.isnan(sec_max)) and abs(val - sec_max) < 1e-9
                     fmt = _fmt_main(val, decimals, is_bold)
                     if n < 5:
                         fmt += "$^{*}$"
@@ -510,21 +619,39 @@ def to_latex(pivot_with_deltas: pd.DataFrame,
     lines.append(r"  }% end resizebox")
 
     # Caption
+    size_feats = cfg["size_intersection"]
+    comp_feats = cfg["comp_intersection"]
+    size_feat_str = ", ".join(r"\textit{" + f.replace("_", r"\_") + "}" for f in size_feats)
+    comp_feat_str = ", ".join(r"\textit{" + f.replace("_", r"\_") + "}" for f in comp_feats)
     sdg_str = (f" SDG methods: {', '.join(sdg_filter)}." if sdg_filter
                else " Averaged over all SDG methods.")
     lines.append(
-        r"  \caption{Reconstruction accuracy (\texttt{RA\_mean}) "
-        r"by quasi-identifier setting, "
+        r"  \caption{Reconstruction accuracy by quasi-identifier setting, "
         f"averaged over 5 samples.{sdg_str} "
         r"Dataset: \textit{" + dataset_dsp + r"}. "
         f"Training size: {train_size:,}. "
-        r"Bold = highest value in row. "
+        r"Each cell is the mean RA over the \emph{intersection} of hidden features "
+        r"across all QI variants in that section, so that scores are comparable. "
+        r"\textbf{Size sweep} intersection "
+        f"({len(size_feats)} features): {size_feat_str}. "
+        r"\textbf{Composition contrast} intersection "
+        f"({len(comp_feats)} features): {comp_feat_str}. "
+        r"QI$_1$ appears twice (once per section) with different scores because each "
+        r"section averages over a different feature set. "
+        r"Bold = highest value in row within each section. "
         r"$\Delta_{\text{size}}$ = QI$_{\text{large}}$ $-$ QI$_{\text{tiny}}$; "
         r"$\Delta_{\text{comp}}$ = QI$_{\text{beh.}}$ $-$ QI$_1$ (matched $|\text{QI}|$)."
-        r"}"
+        + (
+            r" $\Delta^{\dag}_{t{\to}1}$ = QI$_1$ $-$ QI$_{\text{tiny}}$ scored on the "
+            r"QI$_{\text{tiny}}{\cap}$QI$_1$ intersection "
+            f"({len(cfg['tiny_qi1_intersection'])} features), "
+            r"a broader feature set than the three-way size-sweep intersection."
+            if has_tiny_qi1 else ""
+        )
+        + r"}"
     )
     lines.append(r"  \label{tab:qi_analysis_" + dataset.replace("_", "") + r"}")
-    lines.append(r"\end{table}")
+    lines.append(r"\end{table*}")
 
     return "\n".join(lines)
 
@@ -535,16 +662,37 @@ def print_preview(pivot_with_deltas: pd.DataFrame,
                   df_raw: pd.DataFrame,
                   dataset: str,
                   qi_variants: list[str],
-                  decimals: int) -> None:
+                  decimals: int,
+                  include_tiny_qi1_delta: bool = True) -> None:
     cfg   = DATASET_CONFIGS[dataset]
     sizes = cfg["qi_known_sizes"]
 
-    delta_labels = [d[0] for d in DELTAS]
-    main_qi_cols = [q for q in QI_ORDER if q in pivot_with_deltas.columns]
-    all_cols     = [q for q in QI_ORDER if q in pivot_with_deltas.columns]
-    for dl in delta_labels:
-        if dl in pivot_with_deltas.columns:
-            all_cols.append(dl)
+    delta_labels  = [d[0] for d in DELTAS]
+    has_tiny_qi1  = (include_tiny_qi1_delta
+                     and TINY_QI1_DELTA_LABEL in pivot_with_deltas.columns)
+    if has_tiny_qi1:
+        delta_labels = delta_labels + [TINY_QI1_DELTA_LABEL]
+
+    size_qi_cols  = ["QI_tiny", "QI1", "QI_large"]
+    comp_qi_cols  = ["QI1_comp", "QI_behavioral"]
+    size_delta    = [d[0] for d in DELTAS][0] if DELTAS else None
+    comp_delta    = [d[0] for d in DELTAS][1] if len(DELTAS) > 1 else None
+
+    all_cols: list[str] = []
+    for q in size_qi_cols:
+        if q in pivot_with_deltas.columns:
+            all_cols.append(q)
+        if q == "QI1" and has_tiny_qi1:
+            all_cols.append(TINY_QI1_DELTA_LABEL)
+    if size_delta and size_delta in pivot_with_deltas.columns:
+        all_cols.append(size_delta)
+    all_cols += [q for q in comp_qi_cols if q in pivot_with_deltas.columns]
+    if comp_delta and comp_delta in pivot_with_deltas.columns:
+        all_cols.append(comp_delta)
+
+    size_feats = cfg["size_intersection"]
+    comp_feats = cfg["comp_intersection"]
+    pw_feats   = cfg.get("tiny_qi1_intersection", [])
 
     atk_groups = _ordered_attack_groups(pivot_with_deltas, attack_filter=None)
     all_attacks = [a for _, attacks in atk_groups for a in attacks]
@@ -555,6 +703,8 @@ def print_preview(pivot_with_deltas: pd.DataFrame,
         k = sizes.get(col)
         if k is not None:
             qi_headers.append(f"{col} ({k}kn.)")
+        elif col == TINY_QI1_DELTA_LABEL:
+            qi_headers.append(f"Δ†(t→1) ({len(pw_feats)}ft)")
         elif col in delta_labels:
             short = col.replace("$\\Delta_{\\text{", "Δ_").replace("}}$", "")
             qi_headers.append(short)
@@ -564,10 +714,13 @@ def print_preview(pivot_with_deltas: pd.DataFrame,
     col_w   = max(len(h) for h in qi_headers) + 2
     atk_w   = max(len(a) for a in all_attacks) + 2 if all_attacks else 20
     divider = "-" * (atk_w + col_w * len(all_cols))
-
     print(f"\n{'='*70}")
     print(f"  QI Analysis — {cfg['display']} (size {cfg['size']:,})")
-    print(f"  Values = RA_mean averaged over SDG methods × samples")
+    print(f"  Size section features ({len(size_feats)}): {', '.join(size_feats)}")
+    print(f"  Comp section features ({len(comp_feats)}): {', '.join(comp_feats)}")
+    if has_tiny_qi1:
+        print(f"  Pairwise Δ†(t→1) features ({len(pw_feats)}): {', '.join(pw_feats)}")
+    print(f"  Values = intersection RA averaged over SDG methods × samples")
     print(f"{'='*70}")
     header_row = f"  {'Attack':<{atk_w}}" + "".join(f"{h:>{col_w}}" for h in qi_headers)
     print(header_row)
@@ -620,6 +773,8 @@ def main() -> None:
                         help="Restrict rows to these attack names.")
     parser.add_argument("--size",     type=int, default=None,
                         help="Filter rows to this training size (for CSVs with a 'size' column).")
+    parser.add_argument("--no-tiny-qi1-delta", action="store_true", default=False,
+                        help="Omit the Δ†(t→1) column (QI_tiny→QI1 step on broader feature set).")
     args = parser.parse_args()
 
     dataset     = args.dataset
@@ -671,11 +826,14 @@ def main() -> None:
     print(f"  SDG methods:     {sorted(df['sdg'].unique())}")
     print(f"  QI variants:     {sorted(df['qi'].unique())}")
 
-    pivot              = compute_pivot(df)
+    include_tiny_qi1_delta = not args.no_tiny_qi1_delta
+
+    pivot              = compute_pivot(df, dataset, include_tiny_qi1_delta)
     pivot_with_deltas  = compute_deltas(pivot)
 
     # ── Preview ────────────────────────────────────────────────────────────────
-    print_preview(pivot_with_deltas, df, dataset, qi_variants, args.decimals)
+    print_preview(pivot_with_deltas, df, dataset, qi_variants, args.decimals,
+                  include_tiny_qi1_delta)
 
     # ── Generate LaTeX ─────────────────────────────────────────────────────────
     latex = to_latex(
@@ -684,6 +842,7 @@ def main() -> None:
         qi_variants=qi_variants,
         decimals=args.decimals,
         sdg_filter=args.sdg,
+        include_tiny_qi1_delta=include_tiny_qi1_delta,
     )
 
     # ── Write output ───────────────────────────────────────────────────────────
