@@ -461,6 +461,7 @@ def _run_stacking_ensemble(methods, method_names, cfg_full, synth, targets, qi,
     -------
     (reconstructed, None, None)
     """
+    import gc
     from sklearn.model_selection import KFold
     from sklearn.linear_model import LogisticRegression
     from sklearn.preprocessing import OrdinalEncoder
@@ -535,6 +536,8 @@ def _run_stacking_ensemble(methods, method_names, cfg_full, synth, targets, qi,
 
             except Exception as e:
                 print(f"    [WARN] {method_name} failed on fold {fold_idx}: {e}")
+
+        gc.collect()
 
     # ── Build meta-features for synth (OOF) and train meta-models ───────────
     X_qi_synth = qi_enc.transform(synth[qi].astype(str))

@@ -332,7 +332,7 @@ def main():
     parser.add_argument("--serial",   action="store_true")
     parser.add_argument("--dry-run",  action="store_true")
     parser.add_argument("--sdg",      type=str, default=None)
-    parser.add_argument("--sample",   type=int, default=None)
+    parser.add_argument("--sample",   type=int, nargs='+', default=None)
     args = parser.parse_args()
 
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -340,7 +340,7 @@ def main():
     os.makedirs(out_path, exist_ok=True)
 
     sdg_methods = [args.sdg]  if args.sdg   else SDG_METHODS
-    samples     = [args.sample] if args.sample is not None else SAMPLES
+    samples     = args.sample if args.sample is not None else SAMPLES
 
     jobs = [(sdg, s) for sdg in sdg_methods for s in samples]
 
