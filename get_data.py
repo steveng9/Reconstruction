@@ -161,7 +161,44 @@ QIs = {
     },
     "california_housing_data": {
         "QI1": ['0', '1', '2', '3', '4', '5'],
-    }
+    },
+    # NIST Survey of Business Owners (SBO): business registry + owner demographics as QI
+    # Story: given publicly observable business info + owner demographics, reconstruct
+    #        financial outcomes and capital-access behaviour
+    # 130 total columns: 125 categorical, 5 continuous
+    # QI1: small realistic adversary — public registry + owner demographics (7 features)
+    # QI_large: strong adversary — full business profile known, financial outcomes hidden (78 QI / 52 hidden)
+    "nist_sbo": {
+        "QI1": ['FIPST', 'SECTOR', 'N07_EMPLOYER', 'RG', 'SEX1', 'RACE1', 'ETH1'],
+        "QI_large": [
+            # Business identifiers / public registry
+            'FIPST', 'SECTOR', 'N07_EMPLOYER', 'RG', 'TABWGT', 'PCT1',
+            # Owner demographics
+            'ETH1', 'RACE1', 'SEX1', 'VET1',
+            # Business acquisition history
+            'FOUNDED1', 'PURCHASED1', 'INHERITED1', 'RECEIVED1', 'ACQUIRENR1', 'ACQYR1',
+            # Owner role and background
+            'PROVIDE1', 'MANAGE1', 'FINANCIAL1', 'FNCTNABV1', 'FNCTNR1',
+            'HOURS1', 'PRMINC1', 'SELFEMP1', 'EDUC1', 'AGE1', 'BORNUS1', 'DISVET1',
+            # Basic business characteristics
+            'ESTABLISHED', 'HOMEBASED', 'FRANCHISE', 'FRANCHISER50',
+            # Customer / market type
+            'FEDERAL', 'STATELOCAL', 'OTHERBUS', 'INDIVIDUALS', 'CUSTNR',
+            'EXPORTS', 'OPSOUTSIDE', 'OUTSOURCE',
+            # Languages spoken
+            'ENGLISH', 'ARABIC', 'CHINESE', 'FRENCH', 'GERMAN', 'GREEK',
+            'HINDI', 'ITALIAN', 'JAPANESE', 'KOREAN', 'POLISH', 'PORTUGUESE',
+            'RUSSIAN', 'SPANISH', 'TAGALOG', 'VIETNAMESE', 'LANGOTHER', 'LANGNR',
+            # Workforce composition
+            'FULLTIME', 'PARTTIME', 'DAYLABOR', 'TEMPSTAFF', 'LEASED', 'CONTRACTORS', 'EMPNR',
+            # Digital presence
+            'WEBSITE', 'ECOMMERCE', 'ECOMMPCT', 'ONLINEPURCH',
+            # Operating schedule / activity
+            'LT40HOURS', 'LT12MONTHS', 'SEASONAL', 'OCCASIONALLY', 'ACTIVITYNABV', 'ACTIVITYNR',
+            # Ownership structure
+            'HUSBWIFE', 'FAMILYBUS', 'NUMOWNERS',
+        ],
+    },
 }
 minus_QIs = {
     "adult": {
@@ -237,7 +274,46 @@ minus_QIs = {
     },
     "california_housing_data": {
         "QI1": ['6', '7', '8'],
-    }
+    },
+    "nist_sbo": {
+        # QI1 hidden (123): everything except the 7 QI features
+        "QI1": [
+            'TABWGT', 'EMPLOYMENT_NOISY', 'PAYROLL_NOISY', 'RECEIPTS_NOISY', 'PCT1',
+            'VET1', 'FOUNDED1', 'PURCHASED1', 'INHERITED1', 'RECEIVED1', 'ACQUIRENR1',
+            'ACQYR1', 'PROVIDE1', 'MANAGE1', 'FINANCIAL1', 'FNCTNABV1', 'FNCTNR1',
+            'HOURS1', 'PRMINC1', 'SELFEMP1', 'EDUC1', 'AGE1', 'BORNUS1', 'DISVET1',
+            'ESTABLISHED', 'SCSAVINGS', 'SCASSETS', 'SCEQUITY', 'SCCREDIT', 'SCGOVTLOAN',
+            'SCGOVTGUAR', 'SCBANKLOAN', 'SCFAMLOAN', 'SCVENTURE', 'SCGRANT', 'SCOTHER',
+            'SCDONTKNOW', 'SCNONENEEDED', 'SCNOTREPORTED', 'SCAMOUNT', 'HOMEBASED',
+            'FRANCHISE', 'FRANCHISER50', 'ECSAVINGS', 'ECASSETS', 'ECEQUITY', 'ECCREDIT',
+            'ECGOVTLOAN', 'ECGOVTGUAR', 'ECBANKLOAN', 'ECFAMLOAN', 'ECVENTURE', 'ECPROFITS',
+            'ECGRANT', 'ECOTHER', 'ECDONTKNOW', 'ECNOACCESS', 'ECNOEXPAND', 'ECNOTREPORTED',
+            'FEDERAL', 'STATELOCAL', 'OTHERBUS', 'INDIVIDUALS', 'CUSTNR', 'EXPORTS',
+            'OPSOUTSIDE', 'OUTSOURCE', 'ENGLISH', 'ARABIC', 'CHINESE', 'FRENCH', 'GERMAN',
+            'GREEK', 'HINDI', 'ITALIAN', 'JAPANESE', 'KOREAN', 'POLISH', 'PORTUGUESE',
+            'RUSSIAN', 'SPANISH', 'TAGALOG', 'VIETNAMESE', 'LANGOTHER', 'LANGNR',
+            'FULLTIME', 'PARTTIME', 'DAYLABOR', 'TEMPSTAFF', 'LEASED', 'CONTRACTORS',
+            'EMPNR', 'HEALTHINS', 'RETIREMENT', 'PROFITSHARE', 'HOLIDAYS', 'BENENABV',
+            'BENENR', 'WEBSITE', 'ECOMMERCE', 'ECOMMPCT', 'ONLINEPURCH', 'LT40HOURS',
+            'LT12MONTHS', 'SEASONAL', 'OCCASIONALLY', 'ACTIVITYNABV', 'ACTIVITYNR',
+            'OPERATING', 'RETIRED', 'DECEASED', 'ONETIME', 'LOWSALES', 'NOBUSCRED',
+            'NOPERSCRED', 'STARTANOTHER', 'SOLDBUS', 'CEASEOTHER', 'CEASENR', 'CEASENA',
+            'HUSBWIFE', 'FAMILYBUS', 'NUMOWNERS',
+        ],
+        # QI_large hidden (52): financial outcomes + capital access + employee benefits + cessation
+        "QI_large": [
+            'EMPLOYMENT_NOISY', 'PAYROLL_NOISY', 'RECEIPTS_NOISY',
+            'SCSAVINGS', 'SCASSETS', 'SCEQUITY', 'SCCREDIT', 'SCGOVTLOAN', 'SCGOVTGUAR',
+            'SCBANKLOAN', 'SCFAMLOAN', 'SCVENTURE', 'SCGRANT', 'SCOTHER', 'SCDONTKNOW',
+            'SCNONENEEDED', 'SCNOTREPORTED', 'SCAMOUNT',
+            'ECSAVINGS', 'ECASSETS', 'ECEQUITY', 'ECCREDIT', 'ECGOVTLOAN', 'ECGOVTGUAR',
+            'ECBANKLOAN', 'ECFAMLOAN', 'ECVENTURE', 'ECPROFITS', 'ECGRANT', 'ECOTHER',
+            'ECDONTKNOW', 'ECNOACCESS', 'ECNOEXPAND', 'ECNOTREPORTED',
+            'HEALTHINS', 'RETIREMENT', 'PROFITSHARE', 'HOLIDAYS', 'BENENABV', 'BENENR',
+            'OPERATING', 'RETIRED', 'DECEASED', 'ONETIME', 'LOWSALES', 'NOBUSCRED',
+            'NOPERSCRED', 'STARTANOTHER', 'SOLDBUS', 'CEASEOTHER', 'CEASENR', 'CEASENA',
+        ],
+    },
 }
 # features_25 = ['F1', 'F2', 'F3', 'F5', 'F9', 'F10', 'F11', 'F12', 'F13', 'F15', 'F17', 'F18', 'F21', 'F22', 'F23', 'F25', 'F30', 'F32', 'F33', 'F36', 'F37', 'F41', 'F43', 'F47', 'F50']
 # features_50 = [f'F{i+1}' for i in range(50)]
@@ -256,6 +332,19 @@ minus_QIs = {
 
 
 
+def _normalize_sbo_strings(df: "pd.DataFrame") -> "pd.DataFrame":
+    """Strip and collapse whitespace in SBO string columns.
+
+    The SBO raw data encodes multi-race combinations with inconsistent spacing
+    (e.g. 'W    S', 'W  A', 'W I').  Normalising to single-space ('W S', 'W A',
+    'W I') ensures consistent category labels across train and synth files without
+    modifying any CSV on disk.
+    """
+    for col in df.select_dtypes(include="object").columns:
+        df[col] = df[col].str.strip().str.replace(r"\s+", " ", regex=True)
+    return df
+
+
 def load_data(config):
     data_dir = Path(config["dataset"]["dir"])
     train = pd.read_csv(data_dir / 'train.csv')
@@ -267,6 +356,11 @@ def load_data(config):
         synth = pd.read_csv(data_dir / dirname / 'synth.csv')
     else:
         synth = pd.read_csv(data_dir / 'synth.csv')
+
+    # SBO: normalise multi-race string codes with inconsistent whitespace
+    if config["dataset"]["name"] == "nist_sbo":
+        train = _normalize_sbo_strings(train)
+        synth = _normalize_sbo_strings(synth)
 
     qi = QIs[config["dataset"]["name"]][config["QI"]]
     hidden_features = minus_QIs[config["dataset"]["name"]][config["QI"]]
