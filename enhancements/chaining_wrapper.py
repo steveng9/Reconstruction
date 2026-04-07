@@ -71,6 +71,22 @@ def apply_chaining(attack_fn, cfg, synth, targets, qi, hidden_features):
                 print(f"[WARN] Soft chaining not supported for {attack_method!r}; "
                       f"falling back to hard chaining")
 
+    # Gibbs chaining: iterative refinement over all hidden features
+    if mode == "gibbs":
+        attack_method = cfg.get("attack_method", "")
+        clf_check = _make_soft_chain_clf(attack_method, cfg.get("attack_params", {}))
+        if clf_check is not None:
+            recon, _ = _run_gibbs_chained_sklearn(
+                attack_method, cfg.get("attack_params", {}),
+                synth, targets, qi, order,
+                max_passes=chaining_cfg.get("max_passes", 5),
+                convergence_tol=chaining_cfg.get("convergence_tol", 0.01),
+            )
+            return recon, None, None
+        else:
+            print(f"[WARN] Gibbs chaining not supported for {attack_method!r}; "
+                  f"falling back to hard chaining")
+
     # Get feature type information (continuous vs discrete) — only needed for
     # intermediate logging, so skip the call when log_intermediate is False.
     log_intermediate = chaining_cfg.get("log_intermediate", True)
@@ -480,3 +496,142 @@ def _run_masked_hard_chained_sklearn(attack_name, attack_params, synth, targets,
         X_test_blocks.append(cond_block)
 
     return reconstructed, conf_stats
+
+
+def _run_gibbs_chained_sklearn(attack_name, attack_params, synth, targets, qi,
+                                initial_order, max_passes=5, convergence_tol=0.01):
+    """
+    Gibbs-style iterative refinement chaining for any sklearn classifier.
+
+    Two-phase approach:
+
+      Initialization (pass 0): standard hard chain in `initial_order`. Each feature
+        is predicted using QI + all previously predicted features in order, giving
+        every hidden feature an initial estimate. This is identical to hard chaining.
+
+      Gibbs passes (1..max_passes): sweep over all hidden features. For each feature
+        h_i, re-predict it using QI + current best-guess predictions for ALL other
+        hidden features. Classifiers for this phase are trained once on synth true
+        values (fixed across passes); only the test-side conditioning inputs update
+        as predictions improve each pass.
+
+      Stops early if fewer than `convergence_tol` fraction of predictions change
+      in a complete sweep.
+
+    The key difference from hard chaining: hard chaining only ever conditions h_i
+    on features earlier in the chain; Gibbs uses all other hidden features on every
+    pass, and iterates until predictions stabilize.
+
+    Supported attacks: RandomForest, MLP, LightGBM, LogisticRegression, NaiveBayes, KNN.
+
+    Returns
+    -------
+    reconstructed : pd.DataFrame
+        Full reconstruction of targets with all hidden features predicted.
+    conv_stats : list[dict]
+        One entry per Gibbs pass: {"pass", "frac_changed", <per-feature frac_changed>}.
+    """
+    from sklearn.preprocessing import OrdinalEncoder
+
+    # ── Encode QI ────────────────────────────────────────────────────────────
+    qi_enc     = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+    X_synth_qi = qi_enc.fit_transform(synth[qi].astype(str))
+    X_test_qi  = qi_enc.transform(targets[qi].astype(str))
+
+    # ── Per-feature ordinal encoder for hidden feature conditioning ──────────
+    feat_encoders = {}
+    for feat in initial_order:
+        enc = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+        enc.fit(synth[[feat]].astype(str))
+        feat_encoders[feat] = enc
+
+    def _encode_hidden_block(df, feats):
+        """Stack ordinal-encoded columns for a list of features."""
+        if not feats:
+            return None
+        return np.hstack([feat_encoders[f].transform(df[[f]].astype(str)) for f in feats])
+
+    # ── Pass 0: standard hard chain (initialization) ─────────────────────────
+    reconstructed = targets.copy()
+    known_so_far  = []
+
+    for feat in initial_order:
+        cond_feats = known_so_far
+        X_synth_step = np.hstack(
+            [X_synth_qi] + ([_encode_hidden_block(synth, cond_feats)] if cond_feats else [])
+        )
+        X_test_step = np.hstack(
+            [X_test_qi] + ([_encode_hidden_block(reconstructed, cond_feats)] if cond_feats else [])
+        )
+
+        y_synth = synth[feat].astype(str)
+        clf     = _make_soft_chain_clf(attack_name, attack_params)
+        clf.fit(X_synth_step, y_synth)
+
+        pred_labels = clf.classes_[np.argmax(clf.predict_proba(X_test_step), axis=1)]
+        try:
+            reconstructed[feat] = pred_labels.astype(synth[feat].dtype)
+        except (ValueError, TypeError):
+            reconstructed[feat] = pred_labels
+
+        known_so_far.append(feat)
+
+    print(f"    Gibbs pass 0 (init chain) complete")
+
+    # ── Pre-train one Gibbs classifier per feature ───────────────────────────
+    # Each classifier uses QI + ALL other hidden features from synth (true values).
+    # Training is done once; only test-side inputs change across Gibbs passes.
+    gibbs_clfs = {}
+    for feat in initial_order:
+        other = [f for f in initial_order if f != feat]
+        X_synth_full = np.hstack(
+            [X_synth_qi] + ([_encode_hidden_block(synth, other)] if other else [])
+        )
+        y_synth = synth[feat].astype(str)
+        clf     = _make_soft_chain_clf(attack_name, attack_params)
+        clf.fit(X_synth_full, y_synth)
+        gibbs_clfs[feat] = clf
+
+    # ── Gibbs passes ─────────────────────────────────────────────────────────
+    conv_stats = []
+    n_targets  = len(targets)
+
+    for pass_idx in range(max_passes):
+        n_changed_per_feat = {}
+
+        for feat in initial_order:
+            prev  = reconstructed[feat].copy()
+            other = [f for f in initial_order if f != feat]
+
+            X_test_full = np.hstack(
+                [X_test_qi] + ([_encode_hidden_block(reconstructed, other)] if other else [])
+            )
+
+            clf         = gibbs_clfs[feat]
+            pred_labels = clf.classes_[np.argmax(clf.predict_proba(X_test_full), axis=1)]
+            try:
+                reconstructed[feat] = pred_labels.astype(synth[feat].dtype)
+            except (ValueError, TypeError):
+                reconstructed[feat] = pred_labels
+
+            n_changed_per_feat[feat] = int((reconstructed[feat].astype(str) !=
+                                            prev.astype(str)).sum())
+
+        total_preds   = n_targets * len(initial_order)
+        total_changed = sum(n_changed_per_feat.values())
+        frac_changed  = total_changed / total_preds
+
+        stat = {
+            "pass":         pass_idx + 1,
+            "frac_changed": round(frac_changed, 6),
+            **{f: round(n_changed_per_feat[f] / n_targets, 4) for f in initial_order},
+        }
+        conv_stats.append(stat)
+        print(f"    Gibbs pass {pass_idx+1}/{max_passes}: "
+              f"{frac_changed:.3%} of predictions changed")
+
+        if frac_changed < convergence_tol:
+            print(f"    Converged after {pass_idx+1} Gibbs passes")
+            break
+
+    return reconstructed, conv_stats

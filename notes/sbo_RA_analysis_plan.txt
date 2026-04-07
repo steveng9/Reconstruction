@@ -1,0 +1,73 @@
+What the SBO dataset is:                                                                                     
+                                                                                                               
+  It's the NIST Survey of Business Owners — a US Census Bureau survey of business owners and their businesses. 
+  130 columns total: 125 categorical (mostly binary survey-response flags), 5 continuous (EMPLOYMENT_NOISY,    
+  PAYROLL_NOISY, RECEIPTS_NOISY, TABWGT, PCT1). The dataset covers:                                            
+  - Owner demographics: SEX1, RACE1, ETH1, VET1, AGE1, EDUC1, BORNUS1                                          
+  - Business identifiers: FIPST (state), SECTOR (NAICS industry code), N07_EMPLOYER (employer size class),     
+  ESTABLISHED (year)                                                                                           
+  - Business financials: PAYROLL_NOISY, RECEIPTS_NOISY, EMPLOYMENT_NOISY, startup/expansion capital sources    
+  (SC*/EC* columns — ~20 binary flags each for "used savings", "took bank loan", "got grant", etc.)            
+  - Operations survey: ~60 binary flags about workforce, benefits, digital presence, reasons for ceasing       
+  operations, etc.                                                                                             
+                                                                                                               
+  Good news: synthetic data is already fully generated — all 5 samples × {MST×4ε, TVAE, CTGAN, ARF, TabDDPM,   
+  Synthpop, RankSwap, CellSuppression}. The only work is defining QIs in get_data.py and running the sweep.    
+                                                                                                               
+  ---                                                                                                          
+  Why it's useful for chapter 4.1:                                                                             
+                                                                                                               
+  Two distinct claims it supports, which are actually more compelling in combination:                          
+                                                                                                               
+  1. Financial domain coverage: The sensitive targets are genuinely financial — payroll, receipts, financing   
+  structure. An adversary who knows a business owner's demographics + their industry + state could attempt to  
+  reconstruct their financials. This fills the gap you identified.                                             
+  2. High column count stress test: 130 columns is 2.5–5× wider than any other dataset. Most of the 125 binary 
+  categorical columns are ~independent survey flags. This is the right dataset to ask: does reconstruction     
+  accuracy degrade as the hidden space grows to 100+ features? And: can an attacker selectively do better on   
+  financially sensitive targets than on generic survey flags?                                                  
+                                                                                                               
+  The combination of these two is actually a richer argument than either alone.                                
+                                                                                                               
+  ---                                                                                                          
+  Proposed QI design:                                                                                          
+                                                                                                               
+  A realistic threat model for SBO: an adversary knows a business owner from public business registries (state,
+   industry, size class) and their publicly-visible demographics.                                              
+                                                                                                               
+  QI (public): FIPST, SECTOR, N07_EMPLOYER, SEX1, RACE1, ETH1                                                  
+  Hidden (~124 features): everything else, including PAYROLL_NOISY, RECEIPTS_NOISY,                            
+                           all the SC*/EC* financing flags, operations survey items                            
+                                                                                                               
+  Optionally a second variant with fewer QI to show sensitivity:                                               
+  QI2 (demographics only): SEX1, RACE1, ETH1, VET1, AGE1, EDUC1                                                
+                                                                                                               
+  One caution: RACE1 and SEX1 are very skewed (82% male, 91% white) and the multi-race values in RACE1 ("W     
+  S", "W  A" etc.) look like they may need cleaning — worth checking if attacks handle these cleanly.          
+                                                                                                               
+  ---                                                                                                          
+  Minimal experiment scope:                                                                                    
+                                                                                                             
+  Since synth is all pre-generated, the actual work is small:                                                  
+                                                                                                               
+  1. Add QI definitions to get_data.py (30 min)                                                                
+  2. Run production sweep with CPU attacks only: Mode, Random, KNN, NaiveBayes, RandomForest, LightGBM — skip  
+  diffusion for speed (130 columns × 1k rows × 5 samples is fine for tree methods)                             
+  3. Optionally PartialMST — it should handle this gracefully but 130-col joint MST might be slow to fit; worth
+   trying                                                                                                      
+  4. Skip LinearReconstruction — LP over 124 binary hidden features per target row is infeasible               
+                                                                                                               
+  What to report in the paper:                                                                                 
+  - Main table row: R_adv averaged over all hidden features (consistent with other datasets)                   
+  - Optional feature-level subplot: RA by feature group (financial vs. survey flags) — shows that even in a sea
+   of 100+ features, the financially sensitive ones are disproportionately vulnerable (or aren't — either      
+  result is interesting)                                                                                       
+                                                                                                               
+  ---                                                                                                          
+  What could go wrong:                                                                                         
+  - The "W    S" / "W I" values in RACE1 are inconsistent string values — ML encoders may treat them as new  
+  categories. Worth a quick cleanup pass.                                                                      
+  - 125 categorical columns means pairwise MST structure will be large — already noted in your evaluate script 
+  with the PAIRWISE_TVD_MAX_CAT_COLS=30 guard.                                                                 
+  - The 23% structural missingness (dropna brings 161k→124k rows) is already handled since your 1k samples are 
+  drawn from the clean version

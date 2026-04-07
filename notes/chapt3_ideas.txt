@@ -1,0 +1,67 @@
+Why chaining fails and what you haven't tried                                                                
+                                                                                                               
+  Iterative refinement (Gibbs-style): Your current chaining is a single left-to-right pass. The deeper variant 
+  is to run multiple passes: predict all features once (any order), then loop back and re-predict each feature 
+  conditioning on the current best guesses for all others. Repeat until stable. This turns the linear cascade  
+  into coordinate-wise optimization over the hidden features. Error propagation is still an issue on the first 
+  pass, but subsequent passes can correct early errors. This is the natural counterpart to your oracle         
+  experiment and is cheap to implement on top of your existing chaining infrastructure.                      
+                                                                                                               
+  Multi-output (all-at-once) prediction: You already mention this as a TODO — one model predicting all hidden  
+  features simultaneously. This captures inter-feature dependencies without sequential error accumulation. A   
+  single MLP/LightGBM with multi-output heads is the canonical version. This is worth at least one result in   
+  the section since it's a clean alternative to chaining.                                                      
+                                                                                                               
+  The SDG-interaction experiment you noted is genuinely publishable: MST encodes only pairwise marginals, so   
+  conditioning on a predicted feature adds essentially nothing beyond what QI already captures — the synth     
+  joint distribution doesn't have it. TabDDPM and AIM should show larger chaining gains. This is a concrete,   
+  testable claim with a clean interpretation: chaining's effectiveness is bounded by the fidelity of the joint 
+  synthetic distribution. Even a small table showing chaining gain vs. SDG method would be a novel finding   
+  worth including.
+
+  ---
+  Why ensembling fails and what you haven't tried
+                                                 
+  Stacking / meta-learning: Your current approach is soft voting (averaging posterior probas). Stacking uses a 
+  meta-model that learns when to trust which base model from held-out predictions. The meta-model's training   
+  signal is: "for records with these QI values, RandomForest is right and MLP is wrong." This is more          
+  expressive than averaging. Generate out-of-fold base-model predictions on the synth data, train a lightweight
+   meta-model (logistic regression or shallow RF), then apply to targets. This is worth trying because your    
+  oracle-vs-individual gap (11.4 points) is large — the information exists somewhere.                        
+                                                                                                               
+  Diversity through QI subsampling: All your current base models use the full QI. Training different models on 
+  different QI subsets forces diversity in a structural way, not just in model class. Models with complementary
+   QI views may fail on different records.                                                                     
+                                                                                                               
+  ---                                                                                                        
+  Other enhancements reviewers are likely to request
+                                                    
+  Bayesian network inference from synth: Fit a BN structure directly to the synthetic data and compute exact   
+  conditionals. This is a natural alternative to ML classifiers — instead of learning P(hidden | QI)           
+  discriminatively, you're reading it off the joint model. For categorical data this is particularly clean.    
+  Reviewers who work in PGMs will ask about this.                                                              
+                                                                                                               
+  Confidence-based abstention: Rather than predicting on all records, abstain on records where no model has    
+  high confidence. Optimize precision over recall. This reframes the attack as "how many records can we        
+  reconstruct with high confidence?" which may be more relevant to the privacy auditor's actual question.      
+                                                                                                               
+  Using multiple synth releases: If the threat model allows the attacker to query the SDG multiple times       
+  (multiple independent synthetic datasets from the same training data), each release is an independent draw — 
+  averaging predictions across releases should reduce variance. This is analogous to test-time ensembling via  
+  data rather than models.                                                                                     
+                                                                                                             
+  ---
+  What I'd write in the paper
+                             
+  Your negative result is real and publishable. The honest framing is:                                         
+                                                                                                               
+  - Soft voting fails because ensemble diversity is insufficient — attacks share the same QI signal, and       
+  failure correlates on the hardest records regardless of model class.                                         
+  - Chaining fails because error propagation outweighs information gain — and the gain is further bounded by   
+  how much high-order joint structure the SDG preserves.                                                       
+  - The oracle gaps (11.4 for ensembling, 7.2 for chaining) show there is headroom in principle, making these  
+  negative results informative rather than trivial.                                                            
+                                                                                                               
+  The SDG-interaction experiment for chaining would strengthen the paper significantly — it converts "chaining 
+  didn't work" into "chaining's benefit scales with SDG fidelity," which is an actionable, interpretable       
+  finding.    

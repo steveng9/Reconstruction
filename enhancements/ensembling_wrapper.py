@@ -129,6 +129,15 @@ def _run_ensemble(methods, method_names, cfg_inner, cfg_full, synth, targets, qi
     """
     from master_experiment_script import _prepare_config
 
+    # ── Stacking takes a separate code path ──────────────────────────────────
+    if aggregation == "stacking":
+        ensembling_cfg = cfg_full.get("attack_params", {}).get("ensembling", {})
+        return _run_stacking_ensemble(
+            methods, method_names, cfg_full, synth, targets, qi, hidden_features,
+            n_folds=ensembling_cfg.get("n_folds", 5),
+            use_probas=ensembling_cfg.get("use_probas", True),
+        )
+
     # Collect predictions from all methods
     all_predictions = []
     all_probas = []
@@ -402,3 +411,223 @@ def _median(predictions):
     """
     stacked = pd.DataFrame(predictions).T
     return stacked.median(axis=1)
+
+
+def _run_stacking_ensemble(methods, method_names, cfg_full, synth, targets, qi,
+                            hidden_features, n_folds=5, use_probas=True):
+    """
+    Stacking ensemble: trains a per-feature meta-model on out-of-fold (OOF)
+    base-model predictions from synth, then applies it to aggregate base-model
+    predictions on actual targets.
+
+    How it works
+    ------------
+    OOF phase (meta-model training):
+      Synth is split into K folds. For each fold k, every base model trains on
+      synth minus fold k and predicts on fold k records (using only their QI,
+      treating the fold k records as if they were targets). Ground truth for the
+      meta-model is fold k's actual hidden feature values. This gives N labeled
+      examples (one per synth row) without leaking any label directly.
+
+    Meta-model training:
+      For each hidden feature, a LogisticRegression is trained on:
+        X = [ordinal-encoded base predictions, ordinal-encoded QI values]
+        y = true hidden feature value
+      Including QI lets the meta-model learn which base model is reliable for
+      which sub-population (e.g., "for records where age=30, trust RF over MLP").
+
+    Inference:
+      All base models run on actual targets (full synth as training data).
+      Their predictions + target QI values are fed to the meta-models.
+
+    If use_probas=True and a base model returns class probabilities, those are
+    included in X alongside the hard prediction, giving the meta-model confidence
+    information to exploit.
+
+    Parameters
+    ----------
+    methods       : list of attack functions
+    method_names  : list of method name strings
+    cfg_full      : original full config dict (for _prepare_config per method)
+    synth         : synthetic dataset (pd.DataFrame)
+    targets       : real target records, QI columns visible (pd.DataFrame)
+    qi            : list of quasi-identifier column names
+    hidden_features: list of hidden feature column names
+    n_folds       : number of OOF folds (default 5)
+    use_probas    : if True, include base-model class probabilities in meta-features
+                    when available (default True)
+
+    Returns
+    -------
+    (reconstructed, None, None)
+    """
+    from sklearn.model_selection import KFold
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.preprocessing import OrdinalEncoder
+    from master_experiment_script import _prepare_config
+
+    n_synth   = len(synth)
+    n_targets = len(targets)
+    n_models  = len(methods)
+    n_feats   = len(hidden_features)
+
+    print(f"\nStacking ensemble: {n_models} base models, {n_folds} OOF folds")
+    print(f"  Base models: {', '.join(method_names)}")
+
+    # ── Encoders fit on full synth (stable class space at OOF + inference) ───
+    qi_enc = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+    qi_enc.fit(synth[qi].astype(str))
+
+    feat_val_enc = {}   # OrdinalEncoder per hidden feature, for encoding predictions
+    for feat in hidden_features:
+        enc = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+        enc.fit(synth[[feat]].astype(str))
+        feat_val_enc[feat] = enc
+
+    # ── OOF prediction storage ────────────────────────────────────────────────
+    # oof_hard[feat][midx] : (n_synth,) string array of hard predictions
+    # oof_prob[feat][midx] : (n_synth, n_classes) float array, or None
+    # oof_cls[feat][midx]  : class label array aligned to oof_prob columns, or None
+    oof_hard = {feat: {m: np.full(n_synth, '', dtype=object) for m in range(n_models)}
+                for feat in hidden_features}
+    oof_prob = {feat: {m: None for m in range(n_models)} for feat in hidden_features}
+    oof_cls  = {feat: {m: None for m in range(n_models)} for feat in hidden_features}
+
+    kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
+
+    for fold_idx, (train_idx, val_idx) in enumerate(kf.split(synth)):
+        print(f"  OOF fold {fold_idx + 1}/{n_folds} "
+              f"(train={len(train_idx)}, val={len(val_idx)})...")
+        synth_tr  = synth.iloc[train_idx].reset_index(drop=True)
+        synth_val = synth.iloc[val_idx].reset_index(drop=True)
+
+        for midx, (method_fn, method_name) in enumerate(zip(methods, method_names)):
+            method_cfg = cfg_full.copy()
+            method_cfg["attack_method"] = method_name
+            method_cfg = _prepare_config(method_cfg)
+
+            try:
+                recon, probas, classes = method_fn(
+                    method_cfg, synth_tr, synth_val, qi, hidden_features)
+
+                for feat_idx, feat in enumerate(hidden_features):
+                    oof_hard[feat][midx][val_idx] = recon[feat].astype(str).values
+
+                    if use_probas and probas is not None and classes is not None:
+                        p = probas[feat_idx]    # (n_val, n_classes_for_feat)
+                        c = classes[feat_idx]   # class label array
+                        if p is not None and c is not None:
+                            # Accumulate into full-sized arrays on first encounter
+                            if oof_prob[feat][midx] is None:
+                                n_cls = len(c)
+                                oof_prob[feat][midx] = np.zeros((n_synth, n_cls))
+                                oof_cls[feat][midx]  = np.asarray(c)
+                            oof_prob[feat][midx][val_idx] = p
+
+            except Exception as e:
+                print(f"    [WARN] {method_name} failed on fold {fold_idx}: {e}")
+
+    # ── Build meta-features for synth (OOF) and train meta-models ───────────
+    X_qi_synth = qi_enc.transform(synth[qi].astype(str))
+
+    meta_models   = {}   # {feat: fitted LogisticRegression}
+    meta_feat_dim = {}   # {feat: int} — number of meta-features per model
+
+    for feat in hidden_features:
+        X_blocks = []
+
+        for midx in range(n_models):
+            # Hard prediction column (encoded)
+            hard_col = oof_hard[feat][midx].reshape(-1, 1)
+            X_blocks.append(feat_val_enc[feat].transform(hard_col))
+
+            # Probability columns (if available)
+            if use_probas and oof_prob[feat][midx] is not None:
+                X_blocks.append(oof_prob[feat][midx])
+
+        X_blocks.append(X_qi_synth)
+        X_meta = np.hstack(X_blocks)
+        y_meta = synth[feat].astype(str).values
+
+        meta_clf = LogisticRegression(max_iter=1000, C=1.0, solver='lbfgs',
+                                      multi_class='auto')
+        meta_clf.fit(X_meta, y_meta)
+        meta_models[feat]   = meta_clf
+        meta_feat_dim[feat] = X_meta.shape[1]
+
+    print(f"  Meta-model input dims: "
+          f"{ {f: meta_feat_dim[f] for f in hidden_features} }")
+
+    # ── Run base models on actual targets (full synth as training data) ──────
+    print(f"  Running base models on targets...")
+    inf_hard  = {feat: [] for feat in hidden_features}   # list over models
+    inf_prob  = {feat: [] for feat in hidden_features}
+    inf_cls   = {feat: [] for feat in hidden_features}
+
+    for midx, (method_fn, method_name) in enumerate(zip(methods, method_names)):
+        print(f"    [{midx+1}/{n_models}] {method_name}...")
+        method_cfg = cfg_full.copy()
+        method_cfg["attack_method"] = method_name
+        method_cfg = _prepare_config(method_cfg)
+
+        try:
+            recon, probas, classes = method_fn(
+                method_cfg, synth, targets, qi, hidden_features)
+
+            for feat_idx, feat in enumerate(hidden_features):
+                inf_hard[feat].append(recon[feat].astype(str).values)
+
+                p = (probas[feat_idx]  if (use_probas and probas  is not None) else None)
+                c = (classes[feat_idx] if (use_probas and classes is not None) else None)
+                inf_prob[feat].append(p if (p is not None and c is not None) else None)
+                inf_cls[feat].append(c if (p is not None and c is not None) else None)
+
+        except Exception as e:
+            print(f"    [WARN] {method_name} failed at inference: {e}")
+            mode_val = str(synth[hidden_features[0]].mode().iloc[0])
+            for feat in hidden_features:
+                inf_hard[feat].append(np.array([str(synth[feat].mode().iloc[0])] * n_targets))
+                inf_prob[feat].append(None)
+                inf_cls[feat].append(None)
+
+    # ── Apply meta-models ─────────────────────────────────────────────────────
+    X_qi_targets = qi_enc.transform(targets[qi].astype(str))
+    result        = targets.copy()
+
+    for feat in hidden_features:
+        X_blocks = []
+
+        for midx in range(n_models):
+            # Hard prediction
+            hard_col = inf_hard[feat][midx].reshape(-1, 1)
+            X_blocks.append(feat_val_enc[feat].transform(hard_col))
+
+            # Probability columns — must align to same class order as OOF
+            if use_probas and oof_prob[feat][midx] is not None and inf_prob[feat][midx] is not None:
+                oof_classes = oof_cls[feat][midx]
+                inf_classes = np.asarray(inf_cls[feat][midx])
+                p_inf       = inf_prob[feat][midx]
+
+                # Re-align inf probas to OOF column order
+                n_oof_cls = len(oof_classes)
+                aligned   = np.zeros((n_targets, n_oof_cls))
+                cls_to_oof_idx = {str(c): j for j, c in enumerate(oof_classes)}
+                for j_inf, cls_label in enumerate(inf_classes):
+                    j_oof = cls_to_oof_idx.get(str(cls_label))
+                    if j_oof is not None:
+                        aligned[:, j_oof] = p_inf[:, j_inf]
+                X_blocks.append(aligned)
+            elif use_probas and oof_prob[feat][midx] is not None:
+                # OOF had probas but inference didn't — fill with zeros
+                X_blocks.append(np.zeros((n_targets, oof_prob[feat][midx].shape[1])))
+
+        X_blocks.append(X_qi_targets)
+        X_meta_test = np.hstack(X_blocks)
+
+        meta_pred = meta_models[feat].predict(X_meta_test)
+        try:
+            result[feat] = meta_pred.astype(synth[feat].dtype)
+        except (ValueError, TypeError):
+            result[feat] = meta_pred
+
+    return result, None, None
