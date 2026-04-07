@@ -517,12 +517,21 @@ def _run_stacking_ensemble(methods, method_names, cfg_full, synth, targets, qi,
                         p = probas[feat_idx]    # (n_val, n_classes_for_feat)
                         c = classes[feat_idx]   # class label array
                         if p is not None and c is not None:
-                            # Accumulate into full-sized arrays on first encounter
+                            # Use full-synth class space (feat_val_enc) as the
+                            # canonical column order so all folds align, even
+                            # when a fold's training split lacks some class.
+                            full_cls = feat_val_enc[feat].categories_[0]
                             if oof_prob[feat][midx] is None:
-                                n_cls = len(c)
-                                oof_prob[feat][midx] = np.zeros((n_synth, n_cls))
-                                oof_cls[feat][midx]  = np.asarray(c)
-                            oof_prob[feat][midx][val_idx] = p
+                                oof_prob[feat][midx] = np.zeros((n_synth, len(full_cls)))
+                                oof_cls[feat][midx]  = np.asarray(full_cls)
+                            # Project fold probas onto canonical class columns
+                            cls_to_full = {str(cls): j for j, cls in enumerate(full_cls)}
+                            p_aligned = np.zeros((len(val_idx), len(full_cls)))
+                            for j_fold, cls_label in enumerate(c):
+                                j_full = cls_to_full.get(str(cls_label))
+                                if j_full is not None:
+                                    p_aligned[:, j_full] = p[:, j_fold]
+                            oof_prob[feat][midx][val_idx] = p_aligned
 
             except Exception as e:
                 print(f"    [WARN] {method_name} failed on fold {fold_idx}: {e}")
