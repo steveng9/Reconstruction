@@ -551,32 +551,24 @@ def _run_gibbs_chained_sklearn(attack_name, attack_params, synth, targets, qi,
             return None
         return np.hstack([feat_encoders[f].transform(df[[f]].astype(str)) for f in feats])
 
-    # ── Pass 0: standard hard chain (initialization) ─────────────────────────
+    # ── Pass 0: independent QI-only predictions (no cross-conditioning) ────────
+    # Each hidden feature is predicted from QI alone, giving a clean, unbiased
+    # starting point. Hard chaining was previously used here, but it propagates
+    # errors from early predictions into later ones before Gibbs has a chance to
+    # correct them.
     reconstructed = targets.copy()
-    known_so_far  = []
 
     for feat in initial_order:
-        cond_feats = known_so_far
-        X_synth_step = np.hstack(
-            [X_synth_qi] + ([_encode_hidden_block(synth, cond_feats)] if cond_feats else [])
-        )
-        X_test_step = np.hstack(
-            [X_test_qi] + ([_encode_hidden_block(reconstructed, cond_feats)] if cond_feats else [])
-        )
-
-        y_synth = synth[feat].astype(str)
-        clf     = _make_soft_chain_clf(attack_name, attack_params)
-        clf.fit(X_synth_step, y_synth)
-
-        pred_labels = clf.classes_[np.argmax(clf.predict_proba(X_test_step), axis=1)]
+        y_synth     = synth[feat].astype(str)
+        clf         = _make_soft_chain_clf(attack_name, attack_params)
+        clf.fit(X_synth_qi, y_synth)
+        pred_labels = clf.classes_[np.argmax(clf.predict_proba(X_test_qi), axis=1)]
         try:
             reconstructed[feat] = pred_labels.astype(synth[feat].dtype)
         except (ValueError, TypeError):
             reconstructed[feat] = pred_labels
 
-        known_so_far.append(feat)
-
-    print(f"    Gibbs pass 0 (init chain) complete")
+    print(f"    Gibbs pass 0 (QI-only init) complete")
 
     # ── Pre-train one Gibbs classifier per feature ───────────────────────────
     # Each classifier uses QI + ALL other hidden features from synth (true values).

@@ -2,35 +2,46 @@
 """
 experiment_scripts/run_gibbs_chaining_analysis.py
 
-Tests Gibbs-style iterative refinement chaining against hard chaining and the
-no-chain baseline, across attacks and SDG methods.
+Tests Gibbs-style iterative refinement chaining against the no-chain baseline,
+comparing four Gibbs classifier configurations: RF, wide-RF, MLP, and an
+RF+MLP+KNN ensemble.
 
-The Gibbs approach runs a standard hard chain for initialization (pass 0), then
-iteratively re-predicts each hidden feature conditioning on QI + current
-best-guess predictions for ALL other hidden features, repeating until convergence.
+Approach
+--------
+  Pass 0 (init):  Predict each hidden feature independently from QI only
+                  (no cross-conditioning). Gives a clean, unbiased starting point.
 
-Conditions evaluated
---------------------
-  no_chain   : standard attack with no chaining
-  hard       : standard hard chain (= Gibbs pass 0 only)
-  gibbs_K    : Gibbs chaining stopped after K passes (K in GIBBS_PASS_CHECKPOINTS)
-  oracle     : hard chain with TRUE hidden values as conditioning — upper bound
+  Pre-training:   For each hidden feature h_i, train one classifier (or ensemble)
+                  on synth using QI + all *other* hidden features (true values).
+                  Done once — training inputs never change across passes.
 
-Key design choices
-------------------
-  - Chain order fixed from sample_00's synth (dynamic_mutual_info strategy),
-    applied identically to all samples for comparable cross-sample averaging.
-  - Multiple SDG methods to test the interaction: chaining's benefit should scale
-    with the fidelity of the joint synthetic distribution. MST only captures
-    pairwise marginals — conditioning on a predicted feature adds little. TabDDPM
-    and AIM preserve higher-order dependencies, so Gibbs should gain more there.
-  - Per-pass convergence stats tracked and printed.
+  Gibbs passes:   For each feature h_i, re-predict using QI + current best-guess
+                  predictions for all other hidden features. Update in place.
+                  Repeat until convergence or max passes.
+
+Gibbs classifier configs compared
+----------------------------------
+  RF             : RandomForest (default params)
+  RF_wide        : RandomForest (100 trees, unlimited depth)
+  MLP            : MLPClassifier (default params)
+  Ensemble       : soft vote of RF + MLP + KNN(k=5)
+
+  NOTE: Ensemble and MLP are significantly slower due to neural-net training
+  for each of the j hidden features per sample. Adjust SAMPLES or SDG_METHODS
+  to control runtime.
+
+Conditions in output
+---------------------
+  no_chain_{attack}   : standard attack, no chaining
+  oracle_{attack}     : hard chain using TRUE hidden values — upper bound
+  {clf}_init          : Gibbs pass 0 (QI-only independent predictions)
+  {clf}_gibbs_{K}     : Gibbs result after K passes
 
 Output
 ------
-  Console: per-feature RA tables + convergence tables per (attack, SDG) combo
-  CSV:     experiment_scripts/chaining_analysis/gibbs/{dataset}/{attack}_{sdg}.csv
-           experiment_scripts/chaining_analysis/gibbs/{dataset}/{attack}_{sdg}_convergence.csv
+  Console: per-feature RA tables + convergence tables per (SDG, clf_config)
+  CSV:     experiment_scripts/chaining_analysis/gibbs/{dataset}/{sdg}_{clf}.csv
+           experiment_scripts/chaining_analysis/gibbs/{dataset}/{sdg}_{clf}_convergence.csv
 """
 
 # ── Path setup ────────────────────────────────────────────────────────────────
@@ -63,24 +74,50 @@ DATASET = {
     "qi_variant": "QI1",
 }
 
-# SDG method directory names to compare.
-# MST (pairwise only) vs TabDDPM (deep generative, higher-order) is the key contrast.
 SDG_METHODS = [
     "MST_eps10",
     "TabDDPM",
     "Synthpop",
 ]
 
+# Attacks used only for no_chain and oracle baselines.
 ATTACKS = ["RandomForest", "MLP"]
 
-# Samples to average over (use 0-4 for full 5-sample average; subset for speed)
+# Gibbs classifier configurations. Each is tested independently as the
+# classifier for both Pass 0 (init) and all Gibbs passes.
+GIBBS_CLF_CONFIGS = [
+    {
+        "name": "RF",
+        "members": [
+            {"attack": "RandomForest", "params": {}},
+        ],
+    },
+    {
+        "name": "RF_wide",
+        "members": [
+            {"attack": "RandomForest", "params": {"num_estimators": 100, "max_depth": 10}},
+        ],
+    },
+    {
+        "name": "MLP",
+        "members": [
+            {"attack": "MLP", "params": {}},
+        ],
+    },
+    {
+        "name": "Ensemble",  # RF + MLP + KNN(k=5) soft vote
+        "members": [
+            {"attack": "RandomForest", "params": {}},
+            {"attack": "MLP",          "params": {}},
+            {"attack": "KNN",          "params": {}},
+        ],
+    },
+]
+
 SAMPLES = [0, 1, 2, 3, 4]
 
-# Maximum Gibbs passes; also controls which intermediate checkpoints are scored.
-MAX_PASSES = 10
-
-# Score reconstruction at these pass counts (must be <= MAX_PASSES).
-# "hard" = pass 0 only (standard hard chain); "gibbs_K" = after K Gibbs passes.
+# Score reconstruction at these Gibbs pass counts. 0 = init (QI-only), also
+# recorded. Must be <= MAX_PASSES.
 GIBBS_PASS_CHECKPOINTS = [1, 2, 5, 10]
 
 # Stop early if < this fraction of predictions change in a full Gibbs sweep.
@@ -101,8 +138,52 @@ from attack_defaults import ATTACK_PARAM_DEFAULTS
 from enhancements.chaining_wrapper import (
     _dynamic_order,
     _make_soft_chain_clf,
-    _run_gibbs_chained_sklearn,
 )
+
+
+# ── Classifier helpers ────────────────────────────────────────────────────────
+
+def _fit_clf(clf, attack_name, X_train, y_train):
+    """Fit a classifier. MLP uses partial_fit loop for epoch tracking."""
+    if attack_name == "MLP":
+        classes  = np.unique(y_train)
+        n_epochs = clf.max_iter
+        for ep in range(n_epochs):
+            clf.partial_fit(X_train, y_train, classes=classes)
+    else:
+        clf.fit(X_train, y_train)
+    return clf
+
+
+def _predict_labels(fitted_clfs, X_test):
+    """
+    Predict class labels from a list of (clf, attack_name) tuples.
+    Single clf: argmax(proba). Multiple clfs: soft vote with class-space alignment.
+    """
+    if len(fitted_clfs) == 1:
+        clf, _ = fitted_clfs[0]
+        return clf.classes_[np.argmax(clf.predict_proba(X_test), axis=1)]
+
+    # Soft vote across ensemble members
+    all_classes  = sorted(set(c for clf, _ in fitted_clfs for c in clf.classes_))
+    n_classes    = len(all_classes)
+    class_to_idx = {c: i for i, c in enumerate(all_classes)}
+    summed       = np.zeros((len(X_test), n_classes))
+    for clf, _ in fitted_clfs:
+        proba = clf.predict_proba(X_test)
+        for local_i, cls in enumerate(clf.classes_):
+            summed[:, class_to_idx[cls]] += proba[:, local_i]
+    return np.array(all_classes)[np.argmax(summed, axis=1)]
+
+
+def _train_clf_list(clf_config, X_train, y_train):
+    """Train all members of a clf_config. Returns list of (clf, attack_name)."""
+    result = []
+    for member in clf_config["members"]:
+        clf = _make_soft_chain_clf(member["attack"], member["params"])
+        clf = _fit_clf(clf, member["attack"], X_train, y_train)
+        result.append((clf, member["attack"]))
+    return result
 
 
 # ── Data helpers ──────────────────────────────────────────────────────────────
@@ -116,14 +197,13 @@ def load_sample(sample_idx, sdg_method):
     return train, synth, QIs[ds][qi_v], minus_QIs[ds][qi_v]
 
 
-def make_cfg(attack_name, sample_idx, sdg_method):
+def make_cfg(attack_name, sample_idx):
     params     = dict(ATTACK_PARAM_DEFAULTS.get(attack_name, {}))
     sample_dir = str(Path(DATASET["root"]) / f"sample_{sample_idx:02d}")
     return {
         "dataset":       {"name": DATASET["name"], "type": DATASET["data_type"],
                           "dir": sample_dir},
         "data_type":     DATASET["data_type"],
-        "sdg_method":    sdg_method,
         "attack_method": attack_name,
         "attack_params": params,
     }
@@ -147,23 +227,26 @@ def run_oracle_chain(attack_fn, cfg, synth, train, qi, chain_order):
     return reconstructed
 
 
-def run_gibbs_at_checkpoints(attack_name, attack_params, synth, train, qi,
-                              chain_order, checkpoints):
+def run_gibbs_at_checkpoints(clf_config, synth, train, qi, chain_order, checkpoints):
     """
-    Run Gibbs chaining and return snapshots of `reconstructed` at each checkpoint.
+    Run Gibbs chaining with a given clf_config and return snapshots at each
+    checkpoint pass (including pass 0 = QI-only init).
 
     Returns
     -------
-    snapshots : dict[int, pd.DataFrame]   checkpoint_pass → reconstructed df
-    conv_stats: list[dict]                per-pass convergence info
+    snapshots  : dict[int, pd.DataFrame]  checkpoint_pass → reconstructed df
+    conv_stats : list[dict]               per-pass convergence info
     """
     from sklearn.preprocessing import OrdinalEncoder
+
+    clf_name = clf_config["name"]
 
     # ── Encode QI ──────────────────────────────────────────────────────────
     qi_enc     = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
     X_synth_qi = qi_enc.fit_transform(synth[qi].astype(str))
     X_test_qi  = qi_enc.transform(train[qi].astype(str))
 
+    # ── Per-feature ordinal encoder for hidden feature conditioning ────────
     feat_encoders = {}
     for feat in chain_order:
         enc = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
@@ -175,40 +258,37 @@ def run_gibbs_at_checkpoints(attack_name, attack_params, synth, train, qi,
             return None
         return np.hstack([feat_encoders[f].transform(df[[f]].astype(str)) for f in feats])
 
-    # ── Pass 0: hard chain initialization ──────────────────────────────────
+    # ── Pass 0: independent QI-only predictions ────────────────────────────
+    # Each hidden feature predicted from QI alone — no cross-conditioning.
     reconstructed = train.copy()
-    known_so_far  = []
-
+    print(f"      [{clf_name}] Pass 0: QI-only init ...")
     for feat in chain_order:
-        X_s = np.hstack([X_synth_qi] + ([_enc_block(synth, known_so_far)] if known_so_far else []))
-        X_t = np.hstack([X_test_qi]  + ([_enc_block(reconstructed, known_so_far)] if known_so_far else []))
         y   = synth[feat].astype(str)
-        clf = _make_soft_chain_clf(attack_name, attack_params)
-        clf.fit(X_s, y)
-        preds = clf.classes_[np.argmax(clf.predict_proba(X_t), axis=1)]
+        clfs = _train_clf_list(clf_config, X_synth_qi, y)
+        preds = _predict_labels(clfs, X_test_qi)
         try:
             reconstructed[feat] = preds.astype(synth[feat].dtype)
         except (ValueError, TypeError):
             reconstructed[feat] = preds
-        known_so_far.append(feat)
 
-    # Snapshot after pass 0 (= hard chain result)
     snapshots = {0: reconstructed.copy()}
+    print(f"      [{clf_name}] Pass 0 complete")
 
-    # ── Pre-train Gibbs classifiers (once; reused across passes) ───────────
+    # ── Pre-train Gibbs classifiers (once; reused across all passes) ───────
+    # Each classifier: QI + all OTHER hidden features (true synth values).
+    print(f"      [{clf_name}] Pre-training {len(chain_order)} Gibbs classifiers ...")
     gibbs_clfs = {}
     for feat in chain_order:
         other = [f for f in chain_order if f != feat]
         X_s   = np.hstack([X_synth_qi] + ([_enc_block(synth, other)] if other else []))
         y     = synth[feat].astype(str)
-        clf   = _make_soft_chain_clf(attack_name, attack_params)
-        clf.fit(X_s, y)
-        gibbs_clfs[feat] = clf
+        gibbs_clfs[feat] = _train_clf_list(clf_config, X_s, y)
+    print(f"      [{clf_name}] Pre-training complete")
 
     # ── Gibbs passes ────────────────────────────────────────────────────────
-    conv_stats  = []
-    n_targets   = len(train)
-    max_ckpt    = max(checkpoints)
+    conv_stats = []
+    n_targets  = len(train)
+    max_ckpt   = max(checkpoints)
 
     for pass_idx in range(max_ckpt):
         n_changed = {}
@@ -216,34 +296,31 @@ def run_gibbs_at_checkpoints(attack_name, attack_params, synth, train, qi,
             prev  = reconstructed[feat].copy()
             other = [f for f in chain_order if f != feat]
             X_t   = np.hstack([X_test_qi] + ([_enc_block(reconstructed, other)] if other else []))
-            clf   = gibbs_clfs[feat]
-            preds = clf.classes_[np.argmax(clf.predict_proba(X_t), axis=1)]
+            preds = _predict_labels(gibbs_clfs[feat], X_t)
             try:
                 reconstructed[feat] = preds.astype(synth[feat].dtype)
             except (ValueError, TypeError):
                 reconstructed[feat] = preds
             n_changed[feat] = int((reconstructed[feat].astype(str) != prev.astype(str)).sum())
 
-        total   = n_targets * len(chain_order)
-        frac    = sum(n_changed.values()) / total
-        stat    = {"pass": pass_idx + 1, "frac_changed": round(frac, 6),
-                   **{f: round(n_changed[f] / n_targets, 4) for f in chain_order}}
+        total = n_targets * len(chain_order)
+        frac  = sum(n_changed.values()) / total
+        stat  = {"pass": pass_idx + 1, "frac_changed": round(frac, 6),
+                 **{f: round(n_changed[f] / n_targets, 4) for f in chain_order}}
         conv_stats.append(stat)
-        print(f"      Gibbs pass {pass_idx+1}/{max_ckpt}: {frac:.3%} changed")
+        print(f"      [{clf_name}] Gibbs pass {pass_idx+1}/{max_ckpt}: {frac:.3%} changed")
 
-        checkpoint_pass = pass_idx + 1
-        if checkpoint_pass in checkpoints:
-            snapshots[checkpoint_pass] = reconstructed.copy()
+        ck = pass_idx + 1
+        if ck in checkpoints:
+            snapshots[ck] = reconstructed.copy()
 
         if frac < CONVERGENCE_TOL:
-            print(f"      Converged at pass {pass_idx+1}")
-            # Fill remaining checkpoints with the converged result
-            for ck in checkpoints:
-                if ck > checkpoint_pass and ck not in snapshots:
-                    snapshots[ck] = reconstructed.copy()
+            print(f"      [{clf_name}] Converged at pass {pass_idx+1}")
+            for remaining_ck in checkpoints:
+                if remaining_ck not in snapshots:
+                    snapshots[remaining_ck] = reconstructed.copy()
             break
 
-    # Fill any remaining checkpoints (if convergence stopped early)
     for ck in checkpoints:
         if ck not in snapshots:
             snapshots[ck] = reconstructed.copy()
@@ -267,136 +344,164 @@ def mean_score(feat_scores):
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    # Load reference synth (sample_00, first SDG) once for chain order
+    # Compute chain order once from sample_00 / first SDG (deterministic across runs)
     _, ref_synth, qi, hidden_features = load_sample(0, SDG_METHODS[0])
     chain_order = _dynamic_order(ref_synth, qi, hidden_features, data_type="categorical")
     print(f"Chain order (dynamic_MI from sample_00/{SDG_METHODS[0]}):")
     print(f"  {chain_order}\n")
+
+    # Build all condition keys
+    baseline_conds = [f"no_chain_{a}" for a in ATTACKS] + [f"oracle_{a}" for a in ATTACKS]
+    gibbs_conds    = []
+    for cfg in GIBBS_CLF_CONFIGS:
+        gibbs_conds.append(f"{cfg['name']}_init")
+        for k in GIBBS_PASS_CHECKPOINTS:
+            gibbs_conds.append(f"{cfg['name']}_gibbs_{k}")
+    all_conds = baseline_conds + gibbs_conds
 
     for sdg_method in SDG_METHODS:
         print(f"\n{'='*70}")
         print(f"SDG: {sdg_method}")
         print(f"{'='*70}")
 
-        for attack_name in ATTACKS:
-            print(f"\n  Attack: {attack_name}")
-            print(f"  {'─'*50}")
+        # Accumulators: condition → {feature: [scores across samples]}
+        acc      = {c: defaultdict(list) for c in all_conds}
+        all_conv = {cfg["name"]: [] for cfg in GIBBS_CLF_CONFIGS}
 
-            # Accumulators: condition → {feature: [scores across samples]}
-            cond_keys = ["no_chain", "hard"] + [f"gibbs_{k}" for k in GIBBS_PASS_CHECKPOINTS] + ["oracle"]
-            acc       = {c: defaultdict(list) for c in cond_keys}
-            all_conv  = []   # list of conv_stats lists, one per sample
+        for sample_idx in SAMPLES:
+            print(f"\n  --- Sample {sample_idx:02d} ---")
+            try:
+                train, synth, qi, hidden_features = load_sample(sample_idx, sdg_method)
+            except FileNotFoundError as e:
+                print(f"    [SKIP] {e}")
+                continue
 
-            for sample_idx in SAMPLES:
-                print(f"\n    Sample {sample_idx:02d}")
-                try:
-                    train, synth, qi, hidden_features = load_sample(sample_idx, sdg_method)
-                except FileNotFoundError as e:
-                    print(f"      [SKIP] {e}")
-                    continue
-
-                cfg       = make_cfg(attack_name, sample_idx, sdg_method)
+            # ── Baselines: no_chain and oracle for each attack ─────────────
+            for attack_name in ATTACKS:
+                cfg       = make_cfg(attack_name, sample_idx)
                 attack_fn = get_attack(attack_name, DATASET["data_type"])
 
-                # Check Gibbs is supported
-                if _make_soft_chain_clf(attack_name, cfg["attack_params"]) is None:
-                    print(f"      [SKIP] Gibbs not supported for {attack_name}")
-                    break
-
-                # No-chain baseline
                 recon_nc = run_no_chain(attack_fn, cfg, synth, train, qi, hidden_features)
                 for f, s in score(train, recon_nc, hidden_features).items():
-                    acc["no_chain"][f].append(s)
+                    acc[f"no_chain_{attack_name}"][f].append(s)
 
-                # Gibbs (includes hard chain = pass 0 snapshot)
-                snapshots, conv_stats = run_gibbs_at_checkpoints(
-                    attack_name, cfg["attack_params"], synth, train, qi,
-                    chain_order, GIBBS_PASS_CHECKPOINTS,
-                )
-                all_conv.append(conv_stats)
-
-                for f, s in score(train, snapshots[0], hidden_features).items():
-                    acc["hard"][f].append(s)
-                for ck in GIBBS_PASS_CHECKPOINTS:
-                    for f, s in score(train, snapshots[ck], hidden_features).items():
-                        acc[f"gibbs_{ck}"][f].append(s)
-
-                # Oracle
                 recon_oracle = run_oracle_chain(attack_fn, cfg, synth, train, qi, chain_order)
                 for f, s in score(train, recon_oracle, hidden_features).items():
-                    acc["oracle"][f].append(s)
+                    acc[f"oracle_{attack_name}"][f].append(s)
 
-            # ── Average across samples ────────────────────────────────────
-            avg = {c: {f: float(np.mean(v)) for f, v in feat_dict.items()}
-                   for c, feat_dict in acc.items() if feat_dict}
+                print(f"    no_chain_{attack_name}: mean={mean_score(score(train, recon_nc, hidden_features)):.2f}  "
+                      f"oracle_{attack_name}: mean={mean_score(score(train, recon_oracle, hidden_features)):.2f}")
 
-            # ── Print per-feature table ───────────────────────────────────
-            valid_conds = [c for c in cond_keys if c in avg and avg[c]]
-            FW, CW = 20, 10
-            print(f"\n  [{sdg_method}]  {attack_name}  —  RA (%) averaged over {len(SAMPLES)} samples")
-            hdr = f"  {'Feature':<{FW}}"
+            # ── Gibbs experiments ──────────────────────────────────────────
+            for clf_config in GIBBS_CLF_CONFIGS:
+                clf_name = clf_config["name"]
+                print(f"\n    [{clf_name}]")
+
+                if _make_soft_chain_clf(clf_config["members"][0]["attack"],
+                                        clf_config["members"][0]["params"]) is None:
+                    print(f"      [SKIP] clf not supported")
+                    continue
+
+                snapshots, conv_stats = run_gibbs_at_checkpoints(
+                    clf_config, synth, train, qi, chain_order, GIBBS_PASS_CHECKPOINTS,
+                )
+                all_conv[clf_name].append(conv_stats)
+
+                for f, s in score(train, snapshots[0], hidden_features).items():
+                    acc[f"{clf_name}_init"][f].append(s)
+                for k in GIBBS_PASS_CHECKPOINTS:
+                    for f, s in score(train, snapshots[k], hidden_features).items():
+                        acc[f"{clf_name}_gibbs_{k}"][f].append(s)
+
+                init_mean   = mean_score(score(train, snapshots[0], hidden_features))
+                final_k     = GIBBS_PASS_CHECKPOINTS[-1]
+                final_mean  = mean_score(score(train, snapshots[final_k], hidden_features))
+                print(f"      init={init_mean:.2f}  gibbs_{final_k}={final_mean:.2f}")
+
+        # ── Average across samples ─────────────────────────────────────────
+        avg = {}
+        for cond in all_conds:
+            feat_dict = acc[cond]
+            if feat_dict:
+                avg[cond] = {f: float(np.mean(v)) for f, v in feat_dict.items()}
+
+        valid_conds = [c for c in all_conds if c in avg and avg[c]]
+
+        # ── Print per-feature table ────────────────────────────────────────
+        FW, CW = 20, 10
+        print(f"\n  [{sdg_method}]  RA (%) averaged over {len(SAMPLES)} samples")
+        hdr = f"  {'Feature':<{FW}}"
+        for c in valid_conds:
+            lbl = c.replace("_", " ")
+            hdr += f"  {lbl:>{CW}}"
+        print(hdr)
+        print("  " + "─" * (FW + (CW + 2) * len(valid_conds)))
+
+        for feat in hidden_features:
+            row = f"  {feat:<{FW}}"
             for c in valid_conds:
-                lbl = c.replace("_", " ")
-                hdr += f"  {lbl:>{CW}}"
-            print(hdr)
-            print("  " + "─" * (FW + (CW + 2) * len(valid_conds)))
-
-            for feat in hidden_features:
-                row = f"  {feat:<{FW}}"
-                for c in valid_conds:
-                    v = avg.get(c, {}).get(feat, float('nan'))
-                    row += f"  {v:>{CW}.2f}"
-                print(row)
-
-            # Mean row
-            row = f"  {'MEAN':<{FW}}"
-            for c in valid_conds:
-                v = mean_score(avg[c]) if c in avg else float('nan')
+                v = avg.get(c, {}).get(feat, float('nan'))
                 row += f"  {v:>{CW}.2f}"
-            print("  " + "─" * (FW + (CW + 2) * len(valid_conds)))
             print(row)
 
-            # ── Print convergence table ───────────────────────────────────
-            if all_conv:
-                # Average frac_changed per pass across samples
-                max_passes_seen = max(len(cv) for cv in all_conv)
-                print(f"\n  Convergence (avg frac predictions changed per Gibbs pass):")
-                print(f"  {'Pass':<6}  {'frac_changed':>14}")
-                for p in range(max_passes_seen):
-                    fracs = [cv[p]["frac_changed"] for cv in all_conv if p < len(cv)]
-                    avg_frac = float(np.mean(fracs)) if fracs else float('nan')
-                    print(f"  {p+1:<6}  {avg_frac:>14.4%}")
+        mean_row = f"  {'MEAN':<{FW}}"
+        for c in valid_conds:
+            v = mean_score(avg[c]) if c in avg else float('nan')
+            mean_row += f"  {v:>{CW}.2f}"
+        print("  " + "─" * (FW + (CW + 2) * len(valid_conds)))
+        print(mean_row)
 
-            # ── Save CSV ──────────────────────────────────────────────────
-            out_path = Path(OUT_DIR) / DATASET["name"]
-            out_path.mkdir(parents=True, exist_ok=True)
+        # ── Print convergence tables ───────────────────────────────────────
+        for clf_config in GIBBS_CLF_CONFIGS:
+            clf_name  = clf_config["name"]
+            conv_list = all_conv[clf_name]
+            if not conv_list:
+                continue
+            max_p = max(len(cv) for cv in conv_list)
+            print(f"\n  Convergence [{clf_name}] (avg frac changed per pass):")
+            print(f"  {'Pass':<6}  {'frac_changed':>14}")
+            for p in range(max_p):
+                fracs    = [cv[p]["frac_changed"] for cv in conv_list if p < len(cv)]
+                avg_frac = float(np.mean(fracs)) if fracs else float('nan')
+                print(f"  {p+1:<6}  {avg_frac:>14.4%}")
 
-            # Per-feature scores
+        # ── Save CSVs ─────────────────────────────────────────────────────
+        out_path = Path(OUT_DIR) / DATASET["name"]
+        out_path.mkdir(parents=True, exist_ok=True)
+
+        for clf_config in GIBBS_CLF_CONFIGS:
+            clf_name = clf_config["name"]
+            clf_conds = [f"{clf_name}_init"] + [f"{clf_name}_gibbs_{k}" for k in GIBBS_PASS_CHECKPOINTS]
+            table_conds = baseline_conds + [c for c in clf_conds if c in avg]
+
             rows = []
             for feat in hidden_features:
                 row = {"feature": feat}
-                for c in valid_conds:
+                for c in table_conds:
                     row[c] = round(avg.get(c, {}).get(feat, float('nan')), 4)
                 rows.append(row)
-            # Mean row
-            mean_row = {"feature": "MEAN"}
-            for c in valid_conds:
-                mean_row[c] = round(mean_score(avg[c]) if c in avg else float('nan'), 4)
-            rows.append(mean_row)
-            p_feat = out_path / f"{attack_name}_{sdg_method}.csv"
+            mean_r = {"feature": "MEAN"}
+            for c in table_conds:
+                mean_r[c] = round(mean_score(avg[c]) if c in avg else float('nan'), 4)
+            rows.append(mean_r)
+
+            p_feat = out_path / f"{sdg_method}_{clf_name}.csv"
             pd.DataFrame(rows).to_csv(p_feat, index=False)
             print(f"\n  Saved: {p_feat}")
 
-            # Convergence stats
-            if all_conv:
+            # Convergence CSV
+            conv_list = all_conv[clf_name]
+            if conv_list:
+                max_p     = max(len(cv) for cv in conv_list)
                 conv_rows = []
-                max_p = max(len(cv) for cv in all_conv)
                 for p in range(max_p):
-                    fracs = [cv[p]["frac_changed"] for cv in all_conv if p < len(cv)]
-                    conv_rows.append({"pass": p + 1,
-                                      "frac_changed_mean": round(float(np.mean(fracs)), 6),
-                                      "frac_changed_std":  round(float(np.std(fracs)),  6)})
-                p_conv = out_path / f"{attack_name}_{sdg_method}_convergence.csv"
+                    fracs = [cv[p]["frac_changed"] for cv in conv_list if p < len(cv)]
+                    conv_rows.append({
+                        "pass":               p + 1,
+                        "frac_changed_mean":  round(float(np.mean(fracs)), 6),
+                        "frac_changed_std":   round(float(np.std(fracs)),  6),
+                    })
+                p_conv = out_path / f"{sdg_method}_{clf_name}_convergence.csv"
                 pd.DataFrame(conv_rows).to_csv(p_conv, index=False)
                 print(f"  Saved: {p_conv}")
 
