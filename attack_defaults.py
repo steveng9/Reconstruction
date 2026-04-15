@@ -51,6 +51,33 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "lgb_verbosity":      -1,
     },
 
+    # ── TabPFN (attacks/tabpfn_attack.py) ───────────────────────────────────
+    # In-context classification: synth → training set, QI → features.
+    # Falls back to RF for features with > 10 distinct values.
+    "TabPFN": {
+        "max_train_samples":         1024,  # subsample synth if larger
+        "n_ensemble_configurations": 32,    # TabPFN ensemble size
+        "device":                    "cpu",
+        "rf_fallback_n_estimators":  25,
+        "rf_fallback_max_depth":     25,
+    },
+
+    # ── MarginalRF (attacks/marginal_rf.py) ─────────────────────────────────
+    # RF posteriors + sum-product BP on an MST of pairwise synth marginals.
+    # Reduces to plain RF when features are independent in synth (PMI ≈ 0).
+    "MarginalRF": {
+        "num_estimators":       25,
+        "max_depth":            25,
+        "max_pair_cardinality": 50,    # features above this skip pairwise correction
+        "knn_k":                100,   # synth neighbours per target for local (conditional) PMI;
+                                       # set to None for global (unconditional) PMI
+        "alpha":                1e-6,  # Laplace smoothing for joint tables
+        "graph_type":           "mst", # "mst" (exact BP) | "complete" | "topk" (both loopy BP)
+        "top_k_edges":          None,  # edge budget for graph_type="topk"; None → 2 × |features|
+        "lbp_max_iter":         20,    # max loopy BP iterations (ignored for "mst")
+        "lbp_damping":          0.5,   # loopy BP step-size: 1.0=full update, 0.0=no update
+    },
+
     # ── ML regressors (attacks/ML_regression.py) ─────────────────────────────
     "LinearRegression":     {},
     "Ridge":                {"alpha": 1.0},

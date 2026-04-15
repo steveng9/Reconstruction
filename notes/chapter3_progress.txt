@@ -1,0 +1,43 @@
+The outline is updated. Here's a summary of what I found and recorded:
+
+  ---                                                                                                                                                                                                                 
+  Chapter swap done
+                                                                                                                                                                                                                      
+  Chapters 3 and 4 are swapped in the Option A outline. The outline note explains the rationale: settings results are concrete and conclusive; enhancements can reference the settings datasets/findings.
+                                                                                                                                                                                                                      
+  ---                                                       
+  Chapter 3 summary — what we know                                                                                                                                                                                    
+                                                                                                                                                                                                                      
+  3.1 SDG method and DP epsilon (adult, all attacks × all SDGs)
+                                                                                                                                                                                                                      
+  The DP story is clear and plottable. Key gradient:                                                                                                                                                                  
+  - De-identification methods (CellSuppression 55.7%, RankSwap 49.3%) are the most attackable — worse than no-privacy deep generative models                                                                          
+  - TabDDPM (39.3%) is most attackable purely synthetic method — high fidelity = high RA                                                                                                                              
+  - DP cuts risk substantially at ε < 1: MST ε=0.1 → 14.1% vs. Synthpop → 30.2%; but the curve flattens above ε ≈ 3
+                                                                                                                                                                                                                      
+  Still needed: the RA-vs-ε curve figure, and a quality-vs-RA correlation using quality_results_merged.csv.                                                                                                           
+                                                                                                                                                                                                                      
+  3.2 Dataset characteristics                                                                                                                                                                                         
+                                                                                                                                                                                                                      
+  - Adult (15 cat. features, QI1): best attack RF ~21.7%, Mode ~10.1%                                                                                                                                                 
+  - CDC Diabetes (22 mostly binary features): RF ~49.8%, Mode ~42.3% — high baselines because of binary features; the absolute gap from ML over Mode is small (~7.5pp)
+  - NIST SBO (130 features): RF ~35.2%, Mode ~32.5% — ~124 hidden features dilute the average enormously                                                                                                              
+  - California (9 continuous): normalized RMSE 0.04–0.11, all attacks do quite well                                                                                                                                   
+                                                                                                                                                                                                                      
+  Per-feature cardinality is the primary driver: adult education-num (C=16) → 89.8%; fnlwgt (C=8477) → 0.8%. Binary features always easy, near-continuous always hard.                                                
+                                                                                                                                                                                                                      
+  Linear extended experiments: LP's advantage disappears at C>2. For 5-valued race or joint 2–3 binary features, RF matches or beats LP.                                                                              
+                                                            
+  Still needed: California full sweep; NIST Arizona ML classifier comparison; SBO per-feature financial vs. survey-flag breakdown (data already on disk).                                                             
+                                                            
+  3.3 QI choice                                                                                                                                                                                                       
+                                                            
+  This section has the most striking findings:                                                                                                                                                                        
+                                                            
+  Adult: QI_behavioral (|QI|=6, employment features) → RF=33.0% vs. QI_large (|QI|=10) → 28.7%. Knowing your occupation/workclass/relationship is more informative than knowing 10 demographic features. Composition  
+  beats quantity.
+                                                                                                                                                                                                                      
+  CDC: QI_behavioral (lifestyle prior) → 30.6% vs. QI1 (demographic) → 49.1% at the same |QI|=10. Flipping what's hidden (identity vs. outcomes) reverses the difficulty. QI_large also lowers average RA (to 41.1%)  
+  because it moves the easy binary features out of the hidden set.
+                                                                                                                                                                                                                      
+  Still needed: per-feature breakdown within QI variants; DP × QI interaction (high policy value — does ε=1 protect more when adversary knows less?). 

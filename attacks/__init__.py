@@ -10,6 +10,8 @@ Attacks are organized by data type (categorical vs continuous).
 
 # Categorical attacks
 from .NN_classifier import mlp_classification_reconstruction
+from .tabpfn_attack import tabpfn_reconstruction
+from .marginal_rf import marginal_rf_reconstruction
 from .ML_classifiers import (
     KNN_reconstruction,
     lgboost_reconstruction,
@@ -97,6 +99,12 @@ ATTACK_REGISTRY = {
         "SVM": SVM_classification_reconstruction,
         "LogisticRegression": logistic_regression_reconstruction,
         "NaiveBayes": naive_bayes_reconstruction,
+
+        # Foundation model / in-context learning
+        "TabPFN": tabpfn_reconstruction,
+
+        # Marginal-corrected RF
+        "MarginalRF": marginal_rf_reconstruction,
 
         # Neural Networks
         "MLP": mlp_classification_reconstruction,

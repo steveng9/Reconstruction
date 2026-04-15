@@ -196,22 +196,24 @@ UPDATE ON OUTLINE:
      [EXPERIMENT: one main table — all attacks × all SDG methods, single dataset, QI1]
      [KEY INSIGHT: simple baselines are deceptively competitive / diffusion is best / etc.]
 
-  3. Making Attacks Stronger
-     - 3.1 Chaining: sequential feature prediction
-       [EXPERIMENT: chain order matters; show one figure of per-feature accuracy with/without chaining]
-     - 3.2 Ensembling: combining attack predictions
-       [EXPERIMENT: one figure — accuracy vs. ensemble size; one heatmap of pairwise attack correlations]
-     - 3.3 NIST CRC: a real-world stress test
-       [where auxiliary data enhancement changes the threat model — frame why it's out-of-scope for auditing]
-
-  4. How Does the Scenario Shape Risk?
-     - 4.1 SDG method and DP epsilon
+  3. How Does the Scenario Shape Risk?  [SWAPPED from ch.4 — results here are stronger/cleaner than enhancements]
+     - 3.1 SDG method and DP epsilon
        [EXPERIMENT: RA vs. ε curves — the key privacy-utility question]
        [+ data quality sidebar: does better synthetic data = higher attack success?]
-     - 4.2 Dataset characteristics (type, size, column count, cardinality)
-       [EXPERIMENT: 2–3 datasets showing qualitatively different regimes]
-     - 4.3 The choice of quasi-identifiers
-       [EXPERIMENT: QI size vs. RA — how much does the adversary's prior knowledge matter?]
+     - 3.2 Dataset characteristics (type, size, column count, cardinality)
+       [EXPERIMENT: 2–3 datasets showing qualitatively different regimes;
+        per-feature RA breakdown; LP extended experiments (multi-valued + joint)]
+     - 3.3 The choice of quasi-identifiers
+       [EXPERIMENT: QI size vs. RA curve (adult QI_tiny/QI1/QI_large);
+        composition contrast (QI1 vs. QI_behavioral, matched size)]
+
+  4. Making Attacks Stronger  [SWAPPED from ch.3 — more speculative, can reference ch.3 datasets/findings]
+     - 4.1 Chaining: sequential feature prediction
+       [EXPERIMENT: chain order matters; show one figure of per-feature accuracy with/without chaining]
+     - 4.2 Ensembling: combining attack predictions
+       [EXPERIMENT: one figure — accuracy vs. ensemble size; one heatmap of pairwise attack correlations]
+     - 4.3 NIST CRC: a real-world stress test
+       [where auxiliary data enhancement changes the threat model — frame why it's out-of-scope for auditing]
 
   5. What Do Attacks Actually Reveal?
      - 5.1 Memorization vs. inference
@@ -260,5 +262,231 @@ UPDATE ON OUTLINE:
   - Drop 2.5 and 2.6 from the taxonomy; integrate 2.6 into the intro's "related work" paragraph.
   - Put one concrete result table in Section 2 — even a partial one (e.g., adult dataset only). Give the reader something to hold.
   - Ensembling: pick two things to show — the accuracy-vs-size curve and one heatmap. The four-method ensemble-finding exercise belongs in the appendix.
-  - Section 4's claim should be about DP, not "data types." DP epsilon is the central policy lever. Structure 4 around that, with data types as evidence.
+  - Section 3's claim should be about DP, not "data types." DP epsilon is the central policy lever. Structure 3 around that, with data types as evidence.
   - Threat model should appear in the intro, not buried in 1.3 as an afterthought.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHAPTER 3 SUMMARY: How Does the Scenario Shape Risk?
+(research summary for writing — compiled Apr 2026)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Data from: production sweeps (adult, CDC, NIST Arizona, NIST SBO), QI analysis
+sweep (qi_analysis/), per-feature chaining analysis, linear extended experiments.
+All results use non-training (holdout) RA unless noted.
+
+
+────────────────────────────────────────────────────────────────────────────────
+3.1  SDG method and DP epsilon
+────────────────────────────────────────────────────────────────────────────────
+
+DATA: adult 10k production sweep (April 2026, 1140 rows, QI1, all attacks × all
+SDG methods). Key RA by SDG (best attack per SDG):
+
+  De-identification methods (not DP):
+    CellSuppression          55.7%  (best: KNN)
+    RankSwap                 49.3%  (best: MeasureDeid)
+
+  Deep generative / no privacy:
+    TabDDPM                  39.3%
+    Synthpop                 30.2%
+    TVAE                     27.4%
+    CTGAN                    24.5%
+    ARF                      23.2%
+
+  DP-generative (AIM/MST, varying ε):
+    AIM ε=3                  24.6%
+    MST ε=300                24.0%
+    AIM ε=1                  23.6%
+    MST ε=10                 19.7%
+    MST ε=1                  22.3%
+    MST ε=0.3                17.5%
+    MST ε=0.1                14.1%
+
+KEY FINDINGS:
+- DP does work: MST ε=0.1 → 14.1% vs. Synthpop → 30.2% (same attack). But the
+  curve is nonlinear — most of the protection comes at ε < 1. Above ε=3, DP adds
+  little vs. non-private generation.
+- CellSuppression and RankSwap are the most "attackable" methods (55–49%), even
+  higher than non-DP deep generative models. De-identification ≠ privacy.
+- TabDDPM (39.3%) is the most attackable purely synthetic method — it preserves
+  joint structure well, which is exactly what attacks exploit.
+- CTGAN/ARF/Synthpop cluster around 23–30%; they preserve marginals but not
+  high-order dependencies as faithfully.
+
+TODO: RA-vs-ε curve figure (attack RA on y-axis, ε on x-axis, one curve per
+attack or per SDG family). This is the central policy visualization for this
+section. Adult data exists; just needs plotting.
+
+TODO: Data quality sidebar — correlate SDG fidelity metrics (TVD, JSD, TSTR)
+with attack RA. Quality results are in quality_results_merged.csv. Hypothesis:
+higher fidelity → higher RA? Does it hold? TabDDPM is high fidelity AND high RA;
+MST ε=0.1 is low fidelity AND low RA. Need to check intermediate cases.
+
+
+────────────────────────────────────────────────────────────────────────────────
+3.2  Dataset characteristics: domain, column count, cardinality
+────────────────────────────────────────────────────────────────────────────────
+
+DATASETS COVERED (5 total):
+
+  Adult (demographic/employment, categorical, 15 features):
+    Best attack (RF, QI1, across all SDGs): ~21.7%
+    Mode baseline: ~10.1%
+
+  CDC Diabetes (health, mostly binary, 22 features):
+    Best attack (KNN, QI1): ~49.8%
+    Mode baseline: ~42.3%
+    NOTE: high baseline because most features are binary (~50% random RA).
+    Rarity-weighted R_adv gap (best minus baseline) ≈ 7.5pp — small in absolute
+    terms but consistent.
+
+  NIST Arizona 25-feat (census, categorical, 25 features, QI1):
+    Best attack (PartialMSTBounded): ~22.7%
+    PartialMST: ~20.0%, PartialMSTIndependent: ~19.7%
+    NOTE: Only PartialMST variants run so far; no ML classifier comparison.
+
+  NIST SBO (business survey, 130 binary/categorical features, QI1 or QI_large):
+    Best attack (RF): ~35.2%
+    Mode baseline: ~32.5%
+    NOTE: Very small gap. High column count (124 hidden features) severely
+    dilutes average RA — even if a few features are well-predicted, the average
+    is dragged down by 100+ near-random-chance features.
+    Per-feature breakdown would show financial features (PAYROLL, RECEIPTS)
+    might be selectively vulnerable — NOT YET COMPUTED.
+
+  California Housing (continuous, 9 features):
+    RF normalized RMSE scores (lower = better reconstruction):
+      AveBedrms 0.038, AveRooms 0.043, AveOccup 0.047,
+      MedInc 0.084, MedHouseVal 0.112
+    NOTE: All scores are low → attacks do well on continuous data relative to
+    the feature range. Continuous targets are more recoverable than expected.
+
+PER-FEATURE ANALYSIS (adult, RF non-chained, QI1):
+  education-num   89.8%  (C=16)   — near-deterministic from QI (education label)
+  income          77.4%  (C=2)    — binary, predictable
+  relationship    74.0%  (C=6)
+  occupation      34.8%  (C=15)
+  workclass       34.0%  (C=8)
+  capital-loss    17.9%  (C=69)   — higher cardinality, harder
+  hours-per-week  14.6%  (C=86)
+  capital-gain     7.0%  (C=98)
+  fnlwgt           0.8%  (C=8477) — essentially unique; RA at noise floor
+
+KEY FINDING: Cardinality is a primary driver of per-feature difficulty. Binary
+features (CDC, income) are easiest; near-continuous features (fnlwgt, capital-
+gain) are essentially unrecoverable from synth alone. This is an important
+calibration for the R_adv score — it does NOT treat all errors as equal, which
+is by design.
+
+PER-FEATURE ANALYSIS (CDC, RF non-chained, QI1):
+  All binary features (DiffWalk, Fruits, Diabetes_binary, etc.) cluster at
+  75–84% RA. PhysHlth and MentHlth (C=21) drop to 55–58%. The jump at C=2→21
+  is stark.
+
+LINEAR EXTENDED EXPERIMENTS (adult, LP vs. RF):
+  - Categorical hidden feature (race, C=5): LP (20.4%) ≈ RF (20.2%) at 1k;
+    both ~34% at 10k. LP brings no advantage over ML for multi-valued targets.
+  - Joint prediction (income+sex, C=4 joint): LP joint (64.5%) vs RF (67.2%)
+    at 1k; both ~72% at 10k. LP's joint formulation doesn't outperform RF
+    predicting features independently.
+  - Joint 3-binary (CDC, Diabetes+HighBP+Stroke): LP (54.0%) ≈ RF (54.8%).
+  TAKEAWAY: LP reconstruction's advantage is most apparent in the binary single-
+  feature case (from Section 2). For multi-valued or jointly predicted targets,
+  standard ML attacks match or exceed it.
+
+GAPS / TODO:
+- California sweep: only RF run so far, on limited SDGs. Needs full attack sweep
+  for ch.3.2 comparison across domains.
+- NIST Arizona: only PartialMST variants run. Add ML classifiers (RF, LGB, MLP)
+  for apples-to-apples comparison with adult and CDC.
+- NIST SBO: per-feature breakdown (financial vs. survey flags) would be the key
+  insight for this dataset. QI_large results available; per-feature RA not yet
+  extracted. Can be done from existing sweep_results_nist_sbo_*.csv which already
+  has RA_* per-feature columns.
+- Data size: no dedicated size sweep (1k vs 10k vs 100k) run yet for the "how
+  does training set size affect RA" question. CDC has 1k/100k sizes available.
+
+
+────────────────────────────────────────────────────────────────────────────────
+3.3  The choice of quasi-identifiers
+────────────────────────────────────────────────────────────────────────────────
+
+DATA: QI analysis sweep (run_qi_sweep.py, April 2026). All attacks × all SDG
+methods on adult (10k) and CDC Diabetes (1k), QI_tiny/QI1/QI_large/QI_behavioral.
+Metric: RA averaged over attacks and SDGs.
+
+ADULT (RF, averaged over all SDGs):
+  QI_tiny    (|QI|= 3, age/sex/race only):               RF=12.6%, NB=13.6%
+  QI1        (|QI|= 6, + education/natl-country/marital): RF=24.9%, KNN=22.8%
+  QI_large   (|QI|=10, + occupation/workclass/etc.):      RF=28.7%, MLP=26.6%
+  QI_behavioral (|QI|=6, employment features only):       RF=33.0%, MLP=32.7%
+
+KEY FINDINGS (adult):
+1. RA-vs-QI-size curve saturates: tiny→QI1 gains +12pp; QI1→large gains only
+   +4pp. Doubling the QI size from 6→10 adds relatively little.
+2. COMPOSITION DOMINATES SIZE: QI_behavioral (|QI|=6, employment prior) gives
+   RF=33.0% — substantially higher than QI_large (|QI|=10, demographic+employment)
+   at 28.7%. Knowing occupation/workclass/relationship is more informative for
+   predicting income/education-num/capital than knowing age/sex/race/education.
+   This is the key story: adversary knowledge quality matters more than quantity.
+3. Mode/Random baseline rises with QI size (9.7% → 10.4% → 11.5%) — the
+   marginal baseline also improves, but more slowly than ML attacks.
+
+CDC DIABETES (RF, averaged over all SDGs):
+  QI_tiny    (|QI|= 4, Sex/Age/BMI/GenHlth):             RF=46.9%
+  QI1        (|QI|=10, + HighBP/HighChol/Smoker/etc.):   RF=49.1%
+  QI_large   (|QI|=16, adds 6 lifestyle features to QI): RF=41.1%  (!)
+  QI_behavioral (|QI|=10, lifestyle/behavior features):   RF=30.6%  (!)
+
+KEY FINDINGS (CDC):
+1. More QI can lower average RA: QI_large adds easy features (DiffWalk,
+   CholCheck) to QI, removing them from the hidden set. Average RA drops because
+   only harder features remain hidden. This illustrates that RA is a property of
+   the hidden SET, not just QI size.
+2. BEHAVIORAL vs. DEMOGRAPHIC FRAMING: QI_behavioral (lifestyle prior) gives
+   RF=30.6% while QI1 (demographic prior) gives RF=49.1% — at the same |QI|=10.
+   QI_behavioral makes demographic identity (age, sex, BMI) the hidden target,
+   which is much harder to reconstruct from behavioral features than vice versa.
+   This has direct policy relevance: in health datasets, demographic identity may
+   be more privacy-sensitive AND harder to reconstruct from behavioral signals.
+3. Mode/Random baseline is ~41–42% across all QI variants — driven by feature
+   cardinality, not QI. Relative gains of ML attacks are consistent (~7–9pp).
+
+WHAT'S STILL NEEDED:
+- Per-feature breakdown within each QI variant: which hidden features become
+  easier/harder as QI grows? We have per-feature data in the QI sweep CSVs
+  (RA_{feat} columns are logged to WandB, and nontrain columns in the sweep
+  results). This would show "QI_large makes income nearly certain but fnlwgt
+  still unrecoverable."
+- DP interaction: does the RA-vs-ε curve look different under QI_tiny vs.
+  QI_large? High-priority question for policy framing (DP may protect more when
+  adversary knows less). NOT YET RUN — would require re-running the adult DP
+  sweep for QI_tiny and QI_large (currently only QI1 for the main sweep).
+- The adult QI1 numbers in the QI sweep (RF=24.9%) are slightly lower than the
+  production sweep (RF=21.7%) — possibly different SDG subset or attack params.
+  Should verify these are comparable before putting in a single table.
+
+
+────────────────────────────────────────────────────────────────────────────────
+PRIORITY EXPERIMENTS STILL TO RUN
+────────────────────────────────────────────────────────────────────────────────
+
+HIGH PRIORITY:
+1. California full sweep (all attacks × all SDGs) — needed for domain comparison
+2. NIST Arizona ML classifier sweep (RF, LGB, MLP) — needed for attack comparison
+   alongside PartialMST
+3. SBO per-feature RA extraction from existing CSVs (no new runs needed;
+   financial vs. survey-flag contrast)
+4. Adult size sweep: compare 1k vs 10k RA across attacks to answer "does more
+   training data help the attacker?"
+
+MEDIUM PRIORITY:
+5. DP × QI interaction: rerun adult DP sweep (MST ε=0.1–10) for QI_tiny and
+   QI_large (reuse existing synth.csv, just new attack configs)
+6. Per-feature QI breakdown figure: extract from existing QI sweep WandB runs
+
+LOW PRIORITY / SPECULATIVE:
+7. NIST Arizona QI variants (QI3 = large, for CRC comparison callout)
+8. CDC size sweep: 1k vs. 100k — CDC has both sizes on disk
+

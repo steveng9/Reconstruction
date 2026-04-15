@@ -1,0 +1,249 @@
+---
+  Attack 1: TabPFN
+
+  What is it?
+
+  TabPFN is a neural network trained on millions of tiny datasets before you ever touch your data. It learned a general rule: "given a set of labeled examples, predict the label of a new
+  example." It stores all the examples in its memory (called "in-context learning") and makes predictions by pattern-matching — no re-training needed.
+
+  Think of it like a student who has studied thousands of practice problems. When you hand them a new problem, they don't go back to school — they just recognize the pattern from experience.
+
+  How we apply it to reconstruction
+
+  - Training examples: the synthetic data rows (each row = QI values + hidden feature value)
+  - Test example: a target person's QI values
+  - TabPFN reads all the synthetic rows, then predicts the target's hidden value by asking "which synthetic rows look most like this target's QI? What hidden values did those rows have?"
+
+  It's essentially a very sophisticated nearest-neighbor lookup that also weighs the global structure of the data.
+
+  Limitation: high-cardinality features
+
+  TabPFN was designed for problems with few distinct labels. If a hidden feature has more than ~10 distinct values, TabPFN gets confused (too many classes). For those features, we fall back
+  to a plain Random Forest.
+
+  Why it might be good
+
+  TabPFN saw patterns from millions of datasets during pre-training, so it often picks up subtle structure without needing large training sets. At n=1,000, this is valuable — a plain RF has
+  less data to learn from.
+
+  ---
+  Attack 2: MarginalRF (and its variants)
+
+  Step 1: Plain Random Forest (the baseline)
+
+  For each hidden feature independently:
+  1. Train an RF on synthetic data: input = QI features, output = that hidden feature's value
+  2. Run each target's QI through the RF → get a probability distribution over possible values
+
+  Example: for target person X with QI=[age=35, sex=M], the RF might say:
+  - income=High: 60%
+  - income=Low: 40%
+
+  This is your starting belief for that feature.
+
+  Problem: the RF treats each hidden feature independently. But hidden features are often correlated with each other in the real data. If the RF already predicted relationship=Husband with
+  high confidence, that's a strong signal that income=High is more likely — but the plain RF ignores this.
+
+  ---
+  Step 2: The Count Tables (PMI correction)
+
+  We look at all pairs of hidden features in the synthetic data and count how often each combination of values appears together.
+
+  Example count table for (income, relationship) in synth:
+
+  ┌──────┬─────────┬──────┬───────────────┐
+  │      │ Husband │ Wife │ Not-in-family │
+  ├──────┼─────────┼──────┼───────────────┤
+  │ High │ 800     │ 200  │ 100           │
+  ├──────┼─────────┼──────┼───────────────┤
+  │ Low  │ 100     │ 300  │ 500           │
+  └──────┴─────────┴──────┴───────────────┘
+
+  From this, we compute PMI (Pointwise Mutual Information) for each value-pair:
+
+  ▎ PMI(income=High, relationship=Husband) = log[ P(High, Husband) / (P(High) × P(Husband)) ]
+
+  - If PMI > 0: these two values co-occur more than you'd expect by chance → they reinforce each other
+  - If PMI < 0: they co-occur less → they conflict with each other
+  - PMI ≈ 0: knowing one tells you nothing about the other
+
+  These PMI tables are the "correction terms" we'll apply on top of the RF beliefs.
+
+  ---
+  Step 3: Building the Graph
+
+  We build a graph where:
+  - Each node = one hidden feature
+  - Each edge = a pair of features, weighted by how correlated they are in the synthetic data (using mutual information — a summary of the whole PMI table)
+
+  The three graph structures differ in how many edges we keep:
+
+  MST (Minimum/Maximum Spanning Tree)
+  Keep only the strongest edges that form a tree — no cycles. If you have 5 hidden features, you get exactly 4 edges. This is a sparse graph that captures the most important correlations
+  without any redundancy.
+
+  Complete graph
+  Every feature connects to every other feature — all N×(N-1)/2 edges. Captures all pairwise correlations, but the graph has cycles.
+
+  Top-K graph
+  Only keep the K strongest edges (by MI). K defaults to 2×(number of features). Sparse like MST but may have cycles.
+
+  ---
+  Step 4: Belief Propagation (the "telephone game")
+
+  Each node starts with its RF belief — the probability distribution from Step 1, converted to log-probabilities.
+
+  Now nodes "talk" to their neighbors by passing messages. A message from node A to node B says:
+
+  ▎ "Hey B, given what I currently believe about my own values, and given our joint count table (the PMI), here's what I think you should believe about your values."
+
+  Mathematically, node A computes:
+  message A→B = (A's current belief) + (PMI correction for A→B) — (message B already sent to A)
+  That last subtraction is important: it prevents A from just echoing back what B already told it ("don't double-count").
+
+  After all messages are passed, each node updates its belief:
+  final belief at A = RF belief + sum of all messages received by A
+
+  On a tree (MST): There are no cycles, so messages can flow outward from leaves, then back inward in one pass. The answer is exact — no approximation needed.
+
+  On a graph with cycles (complete or top-K): Messages go around in circles. We iterate:
+  1. Pass all messages
+  2. Update all beliefs
+  3. Repeat until beliefs stop changing (convergence)
+
+  This is called Loopy Belief Propagation because the messages loop around cycles. It's approximate (no guarantee of convergence or correctness), but in practice it works well.
+
+  Damping (lbp_damping=0.5): Instead of fully updating each message every iteration, we blend 50% of the new message with 50% of the old message. This slows down updates and prevents
+  oscillation — like adding friction to the telephone game.
+
+  ---
+  Step 5: Final Prediction
+
+  After BP, each node has a final log-probability distribution over its values. Take the argmax (highest probability) as the prediction.
+
+  ---
+  The Local vs. Global PMI Variants
+
+  Global PMI (knn_k=None)
+  The PMI tables are computed from all synthetic data. This captures average correlations across the whole population.
+
+  Local PMI (knn_k=100)
+  For each target person, we first find their 100 nearest synthetic neighbors (based on QI similarity). Then we compute PMI tables only from those neighbors.
+
+  Why? Correlations between hidden features can depend on QI. Example: the income–relationship correlation might look very different for 25-year-olds vs. 65-year-olds. Local PMI adapts the
+  correction to each target's specific slice of the population.
+
+  ---
+  Summary of All MarginalRF Variants
+
+  ┌─────────────────┬───────────────────┬───────────────────────┬──────────────────────┐
+  │     Variant     │       Graph       │          PMI          │      Inference       │
+  ├─────────────────┼───────────────────┼───────────────────────┼──────────────────────┤
+  │ mst_global      │ Sparse tree       │ Whole synth           │ Exact BP (1 pass)    │
+  ├─────────────────┼───────────────────┼───────────────────────┼──────────────────────┤
+  │ mst_local       │ Sparse tree       │ 100 nearest neighbors │ Exact BP (1 pass)    │
+  ├─────────────────┼───────────────────┼───────────────────────┼──────────────────────┤
+  │ complete_global │ Full graph        │ Whole synth           │ Loopy BP (iterative) │
+  ├─────────────────┼───────────────────┼───────────────────────┼──────────────────────┤
+  │ complete_local  │ Full graph        │ 100 nearest neighbors │ Loopy BP (iterative) │
+  ├─────────────────┼───────────────────┼───────────────────────┼──────────────────────┤
+  │ topk_local      │ K strongest edges │ 100 nearest neighbors │ Loopy BP (iterative) │
+  └─────────────────┴───────────────────┴───────────────────────┴──────────────────────┘
+
+  The core question the ablation is answering: does capturing more correlations (complete > topk > mst) help, and does local conditioning (local > global) help? The answer likely depends on
+  how many hidden features there are and how much correlation exists beyond what the QI already explains.
+
+
+
+
+
+so the tabpfn attack is not set up like an ML classifier -- i.e. we do not train a model on D_synth[qi] to predict D_synth[h_i], and then reconstruction is just doing inference on         
+  D_train[qi], for all h_i in HF?                                                                                                                                                             
+                                                                                                                                                                                              
+  Next, for the marginalRF attack, step 4, in your belief propogation description: so node A has beliefs about the probabilities of feature a's rows (so if n rows, and h classes, this is a  
+  n x h table)  and node B has beliefs about the probabilities of feature b's rows, which is also a table with n rows, but the columns correspond to b's values, not a's. How is a's belief   
+  merged with b's belief then? How does it take into account the measured marginal distribution between them.                                                                                 
+                                                                                                                                                                                              
+● Two great questions. Let me address them separately.                                                                                                                                        
+                                                                                                                                                                                              
+  ---                                                                                                                                                                                         
+  TabPFN: Is it structurally the same?    
+                                              
+  Yes, structurally identical to the other ML classifiers. For each hidden feature h_i:                                                                                                       
+  - "Training" input: D_synth[QI], "training" labels: D_synth[h_i]
+  - "Test" input: D_target[QI]                                                                                                                                                                
+  - Output: predicted h_i for each target row               
+                                                                                                                                                                                              
+  The difference is purely mechanistic. Standard ML classifiers have an explicit two-step process:                                                                                            
+                                                                                                                                                                                              
+  fit(X=synth_QI, y=synth_h_i)   ← modifies model weights                                                                                                                                     
+  predict(X=target_QI)            ← uses learned weights                                                                                                                                      
+                                                                                                                                                                                              
+  TabPFN has no fitting step. Its weights are frozen (pre-trained). Instead, you pass the entire synth dataset as part of the input at inference time — it's a single forward pass through a  
+  transformer that reads:                                                                                                                                                                     
+  - "Here are my labeled examples: (synth row 1 QI → income=High), (synth row 2 QI → income=Low), ..."
+  - "Now predict for this new QI vector"                                                                                                                                                      
+                                                            
+  The transformer attends over all the synth examples and the target query simultaneously. It learned how to do this "read examples → predict new point" trick from millions of diverse       
+  datasets during pre-training. The synth data never changes the model's weights — it's just input.                                                                                           
+                                          
+  ---                                                                                                                                                                                         
+  MarginalRF BP: How do messages cross between different class spaces?                                                                                                                        
+                                                                      
+  You're right that the dimensions don't match — this tripped me up in my explanation. Let me clarify the key missing piece.                                                                  
+                                                            
+  The n rows are independent of each other in the graph. The graph connects features, not rows. So BP runs separately for each of the n target rows. For a single row i:
+                                          
+  - Node A (income): a 1D vector of length h_a = [P(High), P(Low)] — the RF posterior for this one row                                                                                        
+  - Node B (relationship): a 1D vector of length h_b = [P(Husband), P(Wife), P(Other)] — RF posterior for this one row                                                                        
+                                                                                                                                                                                              
+  The PMI table for the pair (income, relationship) is a shared h_a × h_b matrix (same for all rows — computed once from all of synth).                                                       
+                                                            
+  The message from A → B                                                                                                                                                                      
+                                                                                                                                                                                              
+  The message is a vector in B's space (length h_b). For each possible value b_j of B:                                                                                                        
+                                                                                                                                                                                              
+  message_A→B[b_j] = log Σ_{a_k} exp( belief_A[a_k] + PMI[a_k, b_j] )
+                                                                                                                                                                                              
+  In plain English: "For each value b_j that B could take, sum up how much every possible value of A supports b_j — weighted by A's current belief about itself."
+                                                                                                                                                                                              
+  Concrete example with the income→relationship message:                                                                                                                                      
+                                                                                                                                                                                              
+  PMI table (log scale):                                                                                                                                                                      
+                 Husband   Wife   Other                                                                                                                                                       
+  High income:    +0.8    -0.3   -1.2                       
+  Low income:     -0.6    +0.4   +0.9                                                                                                                                                         
+                                                                                                                                                                                              
+  Belief_A = [P(High)=0.6, P(Low)=0.4]  (log: [-0.51, -0.92])
+                                                                                                                                                                                              
+  message to "Husband":                                     
+    = log( exp(-0.51 + 0.8) + exp(-0.92 - 0.6) )                                                                                                                                              
+    = log( exp(0.29) + exp(-1.52) )                         
+    = log( 1.34 + 0.22 ) = log(1.56) ≈ +0.44                                                                                                                                                  
+                                                            
+  message to "Other":                                                                                                                                                                         
+    = log( exp(-0.51 - 1.2) + exp(-0.92 + 0.9) )                                                                                                                                              
+    = log( exp(-1.71) + exp(-0.02) )                                                                                                                                                          
+    = log( 0.18 + 0.98 ) = log(1.16) ≈ +0.15                                                                                                                                                  
+                                                                                                                                                                                              
+  So A tells B: "I think you're more likely Husband (+0.44) than Other (+0.15)." This message vector is then added to B's raw RF log-belief, shifting B toward Husband.                       
+                                          
+  The "exclude the sender" trick                                                                                                                                                              
+                                                                                                                                                                                              
+  In the loopy case, node B also sends a message back to A. When A computes its outgoing message to B, it subtracts B's last message to A from its own belief first:                          
+                                                                                                                                                                                              
+  belief_A_excluding_B = belief_A + (all incoming messages to A) - (message B sent to A)
+                                                                                                                                                                                              
+  This prevents A from echoing B's own signal back to it — "don't tell B what B already told you."
+                                                                                                                                                                                              
+  Putting it together for all n rows                                                                                                                                                          
+                                                                                                                                                                                              
+  In practice, everything is batched. Instead of 1D vectors of length h_a and h_b, we have 2D arrays of shape (n, h_a) and (n, h_b). The log-sum-exp message computation is:                  
+                                                                                                                                                                                              
+  # log_beliefs_A: (n, h_a)                                 
+  # log_pmi:       (h_a, h_b)                                                                                                                                                                 
+  # message A→B:   (n, h_b)                                 
+  message = logsumexp(log_beliefs_A[:, :, None] + log_pmi[None, :, :], axis=1)                                                                                                                
+                                                                                                                                                                                              
+  This runs all n rows in parallel — one matrix operation per edge per iteration.                                                                                                             
+                                                  
