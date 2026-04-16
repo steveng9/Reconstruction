@@ -1,9 +1,16 @@
 #!/usr/bin/env python
 """
-New-attacks sweep: TabPFN and MarginalRF (multiple knn_k variants) vs. RF baseline.
+New-attacks fill-in sweep: TabPFN and MarginalRF variants on datasets not yet
+covered by run_new_attacks_sweep.py.
 
-Runs on adult 1k and cdc_diabetes 1k simultaneously — both datasets are included
-in the same WandB group so cross-dataset comparisons are easy.
+Datasets
+--------
+  cdc_diabetes  100k   QI1
+  nist_sbo        1k   QI1, QI_large
+
+NOTE: california (continuous) is excluded — TabPFN and MarginalRF are
+registered as categorical attacks only.  Add continuous variants to
+attacks/__init__.py before including california here.
 
 MarginalRF ablation modes
 --------------------------
@@ -12,20 +19,17 @@ MarginalRF ablation modes
   knn_k=100    local PMI, default (validated on adult QI1)
   knn_k=200    local PMI, large neighbourhood
 
-TabPFN note
------------
-  TabPFN shines at small synth sizes (n ≤ 1024).  All synth here is 1k, so
-  TabPFN trains on the full synth without subsampling.  Its advantage over RF
-  should be most visible on high-DP-noise SDG outputs (MST/AIM small epsilon).
-
 Usage (from repo root):
     conda activate recon_
-    python experiment_scripts/run_new_attacks_sweep.py
-    python experiment_scripts/run_new_attacks_sweep.py --dry-run
-    python experiment_scripts/run_new_attacks_sweep.py --workers 8
-    python experiment_scripts/run_new_attacks_sweep.py --dataset adult
-    python experiment_scripts/run_new_attacks_sweep.py --attack TabPFN
-    python experiment_scripts/run_new_attacks_sweep.py --sdg Synthpop
+    python experiment_scripts/run_new_attacks_fill_in_sweep.py
+    python experiment_scripts/run_new_attacks_fill_in_sweep.py --dry-run
+    python experiment_scripts/run_new_attacks_fill_in_sweep.py --workers 8
+    python experiment_scripts/run_new_attacks_fill_in_sweep.py --dataset cdc_diabetes
+    python experiment_scripts/run_new_attacks_fill_in_sweep.py --dataset nist_sbo
+    python experiment_scripts/run_new_attacks_fill_in_sweep.py --attack TabPFN
+    python experiment_scripts/run_new_attacks_fill_in_sweep.py --attack MarginalRF_mst_local_100
+    python experiment_scripts/run_new_attacks_fill_in_sweep.py --sdg Synthpop
+    python experiment_scripts/run_new_attacks_fill_in_sweep.py --qi QI_large
 """
 
 from __future__ import annotations
@@ -37,9 +41,8 @@ import multiprocessing as mp
 import os
 import sys
 import time
-import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -49,87 +52,103 @@ from attack_defaults import ATTACK_PARAM_DEFAULTS
 
 
 # ── Dataset configurations ─────────────────────────────────────────────────────
+# Each entry has its own sdg_methods list (available methods differ by dataset).
 
 DATASET_CONFIGS = [
     {
-        "base":        "adult",
-        "name":        "adult",
-        "size":        10_000,
+        "base":        "cdc_diabetes",
+        "name":        "cdc_diabetes",
+        "size":        100_000,
         "type":        "categorical",
         "qi_variants": ["QI1"],
-        "data_root":   "/home/golobs/data/reconstruction_data/adult/size_10000",
+        "data_root":   "/home/golobs/data/reconstruction_data/cdc_diabetes/size_100000",
+        "sdg_methods": [
+            ("MST",             {"epsilon": 0.1}),
+            ("MST",             {"epsilon": 1.0}),
+            ("MST",             {"epsilon": 10.0}),
+            ("MST",             {"epsilon": 100.0}),
+            ("MST",             {"epsilon": 1000.0}),
+            ("AIM",             {"epsilon": 1.0}),
+            ("AIM",             {"epsilon": 10.0}),
+            ("TVAE",            {}),
+            ("CTGAN",           {}),
+            ("ARF",             {}),
+            ("TabDDPM",         {}),
+            ("Synthpop",        {}),
+            ("RankSwap",        {}),
+            ("CellSuppression", {}),
+        ],
     },
-    #{
-    #    "base":        "cdc_diabetes",
-    #    "name":        "cdc_diabetes",
-    #    "size":        1_000,
-    #    "type":        "categorical",
-    #    "qi_variants": ["QI1"],
-    #    "data_root":   "/home/golobs/data/reconstruction_data/cdc_diabetes/size_1000",
-    #},
+    # ── california excluded — TabPFN/MarginalRF are categorical-only ───────────
+    # Uncomment and add continuous variants to attacks/__init__.py to enable.
+    # {
+    #     "base":        "california",
+    #     "name":        "california",
+    #     "size":        1_000,
+    #     "type":        "continuous",
+    #     "qi_variants": ["QI1"],
+    #     "data_root":   "/home/golobs/data/reconstruction_data/california/size_1000",
+    #     "sdg_methods": [
+    #         ("MST",      {"epsilon": 0.1}),
+    #         ("MST",      {"epsilon": 1.0}),
+    #         ("MST",      {"epsilon": 10.0}),
+    #         ("MST",      {"epsilon": 100.0}),
+    #         ("MST",      {"epsilon": 1000.0}),
+    #         ("AIM",      {"epsilon": 1.0}),
+    #         ("AIM",      {"epsilon": 3.0}),
+    #         ("AIM",      {"epsilon": 10.0}),
+    #         ("TVAE",     {}),
+    #         ("CTGAN",    {}),
+    #         ("ARF",      {}),
+    #         ("TabDDPM",  {}),
+    #         ("Synthpop", {}),
+    #         ("RankSwap", {}),
+    #     ],
+    # },
+    {
+        "base":        "nist_sbo",
+        "name":        "nist_sbo",
+        "size":        1_000,
+        "type":        "categorical",
+        "qi_variants": ["QI1", "QI_large"],
+        "data_root":   "/home/golobs/data/reconstruction_data/nist_sbo/size_1000",
+        "sdg_methods": [
+            ("MST",             {"epsilon": 0.1}),
+            ("MST",             {"epsilon": 1.0}),
+            ("MST",             {"epsilon": 10.0}),
+            ("MST",             {"epsilon": 100.0}),
+            ("MST",             {"epsilon": 1000.0}),
+            ("TVAE",            {}),
+            ("CTGAN",           {}),
+            ("ARF",             {}),
+            ("TabDDPM",         {}),
+            ("Synthpop",        {}),
+            ("RankSwap",        {}),
+            ("CellSuppression", {}),
+        ],
+    },
 ]
 
 SAMPLE_RANGE = list(range(5))   # sample_00 through sample_04
 
 
-# ── SDG methods ────────────────────────────────────────────────────────────────
-# Restricted to methods available for both adult 1k and cdc_diabetes 1k.
-# (adult 1k has a broader MST/AIM grid; we use the common subset.)
-
-SDG_METHODS = [
-    ("MST",      {"epsilon": 0.1}),
-    ("MST",      {"epsilon": 1.0}),
-    ("MST",      {"epsilon": 10.0}),
-    ("MST",      {"epsilon": 100.0}),
-    ("MST",      {"epsilon": 1000.0}),
-    ("AIM",      {"epsilon": 1.0}),
-    #("AIM",      {"epsilon": 10.0}),
-    ("TVAE",     {}),
-    ("CTGAN",    {}),
-    ("ARF",      {}),
-    ("TabDDPM",  {}),
-    ("Synthpop", {}),
-    ("RankSwap", {}),
-    ("CellSuppression", {}),
-]
-
-
 # ── Attack configurations ──────────────────────────────────────────────────────
 # Each entry: (attack_method, method_specific_params, display_label)
 # display_label: used in run_name and WandB to distinguish variants of the same
-#   attack.  Leave empty ("") to use attack_method directly.
+#   attack.  Leave "" to use attack_method directly.
 
 ATTACK_CONFIGS = [
-    # ── Baseline ──────────────────────────────────────────────────────────────
-    #("RandomForest",   {},                                                    ""),
-
     # ── TabPFN (in-context learning) ──────────────────────────────────────────
-    ("TabPFN",         {},                                                    ""),
+    ("TabPFN",     {},                                                    ""),
 
     # ── MarginalRF: PMI mode (global vs local) × graph structure ──────────────
-    #
-    # Graph types:
-    #   mst      → maximum spanning tree, exact BP (one forward+backward pass)
-    #   complete → all pairs connected, loopy BP (approximate, may capture
-    #              non-tree interactions the MST misses)
-    #   topk     → top-K MI edges, loopy BP (middle ground; topk=None → 2×|feats|)
-    #
-    # PMI modes:
-    #   knn_k=None  → global (unconditional) PMI — fast, may double-count QI
-    #   knn_k=100   → local (conditional) PMI via K nearest synth neighbours
-
-    # MST + global PMI (fastest, may double-count QI signal)
-    ("MarginalRF",     {"knn_k": None,  "graph_type": "mst"},                "MarginalRF_mst_global"),
-    # MST + local PMI (validated baseline from prior experiments)
-    ("MarginalRF",     {"knn_k": 50,   "graph_type": "mst"},                "MarginalRF_mst_local_50"),
-    ("MarginalRF",     {"knn_k": 100,   "graph_type": "mst"},                "MarginalRF_mst_local_100"),
-    ("MarginalRF",     {"knn_k": 200,   "graph_type": "mst"},                "MarginalRF_mst_local_200"),
-    # Complete graph + local PMI (loopy BP — captures all pairwise interactions)
-    ("MarginalRF",     {"knn_k": 100,   "graph_type": "complete"},           "MarginalRF_complete_local_100"),
-    # Top-K edges + local PMI (loopy BP — sparse but allows cycles)
-    ("MarginalRF",     {"knn_k": 100,   "graph_type": "topk"},               "MarginalRF_topk_local_100"),
-    # Complete graph + global PMI (upper bound on graph density, no local cost)
-    ("MarginalRF",     {"knn_k": None,  "graph_type": "complete"},           "MarginalRF_complete_global"),
+    ("MarginalRF", {"knn_k": None,  "graph_type": "mst"},                "MarginalRF_mst_global"),
+    ("MarginalRF", {"knn_k": 50,    "graph_type": "mst"},                "MarginalRF_mst_local_50"),
+    ("MarginalRF", {"knn_k": 100,   "graph_type": "mst"},                "MarginalRF_mst_local_100"),
+    ("MarginalRF", {"knn_k": 200,   "graph_type": "mst"},                "MarginalRF_mst_local_200"),
+    ("MarginalRF", {"knn_k": 100,   "graph_type": "complete"},           "MarginalRF_complete_local_100"),
+    ("MarginalRF", {"knn_k": 100,   "graph_type": "topk"},               "MarginalRF_topk_local_100"),
+    ("MarginalRF", {"knn_k": None,  "graph_type": "complete"},           "MarginalRF_complete_global"),
 ]
 
 
@@ -137,21 +156,21 @@ ATTACK_CONFIGS = [
 
 N_WORKERS     = 8
 WANDB_PROJECT = "tabular-reconstruction-attacks"
-WANDB_GROUP   = "new-attacks-sweep-1k"
+WANDB_GROUP   = "new-attacks-sweep-1k"   # same group as run_new_attacks_sweep.py
 
 
 # ── Job specification ──────────────────────────────────────────────────────────
 
 @dataclass
 class Job:
-    dataset_cfg:    dict
-    sample_idx:     int
-    sdg_method:     str
-    sdg_params:     dict
-    attack_method:  str
-    attack_params:  dict
-    attack_label:   str     # display name in run_name / WandB; defaults to attack_method
-    qi:             str
+    dataset_cfg:   dict
+    sample_idx:    int
+    sdg_method:    str
+    sdg_params:    dict
+    attack_method: str
+    attack_params: dict
+    attack_label:  str   # display name; "" → use attack_method
+    qi:            str
 
     @property
     def sdg_label(self) -> str:
@@ -186,6 +205,7 @@ def generate_jobs(
     attack_filter:  str | None = None,
     sdg_filter:     str | None = None,
     sample_filter:  int | None = None,
+    qi_filter:      str | None = None,
 ) -> list[Job]:
     jobs = []
     for ds_cfg in DATASET_CONFIGS:
@@ -193,16 +213,19 @@ def generate_jobs(
             continue
         for sample_idx, (sdg_method, sdg_params), (attack_method, attack_params, attack_label), qi in itertools.product(
             SAMPLE_RANGE,
-            SDG_METHODS,
+            ds_cfg["sdg_methods"],
             ATTACK_CONFIGS,
             ds_cfg["qi_variants"],
         ):
-            if attack_filter and attack_method != attack_filter and (attack_label or attack_method) != attack_filter:
+            effective_label = attack_label or attack_method
+            if attack_filter and attack_method != attack_filter and effective_label != attack_filter:
                 continue
             sdg_label = f"{sdg_method}_eps{sdg_params['epsilon']:g}" if sdg_params.get("epsilon") is not None else sdg_method
             if sdg_filter and sdg_label != sdg_filter and sdg_method != sdg_filter:
                 continue
             if sample_filter is not None and sample_idx != sample_filter:
+                continue
+            if qi_filter and qi != qi_filter:
                 continue
             jobs.append(Job(
                 dataset_cfg=ds_cfg,
@@ -239,15 +262,24 @@ def _worker_setup_paths():
 def run_job(job: Job) -> dict[str, Any]:
     """Execute one experiment job in a worker process."""
     _worker_setup_paths()
-    sys.argv = sys.argv[:1]   # prevent parse_args() in master_experiment_script from choking
+    sys.argv = sys.argv[:1]
 
     import numpy as np
     import wandb
     from get_data import load_data
     from master_experiment_script import _prepare_config, _run_attack, _score_reconstruction
 
-    ds        = job.dataset_cfg
+    ds         = job.dataset_cfg
     sample_dir = job.sample_dir
+
+    synth_path = Path(sample_dir) / job.sdg_label / "synth.csv"
+    if not synth_path.exists():
+        raise FileNotFoundError(f"synth.csv not found: {synth_path}")
+
+    effective_attack_params = {
+        **ATTACK_PARAM_DEFAULTS.get(job.attack_method, {}),
+        **job.attack_params,
+    }
 
     cfg = {
         "dataset": {
@@ -274,11 +306,6 @@ def run_job(job: Job) -> dict[str, Any]:
 
     prepared = _prepare_config(cfg)
 
-    effective_attack_params = {
-        **ATTACK_PARAM_DEFAULTS.get(job.attack_method, {}),
-        **job.attack_params,
-    }
-
     wandb.init(
         project=WANDB_PROJECT,
         name=job.run_name,
@@ -293,13 +320,13 @@ def run_job(job: Job) -> dict[str, Any]:
             "attack_params": effective_attack_params,
             "qi":            job.qi,
         },
-        tags=[ds["name"], f"size_{ds['size']}", "new-attacks", job.effective_label],
+        tags=[ds["name"], f"size_{ds['size']}", "new-attacks", job.effective_label, job.qi],
         group=WANDB_GROUP,
         reinit=True,
     )
 
     try:
-        train, synth, qi, hidden_features, holdout = load_data(prepared)
+        train, synth, qi, hidden_features, _ = load_data(prepared)
         recon  = _run_attack(prepared, synth, train, qi, hidden_features)
         scores = _score_reconstruction(train, recon, hidden_features, ds["type"])
 
@@ -359,34 +386,41 @@ def _print_summary(rows: list[dict]):
     if not successes:
         return
 
-    # Group by (dataset, label, qi) → mean RA over samples + SDG methods
     groups: dict[tuple, list] = defaultdict(list)
     for r in successes:
         key = (r["dataset"], r.get("label") or r["attack"], r["qi"])
         if r["ra_mean"] is not None:
             groups[key].append(r["ra_mean"])
 
-    print(f"\n  {'Dataset':<16}  {'Attack / Label':<30}  {'QI':<6}  {'Mean RA':>10}")
-    print(f"  {'-'*70}")
+    print(f"\n  {'Dataset':<16}  {'Attack / Label':<34}  {'QI':<10}  {'Mean RA':>10}")
+    print(f"  {'-'*75}")
     for (dataset, label, qi), vals in sorted(groups.items()):
         mean_val = round(float(np.mean(vals)), 4)
-        print(f"  {dataset:<16}  {label:<30}  {qi:<6}  {mean_val:>10.4f}")
+        print(f"  {dataset:<16}  {label:<34}  {qi:<10}  {mean_val:>10.4f}")
     print(f"{'='*80}\n")
+
+    if failures:
+        print(f"  Failed jobs ({len(failures)}):")
+        for r in failures:
+            print(f"    {r}")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="New-attacks sweep: TabPFN + MarginalRF variants.")
+    parser = argparse.ArgumentParser(
+        description="New-attacks fill-in sweep: TabPFN + MarginalRF on cdc_diabetes 100k and nist_sbo 1k."
+    )
     parser.add_argument("--dry-run",    action="store_true", help="Print job list and exit.")
     parser.add_argument("--serial",     action="store_true", help="Run sequentially in the main process.")
     parser.add_argument("--workers",    type=int,  default=N_WORKERS,  help="Parallel workers.")
-    parser.add_argument("--dataset",    type=str,  default=None, help="Restrict to this dataset name (e.g. 'adult').")
+    parser.add_argument("--dataset",    type=str,  default=None, help="Restrict to this dataset name.")
     parser.add_argument("--attack",     type=str,  default=None, help="Restrict to this attack method or label.")
     parser.add_argument("--sdg",        type=str,  default=None, help="Restrict to this SDG method/label.")
     parser.add_argument("--sample",     type=int,  default=None, help="Restrict to this sample index.")
+    parser.add_argument("--qi",         type=str,  default=None, help="Restrict to this QI variant.")
     parser.add_argument("--progress-log", type=str,
-                        default=str(Path(__file__).parent.parent / "outfiles" / "new_attacks_progress.log"),
+                        default=str(Path(__file__).parent.parent / "outfiles" / "new_attacks_fill_in_progress.log"),
                         metavar="FILE",
                         help="Write one progress line per completed job (tail -f to monitor).")
     args = parser.parse_args()
@@ -396,22 +430,20 @@ def main():
         attack_filter=args.attack,
         sdg_filter=args.sdg,
         sample_filter=args.sample,
+        qi_filter=args.qi,
     )
 
-    progress_log = open(args.progress_log, "w", buffering=1) if args.progress_log else None
-
+    dataset_names = ", ".join(dict.fromkeys(j.dataset_name for j in all_jobs)) if all_jobs else "none"
     header = (
         f"{'='*80}\n"
-        f"  New-attacks sweep\n"
-        f"  Datasets:    {', '.join(d['name'] for d in DATASET_CONFIGS)}\n"
+        f"  New-attacks fill-in sweep\n"
+        f"  Datasets:    {dataset_names}\n"
         f"  Jobs total:  {len(all_jobs)}\n"
         f"  Workers:     {args.workers}\n"
         f"  WandB group: {WANDB_GROUP}\n"
         f"{'='*80}\n"
     )
     print(header, end="")
-    if progress_log:
-        progress_log.write(header)
 
     if args.dry_run:
         for i, j in enumerate(all_jobs):
@@ -420,22 +452,24 @@ def main():
         return
 
     # Verify sample directories exist before dispatching
-    missing = []
-    for job in all_jobs:
-        p = Path(job.sample_dir)
-        if not p.exists():
-            missing.append(job.sample_dir)
-    missing = list(dict.fromkeys(missing))
+    missing = list(dict.fromkeys(
+        j.sample_dir for j in all_jobs if not Path(j.sample_dir).exists()
+    ))
     if missing:
         print("ERROR: missing sample directories:")
         for d in missing:
             print(f"  {d}")
         sys.exit(1)
 
+    Path(args.progress_log).parent.mkdir(parents=True, exist_ok=True)
+    progress_log = open(args.progress_log, "w", buffering=1)
+    progress_log.write(header)
+
     start_time = time.time()
     results: list[dict] = []
     n_done = 0
     n_fail = 0
+    width  = len(str(len(all_jobs)))
 
     def _handle_result(job, result_or_exc):
         nonlocal n_done, n_fail
@@ -446,7 +480,6 @@ def main():
             rate    = n_done / elapsed
             eta_s   = (len(all_jobs) - n_done) / rate
             eta_str = f"  ETA {eta_s/60:.0f}m"
-        width = len(str(len(all_jobs)))
         if isinstance(result_or_exc, Exception):
             n_fail += 1
             line = (
@@ -464,12 +497,11 @@ def main():
             val_str = f"{val:.4f}" if val is not None else "N/A"
             line = (
                 f"  [{n_done:>{width}}/{len(all_jobs)}]"
-                f"  {job.run_name:<70}  RA={val_str}{eta_str}"
+                f"  {job.run_name:<75}  RA={val_str}{eta_str}"
             )
             results.append(result_or_exc)
         print(line)
-        if progress_log:
-            progress_log.write(line + "\n")
+        progress_log.write(line + "\n")
 
     if args.serial:
         _worker_setup_paths()
@@ -492,16 +524,14 @@ def main():
 
     total_min = (time.time() - start_time) / 60
     print(f"\nAll {len(all_jobs)} jobs finished in {total_min:.1f} min.")
+    progress_log.write(f"\nAll {len(all_jobs)} jobs finished in {total_min:.1f} min.\n")
+    progress_log.close()
 
     _print_summary(results)
 
-    script_dir = Path(__file__).parent
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_path = script_dir / f"new_attacks_results_{ts}.csv"
+    csv_path = Path(__file__).parent / f"new_attacks_fill_in_results_{ts}.csv"
     _save_summary_csv(results, csv_path)
-
-    if progress_log:
-        progress_log.close()
 
 
 if __name__ == "__main__":

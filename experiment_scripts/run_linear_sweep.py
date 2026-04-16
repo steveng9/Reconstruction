@@ -99,17 +99,31 @@ SDG_METHODS = [
 ]
 
 # ── Attack configs ────────────────────────────────────────────────────────────
-# All are "categorical" registry lookups (LinearReconstruction is in
-# ATTACK_REGISTRY["categorical"] so data_type="categorical" works for all).
+# Each entry: (attack_method, method_specific_params, display_label)
+# display_label: distinguishes variants of the same attack in run_name and WandB.
+#   Leave "" to use attack_method directly (single-variant attacks).
+# All are "categorical" registry lookups.
 ATTACK_CONFIGS = [
-    #("Random",        {}),
-    ("NaiveBayes",        {}),
-    ("KNN",        {}),
-    #("RandomForest",        {}),
-    #("LogisticRegression",  {}),
-    #("LightGBM",            {}),
-    #("MLP",                 {}),
-    #("LinearReconstruction", {}),
+    #("Random",               {},  ""),
+    ("NaiveBayes",            {},  ""),
+    ("KNN",                   {},  ""),
+    #("RandomForest",         {},  ""),
+    #("LogisticRegression",   {},  ""),
+    #("LightGBM",             {},  ""),
+    #("MLP",                  {},  ""),
+    #("LinearReconstruction", {},  ""),
+
+    # ── TabPFN (in-context learning) ──────────────────────────────────────────
+    ("TabPFN",  {},  ""),
+
+    # ── MarginalRF: PMI mode (global vs local) × graph structure ──────────────
+    ("MarginalRF",  {"knn_k": None,  "graph_type": "mst"},       "MarginalRF_mst_global"),
+    ("MarginalRF",  {"knn_k": 50,    "graph_type": "mst"},       "MarginalRF_mst_local_50"),
+    ("MarginalRF",  {"knn_k": 100,   "graph_type": "mst"},       "MarginalRF_mst_local_100"),
+    ("MarginalRF",  {"knn_k": 200,   "graph_type": "mst"},       "MarginalRF_mst_local_200"),
+    ("MarginalRF",  {"knn_k": 100,   "graph_type": "complete"},  "MarginalRF_complete_local_100"),
+    ("MarginalRF",  {"knn_k": 100,   "graph_type": "topk"},      "MarginalRF_topk_local_100"),
+    ("MarginalRF",  {"knn_k": None,  "graph_type": "complete"},  "MarginalRF_complete_global"),
 ]
 
 SAMPLE_RANGE  = list(range(5))   # samples 00–04; holdout is (idx+1)%5
@@ -136,12 +150,17 @@ class Job:
     sdg_params:    dict
     attack_method: str
     attack_params: dict
+    attack_label:  str   # variant display label; "" → use attack_method
     qi:            str
 
     @property
     def sdg_label(self) -> str:
         eps = self.sdg_params.get("epsilon") or self.sdg_params.get("eps")
         return f"{self.sdg_method}_eps{eps:g}" if eps is not None else self.sdg_method
+
+    @property
+    def effective_label(self) -> str:
+        return self.attack_label or self.attack_method
 
     @property
     def sample_dir(self) -> str:
@@ -154,7 +173,7 @@ class Job:
     @property
     def run_name(self) -> str:
         return (f"s{self.sample_idx:02d}__{self.sdg_label}"
-                f"__{self.attack_method}__{self.qi}")
+                f"__{self.effective_label}__{self.qi}")
 
     @property
     def wandb_group(self) -> str:
@@ -173,7 +192,7 @@ def generate_jobs(dataset_key: str, size: int) -> list[Job]:
     data_root = _data_root(cfg, size)
 
     jobs = []
-    for sample_idx, (sdg_method, sdg_params), (attack_method, attack_params), qi in itertools.product(
+    for sample_idx, (sdg_method, sdg_params), (attack_method, attack_params, attack_label), qi in itertools.product(
         SAMPLE_RANGE, SDG_METHODS, ATTACK_CONFIGS, cfg["qi_variants"]
     ):
         jobs.append(Job(
@@ -189,6 +208,7 @@ def generate_jobs(dataset_key: str, size: int) -> list[Job]:
             sdg_params=dict(sdg_params),
             attack_method=attack_method,
             attack_params=dict(attack_params),
+            attack_label=attack_label,
             qi=qi,
         ))
     return jobs
@@ -266,6 +286,7 @@ def run_job(job: Job) -> dict[str, Any]:
             "sdg_method":    job.sdg_method,
             "sdg_params":    job.sdg_params,
             "attack_method": job.attack_method,
+            "attack_label":  job.effective_label,
             "attack_params": effective_attack_params,
             "qi":            job.qi,
             "dataset":       job.dataset_name,
@@ -273,7 +294,7 @@ def run_job(job: Job) -> dict[str, Any]:
             "size":          job.dataset_size,
         },
         tags=[job.dataset_key, job.dataset_name, f"size_{job.dataset_size}",
-              "linear-sweep", job.attack_method, job.qi],
+              "linear-sweep", job.effective_label, job.qi],
         group=job.wandb_group,
         reinit=True,
     )
@@ -420,7 +441,7 @@ def main():
     if args.sdg is not None:
         all_jobs = [j for j in all_jobs if j.sdg_method == args.sdg]
     if args.attack is not None:
-        all_jobs = [j for j in all_jobs if j.attack_method == args.attack]
+        all_jobs = [j for j in all_jobs if j.attack_method == args.attack or j.effective_label == args.attack]
     if args.qi is not None:
         all_jobs = [j for j in all_jobs if j.qi == args.qi]
 

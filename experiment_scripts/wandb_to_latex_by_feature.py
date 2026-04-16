@@ -134,6 +134,19 @@ HIDDEN_FEATURES: dict[str, dict[str, list[str]]] = {
 
 # ── Display order & groupings ──────────────────────────────────────────────────
 
+# Maps old attack label names → current canonical names.
+# Applied at fetch time so deduplication (keep most-recent) drops the older
+# partial-sweep runs automatically.
+LABEL_REMAP: dict[str, str] = {
+    "MarginalRF_global":       "MarginalRF_mst_global",
+    "MarginalRF_local_k50":    "MarginalRF_mst_local_50",
+    "MarginalRF_local_k100":   "MarginalRF_mst_local_100",
+    "MarginalRF_local_k200":   "MarginalRF_mst_local_200",
+    "MarginalRF_mst_local":    "MarginalRF_mst_local_100",
+    "MarginalRF_complete_local": "MarginalRF_complete_local_100",
+    "MarginalRF_topk_local":   "MarginalRF_topk_local_100",
+}
+
 ATTACK_GROUPS = [
     ("Baselines",      ["Mode", "Random", "MeasureDeid"]),
     ("ML Classifiers", ["KNN", "NaiveBayes", "LogisticRegression", "SVM",
@@ -142,6 +155,14 @@ ATTACK_GROUPS = [
     ("Partial SDG",    ["TabDDPM", "TabDDPMWithMLP", "ConditionedRePaint", "RePaint",
                         "PartialMST", "PartialMSTIndependent", "PartialMSTBounded"]),
     ("SOTA",           ["LinearReconstruction"]),
+    ("New Attacks",    ["TabPFN",
+                        "MarginalRF_mst_global",
+                        "MarginalRF_mst_local_50",
+                        "MarginalRF_mst_local_100",
+                        "MarginalRF_mst_local_200",
+                        "MarginalRF_complete_local_100",
+                        "MarginalRF_topk_local_100",
+                        "MarginalRF_complete_global"]),
 ]
 
 ATTACK_DISPLAY: dict[str, str] = {
@@ -164,6 +185,14 @@ ATTACK_DISPLAY: dict[str, str] = {
     "PartialMST":              "MST",
     "PartialMSTIndependent":   "MST (1 ft./time)",
     "PartialMSTBounded":       r"MST $k{=}3$",
+    "TabPFN":                      "TabPFN",
+    "MarginalRF_mst_global":       r"MarginalRF (MST, global)",
+    "MarginalRF_mst_local_50":     r"MarginalRF (MST, local $k{=}50$)",
+    "MarginalRF_mst_local_100":    r"MarginalRF (MST, local $k{=}100$)",
+    "MarginalRF_mst_local_200":    r"MarginalRF (MST, local $k{=}200$)",
+    "MarginalRF_complete_local_100": r"MarginalRF (complete, local $k{=}100$)",
+    "MarginalRF_topk_local_100":   r"MarginalRF (top-$k$, local $k{=}100$)",
+    "MarginalRF_complete_global":  r"MarginalRF (complete, global)",
 }
 
 DATASET_DISPLAY: dict[str, str] = {
@@ -234,7 +263,8 @@ def _fetch_group_long(api, path: str, group: str,
         cfg  = run.config
         summ = run.summary
 
-        attack      = cfg.get("attack_method")
+        attack      = cfg.get("attack_label") or cfg.get("attack_method")
+        attack      = LABEL_REMAP.get(attack, attack)
         sdg_method  = cfg.get("sdg_method")
         sdg_params  = cfg.get("sdg_params") or {}
         qi          = cfg.get("qi")
@@ -337,7 +367,8 @@ def load_csv_long(csv_paths: list[str],
                   qi_filter: str | None,
                   attack_filter: list[str] | None,
                   sdg_filter: list[str] | None,
-                  size_filter: int | None) -> pd.DataFrame:
+                  size_filter: int | None,
+                  dataset_filter: str | None = None) -> pd.DataFrame:
     """Load one or more sweep CSVs with per-feature columns; return long DataFrame."""
     frames = []
     for p in csv_paths:
@@ -352,10 +383,22 @@ def load_csv_long(csv_paths: list[str],
     if (dropped := before - len(df)):
         print(f"  Dropped {dropped} rows with missing ra_mean (failed runs).")
 
+    # Use 'label' column as the attack identifier when present (e.g. MarginalRF variants)
+    if "label" in df.columns:
+        mask = df["label"].notna() & (df["label"].astype(str).str.strip() != "")
+        df.loc[mask, "attack"] = df.loc[mask, "label"]
+        df = df.drop(columns=["label"])
+    # Apply canonical name remapping
+    df["attack"] = df["attack"].map(lambda x: LABEL_REMAP.get(x, x))
+
     if qi_filter:
         df = df[df["qi"] == qi_filter]
     if size_filter is not None and "size" in df.columns:
         df = df[(df["size"] == size_filter) | df["size"].isna()]
+    # Filter by dataset when the CSV has a 'dataset' column; keep rows without the
+    # column (single-dataset files implicitly match).
+    if dataset_filter is not None and "dataset" in df.columns:
+        df = df[(df["dataset"] == dataset_filter) | df["dataset"].isna()]
     if attack_filter:
         df = df[df["attack"].isin(attack_filter)]
     if sdg_filter:
@@ -449,7 +492,6 @@ def to_latex(pivot: pd.DataFrame, df_raw: pd.DataFrame,
     n_cols   = len(features)
     col_spec = "l" + "r" * n_cols
 
-    # Column headers: "feature\n(k=N)" or just "feature" if cardinality unavailable
     def _feat_header(f: str) -> str:
         k = cardinalities.get(f)
         label = f.replace("_", r"\_").replace("-", r"\mbox{-}")
@@ -457,29 +499,10 @@ def to_latex(pivot: pd.DataFrame, df_raw: pd.DataFrame,
 
     col_headers = [_feat_header(f) for f in features]
 
-    lines = []
-    lines.append(r"\begin{table*}[ht]")
-    lines.append(r"  \centering")
-    lines.append(r"  \small")
-    lines.append(r"  % Requires: \usepackage{booktabs,rotating,graphicx}")
-    lines.append(f"  % WandB group: {group!r}   QI: {qi}   Dataset: {dataset}")
-    if SDG_FILTER:
-        lines.append(f"  % SDG filter: {SDG_FILTER}")
-    lines.append(r"  \resizebox{\textwidth}{!}{%")
-    lines.append(r"  \begin{tabular}{" + col_spec + r"}")
-    lines.append(r"    \toprule")
-
-    header_cells = ["Attack"] + [
-        r"\rotatebox{60}{" + h + r"}" for h in col_headers
-    ]
-    lines.append("    " + " & ".join(header_cells) + r" \\")
-    lines.append(r"    \midrule")
-
-    # Determine minimum expected observations (samples × SDG methods)
-    # Use median n_obs across non-NaN cells as a heuristic threshold
+    # Pre-compute flagging threshold and caption (caption goes above the table)
     all_n = [
         _n_obs(df_raw, atk, f)
-        for _, attacks in atk_groups for atk in attacks
+        for _, _atks in atk_groups for atk in _atks
         for f in features
         if not np.isnan(
             pivot.at[atk, f]
@@ -489,6 +512,48 @@ def to_latex(pivot: pd.DataFrame, df_raw: pd.DataFrame,
     ]
     median_n = int(np.median(all_n)) if all_n else 1
     low_threshold = max(1, median_n // 2)
+
+    any_flagged = any(
+        _n_obs(df_raw, atk, f) < low_threshold
+        for _, _atks in atk_groups for atk in _atks
+        for f in features
+        if not np.isnan(
+            pivot.at[atk, f]
+            if (atk in pivot.index and f in pivot.columns)
+            else float("nan")
+        )
+    )
+
+    dataset_display = DATASET_DISPLAY.get(dataset, dataset)
+    _sz   = f" ($N={size:,}$ rows)" if size else ""
+    _sdg  = (f" SDG methods: {', '.join(SDG_FILTER)}."
+             if SDG_FILTER else " Averaged over all SDG methods and samples.")
+    _flg  = r" $^*$Fewer observations than expected for this cell." if any_flagged else ""
+    caption = (
+        r"Reconstruction accuracy (\texttt{RA}) per feature. "
+        f"Dataset: \\textit{{{dataset_display}}}{_sz}. "
+        f"QI variant: \\texttt{{{qi}}}.{_sdg}{_flg}"
+    )
+
+    lines = []
+    lines.append(r"\begin{table*}[ht]")
+    lines.append(r"  \centering")
+    lines.append(r"  \small")
+    lines.append(r"  % Requires: \usepackage{booktabs,rotating,graphicx}")
+    lines.append(f"  % WandB group: {group!r}   QI: {qi}   Dataset: {dataset}")
+    if SDG_FILTER:
+        lines.append(f"  % SDG filter: {SDG_FILTER}")
+    lines.append(f"  \\caption{{{caption}}}")
+    lines.append(r"  \label{tab:ra_by_feature}")
+    lines.append(r"  \resizebox{\textwidth}{!}{%")
+    lines.append(r"  \begin{tabular}{" + col_spec + r"}")
+    lines.append(r"    \toprule")
+
+    header_cells = ["Attack"] + [
+        r"\rotatebox{60}{" + h + r"}" for h in col_headers
+    ]
+    lines.append("    " + " & ".join(header_cells) + r" \\")
+    lines.append(r"    \midrule")
 
     first_group = True
     for _group_label, attacks in atk_groups:
@@ -518,33 +583,6 @@ def to_latex(pivot: pd.DataFrame, df_raw: pd.DataFrame,
     lines.append(r"    \bottomrule")
     lines.append(r"  \end{tabular}")
     lines.append(r"  }% end resizebox")
-
-    any_flagged = any(
-        _n_obs(df_raw, atk, f) < low_threshold
-        for _, attacks in atk_groups for atk in attacks
-        for f in features
-        if not np.isnan(
-            pivot.at[atk, f]
-            if (atk in pivot.index and f in pivot.columns)
-            else float("nan")
-        )
-    )
-
-    dataset_display = DATASET_DISPLAY.get(dataset, dataset)
-    size_str = f" Training size: {size:,}." if size else ""
-    sdg_str  = (f" SDG methods included: {', '.join(SDG_FILTER)}."
-                if SDG_FILTER else " Averaged over all SDG methods.")
-    lines.append(
-        r"  \caption{Mean reconstruction accuracy (\texttt{RA}) per feature, "
-        r"averaged over samples and SDG methods. "
-        f"Dataset: \\textit{{{dataset_display}}}.{size_str}{sdg_str}"
-    )
-    lines.append(f"           QI variant: {qi}.")
-    if any_flagged:
-        lines.append(r"           $^*$Fewer observations than expected for this cell.}")
-    else:
-        lines.append(r"           }")
-    lines.append(r"  \label{tab:ra_by_feature}")
     lines.append(r"\end{table*}")
 
     return "\n".join(lines)
@@ -580,12 +618,14 @@ def main():
 
     # ── Load data ──
     if args.from_csv:
+        dataset_filter = args.dataset if args.dataset.lower() != "all" else None
         df = load_csv_long(
             args.from_csv,
             qi_filter=qi_filter,
             attack_filter=args.attacks,
             sdg_filter=SDG_FILTER,
             size_filter=args.size,
+            dataset_filter=dataset_filter,
         )
     else:
         dataset_filter = args.dataset if args.dataset.lower() != "all" else ""

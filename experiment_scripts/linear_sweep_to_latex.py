@@ -59,7 +59,42 @@ COLUMNS = [
 
 # ── Attack display ─────────────────────────────────────────────────────────────
 
-ATTACKS = ["Random", "KNN", "NaiveBayes", "RandomForest", "MLP", "LinearReconstruction"]
+# Base method names used for WandB server-side filter (config.attack_method).
+# MarginalRF variants all share the same method name, disambiguated by attack_label.
+ATTACK_METHOD_FILTER = [
+    "Random", "KNN", "NaiveBayes", "RandomForest", "MLP",
+    "LinearReconstruction", "TabPFN", "MarginalRF",
+]
+
+# Ordered row list for the table (specific labels, not base method names).
+# A \midrule is inserted before NEW_ATTACKS_START.
+ATTACKS = [
+    "Random", "KNN", "NaiveBayes", "RandomForest", "MLP", "LinearReconstruction",
+    # ── new attacks ──────────────────────────────────────────────────────────
+    "TabPFN",
+    "MarginalRF_mst_global",
+    "MarginalRF_mst_local_50",
+    "MarginalRF_mst_local_100",
+    "MarginalRF_mst_local_200",
+    "MarginalRF_complete_local_100",
+    "MarginalRF_topk_local_100",
+    "MarginalRF_complete_global",
+]
+
+# Insert a \midrule in the table before this attack label.
+NEW_ATTACKS_START = "TabPFN"
+
+# Maps stale/variant label names to current canonical names (same as
+# wandb_to_latex_by_feature.py for consistency).
+LABEL_REMAP: dict[str, str] = {
+    "MarginalRF_global":         "MarginalRF_mst_global",
+    "MarginalRF_local_k50":      "MarginalRF_mst_local_50",
+    "MarginalRF_local_k100":     "MarginalRF_mst_local_100",
+    "MarginalRF_local_k200":     "MarginalRF_mst_local_200",
+    "MarginalRF_mst_local":      "MarginalRF_mst_local_100",
+    "MarginalRF_complete_local": "MarginalRF_complete_local_100",
+    "MarginalRF_topk_local":     "MarginalRF_topk_local_100",
+}
 
 ATTACK_LABELS: dict[str, str] = {
     "Random":               "Random",
@@ -68,6 +103,14 @@ ATTACK_LABELS: dict[str, str] = {
     "RandomForest":         "Random Forest",
     "MLP":                  r"\textsc{mlp}",
     "LinearReconstruction": "Linear Recon.",
+    "TabPFN":                          "TabPFN",
+    "MarginalRF_mst_global":           r"MarginalRF (MST, global)",
+    "MarginalRF_mst_local_50":         r"MarginalRF (MST, local $k{=}50$)",
+    "MarginalRF_mst_local_100":        r"MarginalRF (MST, local $k{=}100$)",
+    "MarginalRF_mst_local_200":        r"MarginalRF (MST, local $k{=}200$)",
+    "MarginalRF_complete_local_100":   r"MarginalRF (complete, local $k{=}100$)",
+    "MarginalRF_topk_local_100":       r"MarginalRF (top-$k$, local $k{=}100$)",
+    "MarginalRF_complete_global":      r"MarginalRF (complete, global)",
 }
 
 
@@ -112,7 +155,7 @@ def _fetch_group(path: str, group: str, qi_variants: list[str]) -> list[dict]:
     api = wandb.Api(timeout=120)
     filters = {
         "group": group,
-        "config.attack_method": {"$in": ATTACKS},
+        "config.attack_method": {"$in": ATTACK_METHOD_FILTER},
         "config.qi":            {"$in": qi_variants},
     }
     runs = api.runs(path, filters=filters, per_page=500)
@@ -122,7 +165,10 @@ def _fetch_group(path: str, group: str, qi_variants: list[str]) -> list[dict]:
         cfg  = run.config
         summ = run.summary
 
-        attack     = cfg.get("attack_method")
+        # Use attack_label (set for MarginalRF variants) when available;
+        # fall back to attack_method for single-variant attacks.
+        attack = cfg.get("attack_label") or cfg.get("attack_method")
+        attack = LABEL_REMAP.get(attack, attack)
         sdg_method = cfg.get("sdg_method")
         sdg_params = cfg.get("sdg_params") or {}
         qi         = cfg.get("qi")
@@ -174,7 +220,7 @@ def fetch_runs() -> pd.DataFrame:
             group_qi[group].append(qi)
 
     print(f"  Fetching {len(group_qi)} groups in parallel "
-          f"(attacks={len(ATTACKS)}, server-filtered) ...")
+          f"(attack_methods={len(ATTACK_METHOD_FILTER)}, server-filtered) ...")
 
     all_rows: list[dict] = []
     with ThreadPoolExecutor(max_workers=len(group_qi)) as pool:
@@ -355,6 +401,8 @@ def build_table1(df: pd.DataFrame, decimals: int = 2) -> str:
     ]
 
     for atk in ATTACKS:
+        if atk == NEW_ATTACKS_START:
+            lines.append(r"\midrule")
         shade = (atk == "LinearReconstruction")
         lines.append(_data_row(df, col_keys, atk, decimals, maxes, shade=shade))
 
@@ -406,6 +454,8 @@ def build_table2(df: pd.DataFrame, decimals: int = 2) -> str:
         ]
 
         for atk in ATTACKS:
+            if atk == NEW_ATTACKS_START:
+                lines.append(r"\midrule")
             shade = (atk == "LinearReconstruction")
             lines.append(_data_row(df, col_keys, atk, decimals, maxes, sdg=sdg, shade=shade))
 
