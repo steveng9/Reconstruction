@@ -50,7 +50,7 @@ SDG_ORDER = [
     # "AIM_eps0.3",
     "AIM_eps1",
     # "AIM_eps3",
-    # "AIM_eps10",
+    "AIM_eps10",
     "TVAE",
     "CTGAN",
     "ARF",
@@ -85,7 +85,11 @@ ATTACK_GROUPS = [
                         "MarginalRF_mst_local_200",
                         "MarginalRF_complete_local_100",
                         "MarginalRF_topk_local_100",
-                        "MarginalRF_complete_global"]),
+                        "MarginalRF_complete_global",
+                        "MarginalRF_col_alpha0",
+                        "MarginalRF_col_alpha0.5_global",
+                        "MarginalRF_col_alpha1_global",
+                        "MarginalRF_col_alpha0.5_knn"]),
 ]
 
 ATTACK_DISPLAY: dict[str, str] = {
@@ -117,6 +121,11 @@ ATTACK_DISPLAY: dict[str, str] = {
     "MarginalRF_complete_local_100": r"MarginalRF (complete, local $k$=100)",
     "MarginalRF_topk_local_100":   r"MarginalRF (top-$k$, local $k$=100)",
     "MarginalRF_complete_global":  r"MarginalRF (complete, global)",
+    # Column-correction ablation
+    "MarginalRF_col_alpha0":          r"MarginalRF+col ($\alpha{=}0$, baseline)",
+    "MarginalRF_col_alpha0.5_global": r"MarginalRF+col ($\alpha{=}0.5$, global)",
+    "MarginalRF_col_alpha1_global":   r"MarginalRF+col ($\alpha{=}1$, global)",
+    "MarginalRF_col_alpha0.5_knn":    r"MarginalRF+col ($\alpha{=}0.5$, knn)",
 }
 
 DATASET_DISPLAY: dict[str, str] = {
