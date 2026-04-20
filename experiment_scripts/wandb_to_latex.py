@@ -429,9 +429,16 @@ def main():
         if qi_filter:
             df = df[df["qi"] == qi_filter]
         if args.size is not None and "size" in df.columns:
-            # Rows from CSVs that had no 'size' column get NaN after concat — keep them
-            # (they came from single-dataset sweeps so they're implicitly the right size).
-            df = df[(df["size"] == args.size) | df["size"].isna()]
+            # NaN passthrough ONLY for truly old single-context CSVs (no 'dataset' col → NaN
+            # after concat). Rows that have an explicit dataset but no size column are from
+            # newer multi-context CSVs and must match explicitly — we don't know their size.
+            has_explicit_size = df["size"].notna()
+            is_old_csv = (
+                df["dataset"].isna()
+                if "dataset" in df.columns
+                else pd.Series(True, index=df.index)
+            )
+            df = df[(has_explicit_size & (df["size"] == args.size)) | (~has_explicit_size & is_old_csv)]
         if args.dataset and args.dataset.lower() != "all" and "dataset" in df.columns:
             # Keep rows matching the requested dataset; also keep rows from CSVs that
             # had no 'dataset' column (old single-dataset files that predate the column).

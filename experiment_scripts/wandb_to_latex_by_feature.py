@@ -394,7 +394,16 @@ def load_csv_long(csv_paths: list[str],
     if qi_filter:
         df = df[df["qi"] == qi_filter]
     if size_filter is not None and "size" in df.columns:
-        df = df[(df["size"] == size_filter) | df["size"].isna()]
+        # NaN passthrough ONLY for truly old single-context CSVs (no 'dataset' col → NaN
+        # after concat). Rows that have an explicit dataset but no size column are from
+        # newer multi-context CSVs and must match explicitly — we don't know their size.
+        has_explicit_size = df["size"].notna()
+        is_old_csv = (
+            df["dataset"].isna()
+            if "dataset" in df.columns
+            else pd.Series(True, index=df.index)
+        )
+        df = df[(has_explicit_size & (df["size"] == size_filter)) | (~has_explicit_size & is_old_csv)]
     # Filter by dataset when the CSV has a 'dataset' column; keep rows without the
     # column (old single-dataset files that predate the column are implicitly correct).
     if dataset_filter and dataset_filter.lower() != "all" and "dataset" in df.columns:
