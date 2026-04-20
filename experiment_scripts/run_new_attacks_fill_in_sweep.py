@@ -55,30 +55,30 @@ from attack_defaults import ATTACK_PARAM_DEFAULTS
 # Each entry has its own sdg_methods list (available methods differ by dataset).
 
 DATASET_CONFIGS = [
-    {
-        "base":        "cdc_diabetes",
-        "name":        "cdc_diabetes",
-        "size":        100_000,
-        "type":        "categorical",
-        "qi_variants": ["QI1"],
-        "data_root":   "/home/golobs/data/reconstruction_data/cdc_diabetes/size_100000",
-        "sdg_methods": [
-            ("MST",             {"epsilon": 0.1}),
-            ("MST",             {"epsilon": 1.0}),
-            ("MST",             {"epsilon": 10.0}),
-            ("MST",             {"epsilon": 100.0}),
-            ("MST",             {"epsilon": 1000.0}),
-            ("AIM",             {"epsilon": 1.0}),
-            ("AIM",             {"epsilon": 10.0}),
-            ("TVAE",            {}),
-            ("CTGAN",           {}),
-            ("ARF",             {}),
-            ("TabDDPM",         {}),
-            ("Synthpop",        {}),
-            ("RankSwap",        {}),
-            ("CellSuppression", {}),
-        ],
-    },
+    #{
+    #    "base":        "cdc_diabetes",
+    #    "name":        "cdc_diabetes",
+    #    "size":        100_000,
+    #    "type":        "categorical",
+    #    "qi_variants": ["QI1"],
+    #    "data_root":   "/home/golobs/data/reconstruction_data/cdc_diabetes/size_100000",
+    #    "sdg_methods": [
+    #        ("MST",             {"epsilon": 0.1}),
+    #        ("MST",             {"epsilon": 1.0}),
+    #        ("MST",             {"epsilon": 10.0}),
+    #        ("MST",             {"epsilon": 100.0}),
+    #        ("MST",             {"epsilon": 1000.0}),
+    #        #("AIM",             {"epsilon": 1.0}),
+    #        #("AIM",             {"epsilon": 10.0}),
+    #        ("TVAE",            {}),
+    #        ("CTGAN",           {}),
+    #        ("ARF",             {}),
+    #        ("TabDDPM",         {}),
+    #        ("Synthpop",        {}),
+    #        ("RankSwap",        {}),
+    #        ("CellSuppression", {}),
+    #    ],
+    #},
     # ── california excluded — TabPFN/MarginalRF are categorical-only ───────────
     # Uncomment and add continuous variants to attacks/__init__.py to enable.
     # {
@@ -142,13 +142,14 @@ ATTACK_CONFIGS = [
     ("TabPFN",     {},                                                    ""),
 
     # ── MarginalRF: PMI mode (global vs local) × graph structure ──────────────
-    ("MarginalRF", {"knn_k": None,  "graph_type": "mst"},                "MarginalRF_mst_global"),
-    ("MarginalRF", {"knn_k": 50,    "graph_type": "mst"},                "MarginalRF_mst_local_50"),
-    ("MarginalRF", {"knn_k": 100,   "graph_type": "mst"},                "MarginalRF_mst_local_100"),
-    ("MarginalRF", {"knn_k": 200,   "graph_type": "mst"},                "MarginalRF_mst_local_200"),
-    ("MarginalRF", {"knn_k": 100,   "graph_type": "complete"},           "MarginalRF_complete_local_100"),
-    ("MarginalRF", {"knn_k": 100,   "graph_type": "topk"},               "MarginalRF_topk_local_100"),
-    ("MarginalRF", {"knn_k": None,  "graph_type": "complete"},           "MarginalRF_complete_global"),
+    #("MarginalRF", {"knn_k": None,  "graph_type": "mst"},                "MarginalRF_mst_global"),
+    #("MarginalRF", {"knn_k": 50,    "graph_type": "mst"},                "MarginalRF_mst_local_50"),
+    #("MarginalRF", {"knn_k": 100,   "graph_type": "mst"},                "MarginalRF_mst_local_100"),
+    #("MarginalRF", {"knn_k": 200,   "graph_type": "mst"},                "MarginalRF_mst_local_200"),
+    #("MarginalRF", {"knn_k": 500,   "graph_type": "mst"},                "MarginalRF_mst_local_500"),
+    #("MarginalRF", {"knn_k": 100,   "graph_type": "complete"},           "MarginalRF_complete_local_100"),
+    #("MarginalRF", {"knn_k": 100,   "graph_type": "topk"},               "MarginalRF_topk_local_100"),
+    #("MarginalRF", {"knn_k": None,  "graph_type": "complete"},           "MarginalRF_complete_global"),
 ]
 
 
@@ -338,6 +339,7 @@ def run_job(job: Job) -> dict[str, Any]:
         feat_scores = {k: v for k, v in metrics.items() if k.startswith("RA_") and k != "RA_mean"}
         return {
             "dataset": ds["name"],
+            "size":    ds["size"],
             "sample":  job.sample_idx,
             "sdg":     job.sdg_label,
             "attack":  job.attack_method,
@@ -361,7 +363,7 @@ def run_job(job: Job) -> dict[str, Any]:
 def _save_summary_csv(rows: list[dict], path: Path):
     if not rows:
         return
-    base_keys = ["dataset", "sample", "sdg", "attack", "label", "qi", "ra_mean", "error"]
+    base_keys = ["dataset", "size", "sample", "sdg", "attack", "label", "qi", "ra_mean", "error"]
     feat_keys = sorted({k for r in rows for k in r if k.startswith("RA_") and k != "RA_mean"})
     keys = base_keys + feat_keys
     with open(path, "w", newline="") as f:
@@ -488,6 +490,7 @@ def main():
             )
             results.append({
                 "dataset": job.dataset_name,
+                "size": job.dataset_cfg["size"],
                 "sample": job.sample_idx, "sdg": job.sdg_label,
                 "attack": job.attack_method, "label": job.effective_label, "qi": job.qi,
                 "ra_mean": None, "error": str(result_or_exc),

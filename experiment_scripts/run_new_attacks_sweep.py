@@ -311,6 +311,7 @@ def run_job(job: Job) -> dict[str, Any]:
         feat_scores = {k: v for k, v in metrics.items() if k.startswith("RA_") and k != "RA_mean"}
         return {
             "dataset": ds["name"],
+            "size":    ds["size"],
             "sample":  job.sample_idx,
             "sdg":     job.sdg_label,
             "attack":  job.attack_method,
@@ -334,7 +335,7 @@ def run_job(job: Job) -> dict[str, Any]:
 def _save_summary_csv(rows: list[dict], path: Path):
     if not rows:
         return
-    base_keys = ["dataset", "sample", "sdg", "attack", "label", "qi", "ra_mean", "error"]
+    base_keys = ["dataset", "size", "sample", "sdg", "attack", "label", "qi", "ra_mean", "error"]
     feat_keys = sorted({k for r in rows for k in r if k.startswith("RA_") and k != "RA_mean"})
     keys = base_keys + feat_keys
     with open(path, "w", newline="") as f:
@@ -455,6 +456,7 @@ def main():
             )
             results.append({
                 "dataset": job.dataset_name,
+                "size": job.dataset_cfg["size"],
                 "sample": job.sample_idx, "sdg": job.sdg_label,
                 "attack": job.attack_method, "label": job.effective_label, "qi": job.qi,
                 "ra_mean": None, "error": str(result_or_exc),

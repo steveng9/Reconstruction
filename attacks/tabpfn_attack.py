@@ -23,9 +23,10 @@ from sklearn.ensemble import RandomForestClassifier
 from .ML_classifiers import _encode_qi
 
 
-_MAX_CLASSES_TABPFN = 10   # TabPFN v1 hard class-count limit
-_MAX_TRAIN_DEFAULT  = 1024  # TabPFN v1 training-size limit
-_N_ENSEMBLE_DEFAULT = 32    # number of ensemble configurations
+_MAX_CLASSES_TABPFN  = 10    # TabPFN v1 hard class-count limit
+_MAX_TRAIN_DEFAULT   = 1024  # TabPFN v1 training-size limit
+_N_ENSEMBLE_DEFAULT  = 32    # number of ensemble configurations
+_TEST_BATCH_DEFAULT  = 1000  # max test rows per forward pass (prevents OOM on large datasets)
 
 
 def tabpfn_reconstruction(cfg, deid, targets, qi, hidden_features):
@@ -73,6 +74,7 @@ def tabpfn_reconstruction(cfg, deid, targets, qi, hidden_features):
     max_train       = params.get("max_train_samples",         _MAX_TRAIN_DEFAULT)
     n_ensemble      = params.get("n_ensemble_configurations", _N_ENSEMBLE_DEFAULT)
     device          = params.get("device",                    "cpu")
+    test_batch_size = params.get("test_batch_size",           _TEST_BATCH_DEFAULT)
     rf_n_estimators = params.get("rf_fallback_n_estimators",  25)
     rf_max_depth    = params.get("rf_fallback_max_depth",      25)
 
@@ -110,8 +112,16 @@ def tabpfn_reconstruction(cfg, deid, targets, qi, hidden_features):
 
         if n_classes <= _MAX_CLASSES_TABPFN:
             clf.fit(X_train_pfn, y_pfn.values)
-            pred        = clf.predict(X_test)
-            proba       = clf.predict_proba(X_test)
+            # Chunk predictions to avoid OOM on large test sets (e.g. 100k targets).
+            # Use only predict_proba — predict() just calls it again internally.
+            if test_batch_size and len(X_test) > test_batch_size:
+                proba_chunks = []
+                for start in range(0, len(X_test), test_batch_size):
+                    proba_chunks.append(clf.predict_proba(X_test[start:start + test_batch_size]))
+                proba = np.concatenate(proba_chunks, axis=0)
+            else:
+                proba = clf.predict_proba(X_test)
+            pred         = clf.classes_[np.argmax(proba, axis=1)]
             feat_classes = clf.classes_
         else:
             # High-cardinality: fall back to RF on the full synth

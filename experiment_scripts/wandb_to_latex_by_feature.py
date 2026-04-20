@@ -396,8 +396,8 @@ def load_csv_long(csv_paths: list[str],
     if size_filter is not None and "size" in df.columns:
         df = df[(df["size"] == size_filter) | df["size"].isna()]
     # Filter by dataset when the CSV has a 'dataset' column; keep rows without the
-    # column (single-dataset files implicitly match).
-    if dataset_filter is not None and "dataset" in df.columns:
+    # column (old single-dataset files that predate the column are implicitly correct).
+    if dataset_filter and dataset_filter.lower() != "all" and "dataset" in df.columns:
         df = df[(df["dataset"] == dataset_filter) | df["dataset"].isna()]
     if attack_filter:
         df = df[df["attack"].isin(attack_filter)]
@@ -419,11 +419,10 @@ def load_csv_long(csv_paths: list[str],
               "(run_production_sweep.py and run_cdc_sweep.py now write these).")
         return pd.DataFrame()
 
-    # Melt to long format
-    id_vars = ["attack", "sdg", "qi", "sample"]
-    available_id = [c for c in id_vars if c in df.columns]
-    long = df[available_id + feat_cols].melt(
-        id_vars=available_id,
+    # Carry 'dataset' through the melt so it can anchor the dedup key.
+    id_vars = [c for c in ["dataset", "attack", "sdg", "qi", "sample"] if c in df.columns]
+    long = df[id_vars + feat_cols].melt(
+        id_vars=id_vars,
         value_vars=feat_cols,
         var_name="feature",
         value_name="ra_score",
@@ -431,8 +430,9 @@ def load_csv_long(csv_paths: list[str],
     long["feature"] = long["feature"].str[3:]  # strip "RA_" prefix
     long = long[long["ra_score"].notna()].reset_index(drop=True)
 
-    # Dedup: for same (attack, sdg, qi, sample, feature), keep last (latest CSV wins)
-    key = ["attack", "sdg", "qi", "sample", "feature"]
+    # Dedup: keep last (latest CSV wins). Include dataset so rows from different
+    # datasets never overwrite each other even when both survive the filter above.
+    key = [c for c in ["dataset", "attack", "sdg", "qi", "sample", "feature"] if c in long.columns]
     before = len(long)
     long = long.drop_duplicates(subset=key, keep="last").reset_index(drop=True)
     if (dropped := before - len(long)):

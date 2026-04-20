@@ -50,7 +50,7 @@ SDG_ORDER = [
     # "AIM_eps0.3",
     "AIM_eps1",
     # "AIM_eps3",
-    "AIM_eps10",
+    # "AIM_eps10",
     "TVAE",
     "CTGAN",
     "ARF",
@@ -402,9 +402,6 @@ def main():
     parser.add_argument("--size", type=int, default=None,
                         help="When using --from-csv, filter to rows where the 'size' column equals this value "
                              "(e.g. --size 1000 or --size 100000).")
-    parser.add_argument("--csv-dataset", type=str, default=None, metavar="DATASET",
-                        help="When using --from-csv, filter to rows where the 'dataset' column equals this value. "
-                             "CSVs without a 'dataset' column are always kept.")
     args = parser.parse_args()
 
     qi_filter = None if args.qi.lower() == "all" else args.qi
@@ -426,10 +423,10 @@ def main():
             # Rows from CSVs that had no 'size' column get NaN after concat — keep them
             # (they came from single-dataset sweeps so they're implicitly the right size).
             df = df[(df["size"] == args.size) | df["size"].isna()]
-        if args.csv_dataset is not None and "dataset" in df.columns:
+        if args.dataset and args.dataset.lower() != "all" and "dataset" in df.columns:
             # Keep rows matching the requested dataset; also keep rows from CSVs that
-            # had no 'dataset' column (they're implicitly single-dataset files).
-            df = df[(df["dataset"] == args.csv_dataset) | df["dataset"].isna()]
+            # had no 'dataset' column (old single-dataset files that predate the column).
+            df = df[(df["dataset"] == args.dataset) | df["dataset"].isna()]
         # Prefer 'label' over 'attack' when the CSV has a label column (e.g. new-attacks
         # sweep where multiple MarginalRF variants share the same attack_method).
         if "label" in df.columns:
@@ -438,8 +435,14 @@ def main():
             df = df.drop(columns=["label"])
         if args.attacks:
             df = df[df["attack"].isin(args.attacks)]
-        # Dedup: keep last (latest file wins for same key)
+        # Dedup: keep last (latest file wins for same key).
+        # Include dataset and size so rows from different datasets/sizes never
+        # overwrite each other even when both are present in the concatenated frames.
         key = ["attack", "sdg", "qi", "sample"]
+        if "dataset" in df.columns:
+            key = ["dataset"] + key
+        if "size" in df.columns:
+            key = key + ["size"]
         df = df.drop_duplicates(subset=key, keep="last").reset_index(drop=True)
         print(f"Combined: {len(df)} rows after dedup")
     else:

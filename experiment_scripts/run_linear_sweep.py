@@ -62,9 +62,7 @@ DATASET_CONFIGS: dict[str, dict] = {
         "name":        "adult",
         "data_type":   "categorical",
         "n_features":  None,
-        "qi_variants": [
-                 "QI_linear", "QI_binary_sex"],
-                 #"QI_linear_lowcard", "QI_binary_sex_lowcard"],
+        "qi_variants": ["QI_linear_lowcard", "QI_binary_sex_lowcard"],
     },
     "cdc_diabetes": {
         "base":        "cdc_diabetes",
@@ -105,8 +103,8 @@ SDG_METHODS = [
 # All are "categorical" registry lookups.
 ATTACK_CONFIGS = [
     #("Random",               {},  ""),
-    ("NaiveBayes",            {},  ""),
-    ("KNN",                   {},  ""),
+    #("NaiveBayes",            {},  ""),
+    #("KNN",                   {},  ""),
     #("RandomForest",         {},  ""),
     #("LogisticRegression",   {},  ""),
     #("LightGBM",             {},  ""),
@@ -325,7 +323,7 @@ def run_job(job: Job) -> dict[str, Any]:
         return {
             "sample":        job.sample_idx,
             "sdg":           job.sdg_label,
-            "attack":        job.attack_method,
+            "attack":        job.effective_label,
             "qi":            job.qi,
             "dataset":       job.dataset_key,
             "size":          job.dataset_size,

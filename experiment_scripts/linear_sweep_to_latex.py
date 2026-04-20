@@ -48,8 +48,10 @@ WANDB_PROJECT = "tabular-reconstruction-attacks"
 COLUMNS = [
     ("adult",        1_000,  "QI_linear",             "income",   "Adult 1k"),
     ("adult",        1_000,  "QI_binary_sex",          "sex",      "Adult 1k"),
-    ("adult",        10_000, "QI_linear_lowcard",      "income",   "Adult 10k"),
-    ("adult",        10_000, "QI_binary_sex_lowcard",  "sex",      "Adult 10k"),
+    # TEMPORARY: using non-lowcard until rerun with lowcard QI variants completes.
+    # After rerun, change back to "QI_linear_lowcard" / "QI_binary_sex_lowcard".
+    ("adult",        10_000, "QI_linear_lowcard",              "income",   "Adult 10k"),
+    ("adult",        10_000, "QI_binary_sex_lowcard",          "sex",      "Adult 10k"),
     ("arizona",      10_000,  "QI_binary_SEX_lowcard",  "SEX",      "Arizona 10k"),
     ("cdc_diabetes", 1_000,  "QI_linear",              "Diabetes", "CDC 1k"),
     ("cdc_diabetes", 1_000,  "QI_binary_HighBP",       "HighBP",   "CDC 1k"),
@@ -486,14 +488,28 @@ def main():
                         help="Output file for Table 2 (per SDG, longtable).")
     parser.add_argument("--decimals",   type=int, default=2,
                         help="Decimal places in cells (default 2).")
+    parser.add_argument("--from-csv",   metavar="CSV",
+                        help="Load run data from a previously saved CSV instead of WandB.")
+    parser.add_argument("--save-csv",   metavar="CSV",
+                        help="After fetching from WandB, save the run data to CSV for reuse.")
     args = parser.parse_args()
 
     if args.project != WANDB_PROJECT:
         globals()["WANDB_PROJECT"] = args.project
 
-    print("Fetching WandB runs ...")
-    df = fetch_runs()
-    print(f"Total rows after deduplication: {len(df)}")
+    if args.from_csv:
+        print(f"Loading runs from {args.from_csv} ...")
+        df = pd.read_csv(args.from_csv)
+        df["size"] = df["size"].astype(int)
+        df["sample"] = df["sample"].astype(int)
+        print(f"Total rows: {len(df)}")
+    else:
+        print("Fetching WandB runs ...")
+        df = fetch_runs()
+        print(f"Total rows after deduplication: {len(df)}")
+        if args.save_csv:
+            df.to_csv(args.save_csv, index=False)
+            print(f"Run data saved to {args.save_csv}")
     if df.empty:
         print("No data found — check group names and WandB project.")
         return

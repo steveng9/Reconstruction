@@ -19,7 +19,7 @@ Usage:
         --attacks RandomForest LightGBM MLP \\
         --dataset adult --qi QI1
     python experiment_scripts/wandb_to_latex_epsilon_sweep.py \\
-        --from-csv sweep.csv --csv-dataset adult --size 10000 \\
+        --from-csv sweep.csv --dataset adult --size 10000 \\
         --attacks RandomForest --out my_eps_table.tex
 """
 
@@ -329,7 +329,9 @@ def load_csv_long(csv_paths: list[str],
         df = df[df["qi"] == qi_filter]
     if size_filter is not None and "size" in df.columns:
         df = df[(df["size"] == size_filter) | df["size"].isna()]
-    if dataset_filter is not None and "dataset" in df.columns:
+    if dataset_filter and dataset_filter.lower() != "all" and "dataset" in df.columns:
+        # Keep rows matching the requested dataset; also keep rows from CSVs that
+        # had no 'dataset' column (old single-dataset files that predate the column).
         df = df[(df["dataset"] == dataset_filter) | df["dataset"].isna()]
     if attack_filter:
         df = df[df["attack"].isin(attack_filter)]
@@ -351,7 +353,8 @@ def load_csv_long(csv_paths: list[str],
               "Re-run the sweep so CSVs contain per-feature scores.")
         return pd.DataFrame()
 
-    id_vars = [c for c in ["attack", "sdg", "qi", "sample"] if c in df.columns]
+    # Carry 'dataset' through the melt so it can anchor the dedup key.
+    id_vars = [c for c in ["dataset", "attack", "sdg", "qi", "sample"] if c in df.columns]
     long = df[id_vars + feat_cols].melt(
         id_vars=id_vars,
         value_vars=feat_cols,
@@ -361,7 +364,9 @@ def load_csv_long(csv_paths: list[str],
     long["feature"] = long["feature"].str[3:]   # strip "RA_" prefix
     long = long[long["ra_score"].notna()].reset_index(drop=True)
 
-    key = ["attack", "sdg", "qi", "sample", "feature"]
+    # Include dataset in the key so rows from different datasets never overwrite
+    # each other even when both survive the (optional) filter above.
+    key = [c for c in ["dataset", "attack", "sdg", "qi", "sample", "feature"] if c in long.columns]
     before = len(long)
     long = long.drop_duplicates(subset=key, keep="last").reset_index(drop=True)
     if (dropped := before - len(long)):
@@ -531,19 +536,18 @@ def main():
                              "Expected columns: sample, sdg, attack, qi, ra_mean, RA_<feat>...")
     parser.add_argument("--size", type=int, default=None,
                         help="Filter CSV rows where 'size' == this value (e.g. 10000).")
-    parser.add_argument("--csv-dataset", default=None, metavar="DATASET",
-                        help="Filter CSV rows to this dataset name.")
     args = parser.parse_args()
 
     qi_filter = args.qi
 
     if args.from_csv:
+        dataset_filter = args.dataset if args.dataset.lower() != "all" else None
         df = load_csv_long(
             args.from_csv,
             qi_filter=qi_filter,
             attack_filter=args.attacks,
             size_filter=args.size,
-            dataset_filter=args.csv_dataset,
+            dataset_filter=dataset_filter,
         )
     else:
         dataset_filter = args.dataset if args.dataset.lower() != "all" else ""
