@@ -135,6 +135,21 @@ attack_params:
     batch_size: 2048
     lr: 0.0006
 
+  MarginalRF:
+    num_estimators: 25
+    max_depth: 25
+    max_pair_cardinality: 50   # features with more unique values skip pairwise BP correction
+    knn_k: 100                 # synth neighbours per target for local PMI; null → global PMI
+    alpha: 1.0e-6              # Laplace smoothing for joint probability tables
+    graph_type: "mst"          # "mst" (exact BP) | "complete" (loopy BP) | "topk" (loopy BP)
+    top_k_edges: null          # edge budget for graph_type="topk"; null → 2 × |features|
+    lbp_max_iter: 20           # max loopy BP iterations (ignored for "mst")
+    lbp_damping: 0.5           # loopy BP step-size: 1.0=full update, 0.0=no update
+    # Column marginal correction
+    col_correction_alpha: 0.5  # strength: 0.0=off, 1.0=full correction toward synth marginal
+    col_correction_mode: "global"  # "global" (shared cross-row correction) | "knn" (per-row local marginal)
+    col_correction_iters: 1    # outer (row-BP + col-correction) iterations; >1 = alternating refinement
+
   RandomForest:
     max_depth: 25
     num_estimators: 25

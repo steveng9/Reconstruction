@@ -76,6 +76,10 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "top_k_edges":          None,  # edge budget for graph_type="topk"; None → 2 × |features|
         "lbp_max_iter":         20,    # max loopy BP iterations (ignored for "mst")
         "lbp_damping":          0.5,   # loopy BP step-size: 1.0=full update, 0.0=no update
+        # Column marginal correction — nudges aggregate predictions toward the synth marginal
+        "col_correction_alpha": 0.5,   # strength: 0.0=off, 1.0=full; TODO: ablation sweep over [0,0.25,0.5,0.75,1.0]
+        "col_correction_mode":  "global", # "global" (cross-row normalisation) | "knn" (per-row local marginal)
+        "col_correction_iters": 1,     # outer (row-BP + col-correction) iterations; >1 = alternating refinement
     },
 
     # ── ML regressors (attacks/ML_regression.py) ─────────────────────────────

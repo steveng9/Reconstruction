@@ -82,6 +82,11 @@ _TOP_K_EDGES_DEFAULT     = None   # for graph_type="topk"; None → 2 × |featur
 _LBP_MAX_ITER_DEFAULT    = 20
 _LBP_DAMPING_DEFAULT     = 0.5   # step-size for loopy BP: 1.0=full update, 0.0=no update
 
+# Column marginal correction defaults
+_COL_CORR_ALPHA_DEFAULT = 0.5   # correction strength: 0.0 = off, 1.0 = full
+_COL_CORR_MODE_DEFAULT  = "global"  # "global" | "knn"
+_COL_CORR_ITERS_DEFAULT = 1         # (row-BP + col-correction) outer iterations
+
 
 # ---------------------------------------------------------------------------
 # Mutual information helpers (for MST structure learning)
@@ -339,6 +344,134 @@ def _bp_tree(
 
 
 # ---------------------------------------------------------------------------
+# Column marginal correction helpers
+# ---------------------------------------------------------------------------
+
+def _compute_global_marginals(
+    synth: pd.DataFrame,
+    features: list,
+    rf_classes: dict,
+    alpha: float,
+) -> dict:
+    """Global marginal P(feat=v) for each feature from all of synth.
+
+    Returns feat → np.ndarray of shape (C_feat,).
+    """
+    marginals = {}
+    for feat in features:
+        classes = rf_classes[feat]
+        synth_str = synth[feat].astype(str).values
+        counts = np.array(
+            [(synth_str == str(v)).sum() for v in classes], dtype=float
+        )
+        counts += alpha
+        marginals[feat] = counts / counts.sum()
+    return marginals
+
+
+def _compute_local_marginals(
+    synth: pd.DataFrame,
+    features: list,
+    rf_classes: dict,
+    knn_indices: np.ndarray,  # (n_targets, K)
+    alpha: float,
+) -> dict:
+    """Per-target local marginal P(feat=v | synth-neighbours of target).
+
+    Returns feat → np.ndarray of shape (n_targets, C_feat).
+    """
+    local_marginals = {}
+    for feat in features:
+        classes = rf_classes[feat]
+        C = len(classes)
+        cls_to_idx = {str(v): i for i, v in enumerate(classes)}
+        synth_codes = np.array(
+            [cls_to_idx.get(str(x), -1) for x in synth[feat]], dtype=np.int32
+        )
+        nbr_codes = synth_codes[knn_indices]          # (n_targets, K)
+        result    = np.zeros((knn_indices.shape[0], C), dtype=float)
+        for ci in range(C):
+            result[:, ci] = (nbr_codes == ci).sum(axis=1)
+        result += alpha
+        result /= result.sum(axis=1, keepdims=True)
+        local_marginals[feat] = result
+    return local_marginals
+
+
+def _apply_col_correction(
+    log_beliefs_all: dict,
+    rf_classes: dict,
+    global_marginals: dict,
+    local_marginals: dict,
+    col_alpha: float,
+    col_mode: str,
+) -> dict:
+    """Apply column marginal correction to a dict of log-beliefs.
+
+    For each feature present in log_beliefs_all:
+
+    *global* mode — enforces that the aggregate prediction across all N
+    targets matches the synth marginal T_j(v):
+        log_corr[v] = α * (log T_j(v) − log C_j(v))
+    where C_j(v) = mean_i exp(log_beliefs[i,v]).  The same correction is
+    broadcast to every target row.
+
+    *knn* mode — nudges each row's belief toward the *local* synth marginal
+    T_j^(i)(v) estimated from that target's K nearest synth neighbours:
+        log_corr[i,v] = α * (log T_j^(i)(v) − log_beliefs[i,v])
+    Equivalent to a geometric blend: beliefs^(1-α) · T_j_local^α.
+
+    All beliefs are renormalised after correction.
+
+    Returns an updated copy of log_beliefs_all.
+    """
+    corrected = {}
+    for feat, lb in log_beliefs_all.items():
+        # lb: (n_targets, C_feat) normalised log-beliefs
+        if feat not in rf_classes or rf_classes[feat] is None:
+            corrected[feat] = lb
+            continue
+
+        if col_mode == "global":
+            if feat not in global_marginals:
+                corrected[feat] = lb
+                continue
+            C_j = np.exp(lb).mean(axis=0, keepdims=True)          # (1, C)
+            T_j = global_marginals[feat][None, :]                  # (1, C)
+            log_corr = col_alpha * (
+                np.log(np.maximum(T_j, 1e-12))
+                - np.log(np.maximum(C_j, 1e-12))
+            )  # broadcast over targets
+
+        elif col_mode == "knn":
+            if feat not in local_marginals:
+                # Fall back to global when local marginals unavailable
+                if feat not in global_marginals:
+                    corrected[feat] = lb
+                    continue
+                C_j = np.exp(lb).mean(axis=0, keepdims=True)
+                T_j = global_marginals[feat][None, :]
+                log_corr = col_alpha * (
+                    np.log(np.maximum(T_j, 1e-12))
+                    - np.log(np.maximum(C_j, 1e-12))
+                )
+            else:
+                T_j_local = local_marginals[feat]                  # (n_targets, C)
+                log_corr = col_alpha * (
+                    np.log(np.maximum(T_j_local, 1e-12)) - lb
+                )  # geometric blend toward local marginal
+        else:
+            corrected[feat] = lb
+            continue
+
+        new_lb = lb + log_corr
+        log_z  = logsumexp(new_lb, axis=1, keepdims=True)
+        corrected[feat] = new_lb - log_z
+
+    return corrected
+
+
+# ---------------------------------------------------------------------------
 # Loopy belief propagation (for graphs with cycles)
 # ---------------------------------------------------------------------------
 
@@ -461,6 +594,22 @@ def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features):
         lbp_damping (float, default 0.5):
             Step-size for loopy BP: 1.0 = full update, 0.0 = no update.
             Lower values improve stability on dense graphs.
+        col_correction_alpha (float, default 0.5):
+            Strength of the column marginal correction applied after BP.
+            0.0 = disabled (pure row-level BP). 1.0 = full correction.
+            Enforces that the aggregate predictions across all N targets
+            match the synth marginal for each hidden feature.
+        col_correction_mode (str, default "global"):
+            "global" — one correction factor per (feature, value) pair,
+                       shared across all targets.  C_j(v) = mean belief.
+            "knn"    — per-target correction toward the local synth marginal
+                       estimated from that target's K nearest synth neighbours.
+                       Falls back to global when knn_k is None.
+        col_correction_iters (int, default 1):
+            Number of outer (row-BP + column-correction) iterations.
+            1 = single pass (row-BP then one correction, cheapest).
+            >1 = alternating refinement; each iteration re-runs row-BP with
+                 the previous iteration's corrected beliefs as unary inputs.
 
     Returns
     -------
@@ -468,16 +617,19 @@ def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features):
     probas : list[np.ndarray | None]
     classes_ : list[np.ndarray | None]
     """
-    params       = cfg["attack_params"]
-    n_estimators = params.get("num_estimators",       _RF_N_ESTIMATORS_DEFAULT)
-    max_depth    = params.get("max_depth",            _RF_MAX_DEPTH_DEFAULT)
-    max_card     = params.get("max_pair_cardinality", _MAX_PAIR_CARD_DEFAULT)
-    knn_k        = params.get("knn_k",                _KNN_K_DEFAULT)
-    alpha        = params.get("alpha",                _LAPLACE_ALPHA_DEFAULT)
-    graph_type   = params.get("graph_type",           _GRAPH_TYPE_DEFAULT)
-    top_k_edges  = params.get("top_k_edges",          _TOP_K_EDGES_DEFAULT)
-    lbp_max_iter = params.get("lbp_max_iter",         _LBP_MAX_ITER_DEFAULT)
-    lbp_damping  = params.get("lbp_damping",          _LBP_DAMPING_DEFAULT)
+    params            = cfg["attack_params"]
+    n_estimators      = params.get("num_estimators",       _RF_N_ESTIMATORS_DEFAULT)
+    max_depth         = params.get("max_depth",            _RF_MAX_DEPTH_DEFAULT)
+    max_card          = params.get("max_pair_cardinality", _MAX_PAIR_CARD_DEFAULT)
+    knn_k             = params.get("knn_k",                _KNN_K_DEFAULT)
+    alpha             = params.get("alpha",                _LAPLACE_ALPHA_DEFAULT)
+    graph_type        = params.get("graph_type",           _GRAPH_TYPE_DEFAULT)
+    top_k_edges       = params.get("top_k_edges",          _TOP_K_EDGES_DEFAULT)
+    lbp_max_iter      = params.get("lbp_max_iter",         _LBP_MAX_ITER_DEFAULT)
+    lbp_damping       = params.get("lbp_damping",          _LBP_DAMPING_DEFAULT)
+    col_alpha         = params.get("col_correction_alpha", _COL_CORR_ALPHA_DEFAULT)
+    col_mode          = params.get("col_correction_mode",  _COL_CORR_MODE_DEFAULT)
+    col_iters         = params.get("col_correction_iters", _COL_CORR_ITERS_DEFAULT)
 
     # ── Step 1: RF posteriors ──────────────────────────────────────────────
     enc     = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
@@ -506,7 +658,8 @@ def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features):
 
     # ── Step 3: Build graph over eligible features ────────────────────────
     log_pmi_tables: dict = {}
-    graph = nx.Graph()
+    graph        = nx.Graph()
+    knn_indices  = None   # may remain None if tree_features < 2 or knn_k is None
 
     if len(tree_features) >= 2:
         if graph_type == "mst":
@@ -548,19 +701,63 @@ def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features):
                     deid, fa, ca, fb, cb, alpha
                 )  # (Ca, Cb)
 
-    # ── Step 4: Belief propagation ─────────────────────────────────────────
-    log_unaries: dict = {}
-    for feat in tree_features:
+    # ── Step 4: Precompute column marginals (for correction) ──────────────
+    # Covers all hidden features with valid RF probas, not just tree_features.
+    corr_features    = [f for f in hidden_features if rf_probas.get(f) is not None]
+    global_marginals: dict = {}
+    local_marginals:  dict = {}
+
+    if col_alpha > 0 and corr_features:
+        global_marginals = _compute_global_marginals(deid, corr_features, rf_classes, alpha)
+        if col_mode == "knn" and knn_indices is not None:
+            local_marginals = _compute_local_marginals(
+                deid, corr_features, rf_classes, knn_indices, alpha
+            )
+
+    # ── Step 5: Belief propagation with optional column correction ────────
+    # Build a unified belief dict over all features with valid RF probas.
+    # Row-BP refines tree_features; column correction applies to all.
+    log_beliefs_all: dict = {}
+    for feat in corr_features:
         p = np.clip(rf_probas[feat], 1e-12, 1.0)
-        log_unaries[feat] = np.log(p)
+        lp = np.log(p)
+        log_beliefs_all[feat] = lp - logsumexp(lp, axis=1, keepdims=True)
 
-    if graph_type == "mst":
-        log_beliefs = _bp_tree(graph, log_unaries, log_pmi_tables)
-    else:
-        log_beliefs = _lbp_loopy(graph, log_unaries, log_pmi_tables,
-                                  max_iter=lbp_max_iter, damping=lbp_damping)
+    effective_col_iters = col_iters if col_alpha > 0 else 1
 
-    # ── Step 5: Decode and assemble output ────────────────────────────────
+    for _iter in range(effective_col_iters):
+        # --- Row-BP step (tree_features only) ---
+        if len(tree_features) >= 2:
+            log_unaries_tree: dict = {
+                feat: log_beliefs_all[feat] for feat in tree_features
+            }
+            if graph_type == "mst":
+                tree_beliefs = _bp_tree(graph, log_unaries_tree, log_pmi_tables)
+            else:
+                tree_beliefs = _lbp_loopy(
+                    graph, log_unaries_tree, log_pmi_tables,
+                    max_iter=lbp_max_iter, damping=lbp_damping,
+                )
+            for feat in tree_features:
+                if feat in tree_beliefs:
+                    log_beliefs_all[feat] = tree_beliefs[feat]
+        else:
+            tree_beliefs = {}
+
+        # --- Column correction step (all corr_features) ---
+        if col_alpha > 0 and corr_features:
+            log_beliefs_all = _apply_col_correction(
+                log_beliefs_all, rf_classes,
+                global_marginals, local_marginals,
+                col_alpha=col_alpha, col_mode=col_mode,
+            )
+
+    # Expose final tree-feature beliefs under the original variable name for
+    # the decode step below.
+    log_beliefs = {feat: log_beliefs_all[feat] for feat in tree_features
+                   if feat in log_beliefs_all}
+
+    # ── Step 6: Decode and assemble output ────────────────────────────────
     recon    = targets.copy()
     probas   = []
     classes_ = []
@@ -576,8 +773,10 @@ def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features):
 
         feat_classes = rf_classes[feat]
 
-        if feat in log_beliefs:
-            lb        = log_beliefs[feat]
+        # Prefer column-corrected beliefs (log_beliefs_all covers both tree and
+        # non-tree features); fall back to raw RF probas for safety.
+        if feat in log_beliefs_all:
+            lb        = log_beliefs_all[feat]
             idx       = np.argmax(lb, axis=1)
             proba_out = np.exp(lb)
         else:

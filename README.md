@@ -158,6 +158,56 @@ python experiment_scripts/run_partial_diffusion_adult.py --retrain
 python experiment_scripts/run_partial_diffusion_adult.py
 ```
 
+## MarginalRF Attack
+
+`MarginalRF` combines Random Forest posterior probabilities with belief propagation over a pairwise marginal graph learned from the synthetic data.  It is registered under `data_type: "categorical"`.
+
+### Algorithm
+
+1. **RF phase** — train one RF per hidden feature on synth (QI → hidden) and collect per-target log-posteriors.
+2. **Structure learning** — build a graph over hidden features weighted by pairwise mutual information from synth.
+3. **Pairwise PMI tables** — for each graph edge, compute log-PMI from the K nearest synth neighbours of each target (local mode) or from all of synth (global mode).
+4. **Row-level BP** — run sum-product belief propagation to let features inform each other within a row.
+5. **Column correction** — adjust per-row beliefs so the aggregate prediction across all N targets matches the synth marginal for each feature (see below).
+
+Steps 4–5 can be iterated (`col_correction_iters > 1`) for additional refinement.
+
+### Graph types
+
+| `graph_type` | Structure | BP | Notes |
+|---|---|---|---|
+| `"mst"` *(default)* | Maximum spanning tree | Exact, one pass | Guaranteed cycle-free |
+| `"complete"` | Fully connected | Loopy (approximate) | Captures all pairwise interactions |
+| `"topk"` | Top-k MI edges | Loopy if cycles exist | Middle ground; `top_k_edges` sets budget |
+
+### Column Marginal Correction
+
+After row-level BP, the individual row predictions are adjusted so their aggregate matches the synth marginal, capturing population-level information that the row-only BP cannot see.
+
+| `col_correction_mode` | Correction target | When to use |
+|---|---|---|
+| `"global"` *(default)* | Global synth marginal `T_j(v)`, shared across all targets | Default; works well when targets are a representative sample |
+| `"knn"` | Per-target local marginal from K nearest synth neighbours | Useful when QI is predictive and the local distribution differs substantially from the global |
+
+`col_correction_alpha` (default `0.5`) controls the blend strength: `0.0` disables correction entirely, `1.0` fully enforces the target marginal.
+
+`col_correction_iters` (default `1`) controls how many times the row-BP + column-correction cycle is repeated.  Higher values refine the beliefs but multiply compute cost proportionally.
+
+### Key parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `num_estimators` | 25 | RF trees |
+| `max_depth` | 25 | RF max depth |
+| `max_pair_cardinality` | 50 | Features with more unique values skip the pairwise BP correction |
+| `knn_k` | 100 | Synth neighbours for local PMI; `null` → global PMI |
+| `graph_type` | `"mst"` | Graph structure (see above) |
+| `lbp_max_iter` | 20 | Max loopy BP iterations (ignored for `"mst"`) |
+| `lbp_damping` | 0.5 | Loopy BP step-size |
+| `col_correction_alpha` | 0.5 | Column correction strength |
+| `col_correction_mode` | `"global"` | `"global"` or `"knn"` |
+| `col_correction_iters` | 1 | Outer (row-BP + correction) iterations |
+
 ## Architecture Overview
 
 See `CLAUDE.md` for full architecture details (attack registry, config structure, scoring, external dependencies).
