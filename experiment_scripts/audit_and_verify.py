@@ -249,6 +249,14 @@ def _read_one_csv(path: Path, family: str, extra_dims: dict) -> pd.DataFrame | N
         if k not in df.columns or df[k].isna().all():
             df[k] = v
 
+    # ── Normalise dataset aliases ─────────────────────────────────────────
+    # extra_dims alias only fires when the column is absent; also normalise
+    # existing dataset column values (e.g. "arizona" → "nist_arizona_25feat").
+    if "dataset" in df.columns:
+        df["dataset"] = df["dataset"].apply(
+            lambda x: _DATASET_ALIASES.get(str(x), str(x)) if pd.notna(x) else x
+        )
+
     # ── Normalise column names ────────────────────────────────────────────
     # 'label' takes priority over 'attack' as the display label
     if "label" in df.columns:
@@ -588,7 +596,12 @@ def _disambiguate(matches: list[dict], csv_ra: float | None, split: str) -> list
     if second_diff - best_diff > 0.001:
         return [best_match]  # clear winner
 
-    return matches  # too close to call
+    # All top candidates are tied (same score). Pick first — they're equivalent
+    # results (e.g. the same experiment run multiple times in different groups).
+    if second_diff == best_diff:
+        return [best_match]
+
+    return matches  # genuinely ambiguous — scores too close to call
 
 
 def _lookup_matches(lookup: dict, dataset: str, dataset_size: int,
