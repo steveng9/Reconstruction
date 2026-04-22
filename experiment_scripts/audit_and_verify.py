@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import json
+import pickle
 import re
 import sys
 import time
@@ -50,6 +51,7 @@ SCRIPT_DIR    = Path(__file__).parent
 CSV_DIR       = SCRIPT_DIR           # CSVs live next to this script
 OUTFILES_DIR  = SCRIPT_DIR / "outfiles"
 WANDB_PROJECT = "tabular-reconstruction-attacks"
+WANDB_CACHE   = OUTFILES_DIR / "wandb_lookup_cache.pkl"
 
 # Tolerance for "scores match" when comparing CSV ra_mean vs WandB RA_mean
 SCORE_TOL = 0.05   # generous — rounding differs between run_job and WandB summary
@@ -359,8 +361,16 @@ def phase1_read_csvs(workers: int) -> pd.DataFrame:
 # Phase 2: WandB bulk fetch
 # ---------------------------------------------------------------------------
 
-def phase2_fetch_wandb() -> dict:
+def phase2_fetch_wandb(use_cache: bool = False, save_cache: bool = True) -> dict:
     """Fetch all WandB runs and return a lookup dict.
+
+    Parameters
+    ----------
+    use_cache : bool
+        If True and WANDB_CACHE exists, load the lookup from disk instead of
+        hitting the WandB API.  Pass --use-wandb-cache on the CLI.
+    save_cache : bool
+        If True, save the lookup to WANDB_CACHE after a successful live fetch.
 
     Returns
     -------
@@ -369,6 +379,18 @@ def phase2_fetch_wandb() -> dict:
     """
     log_section("PHASE 2 — WandB Bulk Fetch")
 
+    # ── Cache load path ────────────────────────────────────────────────────────
+    if use_cache:
+        if WANDB_CACHE.exists():
+            log(f"Loading WandB lookup from cache: {WANDB_CACHE}")
+            with open(WANDB_CACHE, "rb") as fh:
+                lookup = pickle.load(fh)
+            log(f"  Loaded {sum(len(v) for v in lookup.values()):,} indexed runs "
+                f"({len(lookup):,} unique keys) from cache.")
+            return lookup
+        else:
+            log(f"Cache file not found ({WANDB_CACHE}); falling back to live WandB fetch.")
+
     try:
         import wandb
     except ImportError:
@@ -376,20 +398,21 @@ def phase2_fetch_wandb() -> dict:
         return {}
 
     log(f"Connecting to WandB project '{WANDB_PROJECT}'...")
-    api = wandb.Api(timeout=60)
+    api = wandb.Api(timeout=90)
 
-    # Extract config/summary immediately during iteration — avoids lazy-loading
-    # per-run network calls when accessing .config/.summary on stored Run objects.
     log("Fetching all runs (per_page=500 — may take several minutes)...")
     lookup: dict[tuple, list[dict]] = {}
     skipped_no_config = 0
     total_fetched = 0
+    errors = 0
 
     try:
         for i, run in enumerate(api.runs(WANDB_PROJECT, per_page=500), 1):
             total_fetched = i
             if i % 100 == 0:
-                log(f"  Fetched {i} runs so far (indexed: {sum(len(v) for v in lookup.values()):,})...", indent=1)
+                log(f"  Fetched {i} runs so far "
+                    f"(indexed: {sum(len(v) for v in lookup.values()):,}, "
+                    f"errors: {errors})...", indent=1)
             try:
                 cfg = dict(run.config) if run.config else {}
                 if not cfg:
@@ -453,6 +476,7 @@ def phase2_fetch_wandb() -> dict:
                 lookup.setdefault(key, []).append(run_dict)
 
             except Exception as e:
+                errors += 1
                 log(f"  WARNING: error processing run {getattr(run, 'id', '?')}: {e}", indent=1)
 
     except Exception as e:
@@ -460,10 +484,22 @@ def phase2_fetch_wandb() -> dict:
         log("Continuing without WandB — all rows will be 'uncertain'.")
         return {}
 
+    n_indexed = sum(len(v) for v in lookup.values())
     log(f"  Total runs fetched: {total_fetched:,}")
-    log(f"  Runs indexed : {sum(len(v) for v in lookup.values()):,}")
+    log(f"  Runs indexed : {n_indexed:,}")
     log(f"  Unique keys  : {len(lookup):,}")
     log(f"  Skipped (incomplete config): {skipped_no_config:,}")
+    log(f"  Errors       : {errors:,}")
+
+    # ── Cache save path ────────────────────────────────────────────────────────
+    if save_cache and n_indexed > 0:
+        OUTFILES_DIR.mkdir(parents=True, exist_ok=True)
+        with open(WANDB_CACHE, "wb") as fh:
+            pickle.dump(lookup, fh, protocol=pickle.HIGHEST_PROTOCOL)
+        log(f"  WandB lookup saved to cache: {WANDB_CACHE}")
+    elif save_cache and n_indexed == 0:
+        log("  WARNING: 0 runs indexed — NOT saving cache (likely API error).")
+
     return lookup
 
 
@@ -828,6 +864,11 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--no-wandb", action="store_true",
                         help="Skip WandB API calls.  All rows become 'uncertain'.")
+    parser.add_argument("--use-wandb-cache", action="store_true",
+                        help=f"Load WandB lookup from {WANDB_CACHE} instead of hitting the API. "
+                             "Fast path for re-running matching logic without re-fetching WandB.")
+    parser.add_argument("--no-save-cache", action="store_true",
+                        help="Do not save the WandB lookup to cache after a live fetch.")
     parser.add_argument("--workers", type=int, default=8,
                         help="Threads for parallel CSV reading / matching (default: 8).")
     args = parser.parse_args()
@@ -835,13 +876,24 @@ def main():
     log(f"audit_and_verify.py  started {datetime.now(timezone.utc).isoformat()}")
     log(f"  Script dir : {SCRIPT_DIR}")
     log(f"  Workers    : {args.workers}")
-    log(f"  WandB      : {'DISABLED (--no-wandb)' if args.no_wandb else 'ENABLED'}")
+    if args.no_wandb:
+        log("  WandB      : DISABLED (--no-wandb)")
+    elif args.use_wandb_cache:
+        log(f"  WandB      : CACHE ({WANDB_CACHE})")
+    else:
+        log("  WandB      : LIVE FETCH")
 
     # Phase 1
     df_csv = phase1_read_csvs(workers=args.workers)
 
     # Phase 2
-    lookup = {} if args.no_wandb else phase2_fetch_wandb()
+    if args.no_wandb:
+        lookup = {}
+    else:
+        lookup = phase2_fetch_wandb(
+            use_cache=args.use_wandb_cache,
+            save_cache=not args.no_save_cache,
+        )
 
     # Phase 3
     df_verified = phase3_match_rows(df_csv, lookup, workers=args.workers)
