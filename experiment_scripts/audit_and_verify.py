@@ -5,26 +5,39 @@ audit_and_verify.py — Phase 1 (CSV audit) + Phase 2 (WandB verification).
 Run this BEFORE migrate_to_db.py.  It produces four output files in
 experiment_scripts/outfiles/:
 
-  verification_report.csv   All RA-relevant CSV rows, each labelled
-                            'certain' or 'uncertain' with a reason.
-  wandb_only.csv            WandB runs that have NO matching local CSV row.
-  uncertain_rows.csv        Just the uncertain rows (convenience subset).
-  rerun_queue.txt           Distinct experiment configs that need re-running
-                            because their CSV rows are uncertain.
+  verification_report.csv      All RA-relevant CSV rows, each labelled
+                               'certain' or 'uncertain' with a reason.
+  wandb_only.csv               WandB runs that have NO matching local CSV row.
+  uncertain_rows.csv           Just the uncertain rows (convenience subset).
+  rerun_queue.txt              Distinct experiment configs that need re-running
+                               because their CSV rows are uncertain.
+  wandb_lookup_cache.pkl       Cached WandB lookup dict (auto-saved after a
+                               successful live fetch; used by --use-wandb-cache).
 
 Nothing is written to results.db here — that is migrate_to_db.py's job.
 
-Usage (detached — safe to close the terminal after starting):
+Usage (first run — fetches WandB live and saves cache, ~3 hours):
   conda activate recon_
   mkdir -p experiment_scripts/outfiles
-  nohup python experiment_scripts/audit_and_verify.py \\
+  nohup /home/golobs/miniconda3/envs/recon_/bin/python experiment_scripts/audit_and_verify.py \\
+      > experiment_scripts/outfiles/audit.log 2>&1 &
+  echo $! > experiment_scripts/outfiles/audit.pid
+  tail -f experiment_scripts/outfiles/audit.log
+
+Usage (subsequent runs — load WandB from cache, ~3 minutes):
+  nohup /home/golobs/miniconda3/envs/recon_/bin/python experiment_scripts/audit_and_verify.py \\
+      --use-wandb-cache \\
       > experiment_scripts/outfiles/audit.log 2>&1 &
   echo $! > experiment_scripts/outfiles/audit.pid
   tail -f experiment_scripts/outfiles/audit.log
 
 Options:
-  --no-wandb   Skip WandB API calls (fast; rows without explicit dims → uncertain)
-  --workers N  Threads for parallel CSV reading (default 8)
+  --use-wandb-cache   Load WandB lookup from outfiles/wandb_lookup_cache.pkl instead
+                      of hitting the API.  Use this for all re-runs after the first
+                      successful live fetch.  Reduces runtime from ~3 hours to ~3 min.
+  --no-save-cache     Skip writing the cache after a live fetch.
+  --no-wandb          Skip WandB entirely (rows without all dims → uncertain).
+  --workers N         Threads for parallel CSV reading / matching (default 8).
 """
 
 from __future__ import annotations
