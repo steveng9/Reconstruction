@@ -7,17 +7,16 @@ Columns = MST epsilon variants | AIM epsilon variants  (two-level grouped header
 Values  = RA per (feature, SDG) averaged over samples and the selected attacks
 
 Use --attacks to fix a single attack or average over several.
-Use --from-csv to load local results without hitting WandB.
+Default data source is results.db (run audit_and_verify.py + migrate_to_db.py first).
+Use --from-csv to load local CSVs, or --from-wandb to fetch from the WandB API.
 
 Usage:
     conda activate recon_
     python experiment_scripts/wandb_to_latex_epsilon_sweep.py
+    python experiment_scripts/wandb_to_latex_epsilon_sweep.py --dataset adult --qi QI1 --size 10000
     python experiment_scripts/wandb_to_latex_epsilon_sweep.py \\
         --from-csv experiment_scripts/sweep_results_adult_20260401_214300.csv \\
         --dataset adult --qi QI1 --size 10000 --attacks RandomForest
-    python experiment_scripts/wandb_to_latex_epsilon_sweep.py \\
-        --attacks RandomForest LightGBM MLP \\
-        --dataset adult --qi QI1
     python experiment_scripts/wandb_to_latex_epsilon_sweep.py \\
         --from-csv sweep.csv --dataset adult --size 10000 \\
         --attacks RandomForest --out my_eps_table.tex
@@ -26,10 +25,16 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+_SCRIPT_DIR = Path(__file__).parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+from results_db import ResultsDB
 
 
 # ── WandB config ──────────────────────────────────────────────────────────────
@@ -522,12 +527,56 @@ def to_latex(pivot: pd.DataFrame, df_raw: pd.DataFrame,
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def _load_db_long(dataset: str, qi_filter: str,
+                  attack_filter: list[str] | None,
+                  size_filter: int | None) -> pd.DataFrame:
+    """Query results.db and return long-format (run × feature) DataFrame."""
+    db_path = _SCRIPT_DIR / "results.db"
+    if not db_path.exists():
+        print(f"ERROR: results.db not found at {db_path}\n"
+              "Run audit_and_verify.py then migrate_to_db.py first, "
+              "or use --from-csv / --from-wandb.")
+        return pd.DataFrame()
+
+    print(f"Loading from results.db ({db_path})")
+    dataset_arg = None if dataset.lower() == "all" else dataset
+    with ResultsDB(db_path) as db:
+        df = db.query(dataset=dataset_arg, dataset_size=size_filter,
+                      qi=qi_filter, attacks=attack_filter)
+
+    if df.empty:
+        return df
+
+    df["attack"] = df["attack"].map(lambda a: LABEL_REMAP.get(a, a))
+    df = df[df["sdg"].str.startswith("MST_") | df["sdg"].str.startswith("AIM_")]
+
+    feat_cols = [c for c in df.columns
+                 if c.startswith("RA_") and c != "RA_mean"
+                 and not c.startswith("RA_train_")
+                 and not c.startswith("RA_nontraining_")
+                 and not c.startswith("RA_delta_")]
+    if not feat_cols:
+        print("  No per-feature scores found in DB for this query.")
+        return pd.DataFrame()
+
+    id_vars = [c for c in ["dataset", "attack", "sdg", "qi", "sample"] if c in df.columns]
+    long = df[id_vars + feat_cols].melt(id_vars=id_vars, value_vars=feat_cols,
+                                        var_name="feature", value_name="ra_score")
+    long["feature"] = long["feature"].str[3:]
+    long = long[long["ra_score"].notna()].reset_index(drop=True)
+    print(f"  {len(long)} (run, feature) records | "
+          f"{long['attack'].nunique()} attacks | "
+          f"{long['sdg'].nunique()} SDGs | "
+          f"{long['feature'].nunique()} features")
+    return long
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="WandB/CSV → LaTeX table: RA per feature vs. epsilon (MST & AIM)."
+        description="DB/CSV/WandB → LaTeX table: RA per feature vs. epsilon (MST & AIM)."
     )
     parser.add_argument("--group", nargs="+", default=[WANDB_GROUP],
-                        help=f"WandB run group(s) (default: {WANDB_GROUP!r}).")
+                        help=f"WandB run group(s) for --from-wandb (default: {WANDB_GROUP!r}).")
     parser.add_argument("--qi", default="QI1",
                         help="QI variant (default: QI1).")
     parser.add_argument("--dataset", default=DATASET,
@@ -541,10 +590,12 @@ def main():
     parser.add_argument("--decimals", type=int, default=3,
                         help="Decimal places (default: 3).")
     parser.add_argument("--from-csv", nargs="+", default=None, metavar="CSV",
-                        help="Load from local sweep CSV(s) instead of querying WandB. "
+                        help="Load from local sweep CSV(s) instead of results.db. "
                              "Expected columns: sample, sdg, attack, qi, ra_mean, RA_<feat>...")
+    parser.add_argument("--from-wandb", action="store_true",
+                        help="Fetch directly from WandB API instead of results.db.")
     parser.add_argument("--size", type=int, default=None,
-                        help="Filter CSV rows where 'size' == this value (e.g. 10000).")
+                        help="Filter to this dataset size (e.g. 10000).")
     args = parser.parse_args()
 
     qi_filter = args.qi
@@ -558,13 +609,20 @@ def main():
             size_filter=args.size,
             dataset_filter=dataset_filter,
         )
-    else:
+    elif args.from_wandb:
         dataset_filter = args.dataset if args.dataset.lower() != "all" else ""
         df = fetch_runs_long(
             args.group,
             qi_filter=qi_filter,
             attack_filter=args.attacks,
             dataset_filter=dataset_filter,
+        )
+    else:
+        df = _load_db_long(
+            dataset=args.dataset,
+            qi_filter=qi_filter,
+            attack_filter=args.attacks,
+            size_filter=args.size,
         )
 
     if df.empty:
