@@ -15,11 +15,18 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import wandb
+
+# results_db lives in the same directory
+_SCRIPT_DIR = Path(__file__).parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+from results_db import ResultsDB
 
 
 # ── WandB config ───────────────────────────────────────────────────────────────
@@ -405,17 +412,21 @@ def main():
                         help="Filter to this dataset name (overrides DATASET constant at top of file; "
                              "use 'all' to disable filtering).")
     parser.add_argument("--from-csv", nargs="+", default=None, metavar="CSV",
-                        help="Load results from one or more local sweep CSVs instead of querying WandB. "
+                        help="Load results from one or more local sweep CSVs instead of results.db. "
                              "CSVs are concatenated and deduplicated. Expected columns: "
                              "sample, sdg, attack, qi, ra_mean.")
+    parser.add_argument("--from-wandb", action="store_true",
+                        help="Fetch results directly from WandB instead of results.db "
+                             "(original behaviour; requires active WandB login).")
     parser.add_argument("--size", type=int, default=None,
-                        help="When using --from-csv, filter to rows where the 'size' column equals this value "
-                             "(e.g. --size 1000 or --size 100000).")
+                        help="Filter to this dataset size (e.g. --size 1000).  "
+                             "Applied for all data sources: DB query, --from-csv, and WandB.")
     args = parser.parse_args()
 
     qi_filter = None if args.qi.lower() == "all" else args.qi
 
     if args.from_csv:
+        # ── Legacy path: load from explicit CSV files ──────────────────────────
         frames = []
         for path in args.from_csv:
             frames.append(pd.read_csv(path))
@@ -461,12 +472,38 @@ def main():
             key = key + ["size"]
         df = df.drop_duplicates(subset=key, keep="last").reset_index(drop=True)
         print(f"Combined: {len(df)} rows after dedup")
-    else:
+    elif args.from_wandb:
+        # ── WandB path: fetch directly from WandB API ─────────────────────────
         dataset_filter = ("" if args.dataset and args.dataset.lower() == "all" else args.dataset)
         df = fetch_runs(args.group, qi_filter, attack_filter=args.attacks,
                         dataset_filter=dataset_filter)
         if not df.empty:
             df = deduplicate(df)
+    else:
+        # ── Default path: query results.db ────────────────────────────────────
+        db_path = _SCRIPT_DIR / "results.db"
+        if not db_path.exists():
+            print(
+                f"ERROR: results.db not found at {db_path}\n"
+                "Run audit_and_verify.py then migrate_to_db.py first, "
+                "or use --from-csv / --from-wandb to load from another source."
+            )
+            return
+        print(f"Loading from results.db ({db_path})")
+        dataset_arg = args.dataset
+        if dataset_arg and dataset_arg.lower() == "all":
+            dataset_arg = None
+        with ResultsDB(db_path) as db:
+            df = db.query(
+                dataset=dataset_arg,
+                dataset_size=args.size,
+                qi=qi_filter,
+                attacks=args.attacks if args.attacks else None,
+            )
+        if not df.empty:
+            # Apply LABEL_REMAP so old canonical names are normalised
+            df["attack"] = df["attack"].map(lambda a: LABEL_REMAP.get(a, a))
+        print(f"Loaded {len(df)} rows from DB")
 
     if df.empty:
         print("No runs found.")

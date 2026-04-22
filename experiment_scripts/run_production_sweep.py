@@ -38,7 +38,11 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, "/home/golobs/Reconstruction")
+_EXPERIMENT_SCRIPTS_DIR = str(Path(__file__).parent)
+if _EXPERIMENT_SCRIPTS_DIR not in sys.path:
+    sys.path.insert(1, _EXPERIMENT_SCRIPTS_DIR)
 from attack_defaults import ATTACK_PARAM_DEFAULTS
+from results_db import ResultsDB
 
 
 # ── Configuration ─────────────────────────────────────────────────────────────
@@ -385,6 +389,7 @@ def run_job(job: Job) -> dict[str, Any]:
                 "ra_mean": ra_mean,
                 "train_mean": None, "nontrain_mean": None, "delta_mean": None,
                 "error": None,
+                "_wandb_run_id": wandb.run.id,
                 **feat_scores,
             }
 
@@ -509,6 +514,7 @@ def main():
     results: list[dict] = []
     n_done = 0
     n_fail = 0
+    _db = ResultsDB()   # opened once in main process; WAL mode handles concurrent reads
 
     def _handle_result(job, result_or_exc):
         nonlocal n_done, n_fail
@@ -532,13 +538,53 @@ def main():
                 "ra_mean": None, "train_mean": None, "nontrain_mean": None,
             })
         else:
-            val     = result_or_exc["ra_mean"] if result_or_exc["ra_mean"] is not None else result_or_exc["train_mean"]
+            r   = result_or_exc
+            val = r["ra_mean"] if r["ra_mean"] is not None else r["train_mean"]
             val_str = f"{val:.4f}" if val is not None else "N/A"
             line = (
                 f"  [{n_done:>{width}}/{len(all_jobs)}]"
                 f"  {job.run_name:<60}  RA={val_str}{eta_str}"
             )
-            results.append(result_or_exc)
+            results.append(r)
+
+            # Write to results.db
+            try:
+                feat_scores = {k[3:]: float(v) for k, v in r.items()
+                               if k.startswith("RA_") and k != "RA_mean" and v is not None}
+                wandb_run_id = r.get("_wandb_run_id")
+                if r["ra_mean"] is not None:
+                    _db.insert_run(
+                        dataset=DATASET_NAME, dataset_size=DATASET_SIZE,
+                        sample=job.sample_idx, qi=job.qi,
+                        sdg_method=job.sdg_label, attack_label=job.attack_method,
+                        split="standard", ra_mean=r["ra_mean"],
+                        feature_scores=feat_scores if feat_scores else None,
+                        sdg_params=job.sdg_params,
+                        wandb_run_id=wandb_run_id, wandb_group=WANDB_GROUP,
+                        wandb_project=WANDB_PROJECT,
+                    )
+                if r.get("train_mean") is not None:
+                    _db.insert_run(
+                        dataset=DATASET_NAME, dataset_size=DATASET_SIZE,
+                        sample=job.sample_idx, qi=job.qi,
+                        sdg_method=job.sdg_label, attack_label=job.attack_method,
+                        split="train", ra_mean=r["train_mean"],
+                        sdg_params=job.sdg_params,
+                        wandb_run_id=wandb_run_id, wandb_group=WANDB_GROUP,
+                        wandb_project=WANDB_PROJECT,
+                    )
+                if r.get("nontrain_mean") is not None:
+                    _db.insert_run(
+                        dataset=DATASET_NAME, dataset_size=DATASET_SIZE,
+                        sample=job.sample_idx, qi=job.qi,
+                        sdg_method=job.sdg_label, attack_label=job.attack_method,
+                        split="nontraining", ra_mean=r["nontrain_mean"],
+                        sdg_params=job.sdg_params,
+                        wandb_run_id=wandb_run_id, wandb_group=WANDB_GROUP,
+                        wandb_project=WANDB_PROJECT,
+                    )
+            except Exception as db_exc:
+                print(f"  WARNING: DB write failed for {job.run_name}: {db_exc}")
         print(line)
         if progress_log:
             progress_log.write(line + "\n")
