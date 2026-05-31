@@ -45,7 +45,7 @@ def apply_chaining(attack_fn, cfg, synth, targets, qi, hidden_features):
         "chaining_enabled": True,
         "chaining_order_strategy": order_strategy,
         "chaining_order": order
-    })
+    }, allow_val_change=True)
 
     print(f"\n{'='*60}")
     print(f"CHAINING ENABLED")
@@ -61,6 +61,15 @@ def apply_chaining(attack_fn, cfg, synth, targets, qi, hidden_features):
                   f"falling back to hard chaining")
         else:
             attack_method = cfg.get("attack_method", "")
+
+            # MarginalRF has a dedicated soft-chaining path that keeps the BP
+            # running over the remaining features at each step.
+            if attack_method == "MarginalRF":
+                from attacks.marginal_rf import marginal_rf_soft_chained_reconstruction
+                return marginal_rf_soft_chained_reconstruction(
+                    cfg, synth, targets, qi, hidden_features, chain_order=order
+                )
+
             clf = _make_soft_chain_clf(attack_method, cfg.get("attack_params", {}))
             if clf is not None:
                 return _run_soft_chained_sklearn(
@@ -231,9 +240,15 @@ def _order_by_mutual_info(synth, qi, hidden_features, data_type="categorical"):
     """
     from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
     from sklearn.preprocessing import LabelEncoder
+    # For classification-based MI the target must be discrete. Some generators
+    # (e.g. MST) emit continuous columns as floats, which mutual_info_classif
+    # rejects; label-encode every column to discrete codes (MI is invariant to
+    # relabeling). For continuous data only object columns are encoded so the
+    # regression target stays real-valued.
     enc_data = synth.copy()
+    encode_all = data_type != "continuous"
     for col in enc_data.columns:
-        if enc_data[col].dtype == object:
+        if encode_all or enc_data[col].dtype == object:
             le = LabelEncoder()
             enc_data[col] = le.fit_transform(enc_data[col].astype(str))
     mi_fn = mutual_info_regression if data_type == "continuous" else mutual_info_classif
@@ -257,9 +272,12 @@ def _dynamic_order(synth, qi, hidden_features, data_type="categorical"):
     """
     from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
     from sklearn.preprocessing import LabelEncoder
+    # See _order_by_mutual_info: discretize every column for classification MI so
+    # float-valued targets (e.g. from MST) don't break mutual_info_classif.
     enc_data = synth.copy()
+    encode_all = data_type != "continuous"
     for col in enc_data.columns:
-        if enc_data[col].dtype == object:
+        if encode_all or enc_data[col].dtype == object:
             le = LabelEncoder()
             enc_data[col] = le.fit_transform(enc_data[col].astype(str))
     mi_fn = mutual_info_regression if data_type == "continuous" else mutual_info_classif

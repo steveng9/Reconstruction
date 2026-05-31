@@ -5,4 +5,19 @@ out*.txt
 .idea/
 *.csv
 *.tex
+*.te
 outfiles/
+
+# Generated figures
+*.pdf
+
+# SQLite results database (too large, regenerate with results_db.py)
+*.db
+
+# Manuscript (not part of the artifact)
+manuscript/
+manual_references.bib
+
+# Miscellaneous generated/working files
+mirador_report.txt
+workspace/

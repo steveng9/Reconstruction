@@ -77,7 +77,7 @@ def apply_ensembling(attack_fn, cfg):
         "ensembling_methods": ensemble_names,
         "ensembling_aggregation": aggregation,
         "ensembling_num_methods": len(ensemble_methods)
-    })
+    }, allow_val_change=True)
 
     print(f"\n{'='*60}")
     print(f"ENSEMBLING ENABLED")

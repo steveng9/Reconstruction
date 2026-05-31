@@ -1,22 +1,21 @@
 #!/usr/bin/env python
 """
-New-attacks sweep: TabPFN and MarginalRF (multiple knn_k variants) vs. RF baseline.
+MarginalRF sweep across all datasets and sizes.
 
-Runs on adult 1k and cdc_diabetes 1k simultaneously — both datasets are included
-in the same WandB group so cross-dataset comparisons are easy.
+Runs MarginalRF (default params: knn_k=100, graph_type="mst") on every dataset
+and sample size where synth data is available, 5 samples each.  Baseline RF
+results are assumed to already exist in WandB from earlier sweeps.
 
-MarginalRF ablation modes
---------------------------
-  knn_k=None   global (unconditional) PMI — fast, may double-count QI-mediated correlation
-  knn_k=50     local PMI, small neighbourhood
-  knn_k=100    local PMI, default (validated on adult QI1)
-  knn_k=200    local PMI, large neighbourhood
+Datasets covered
+----------------
+  adult           10k   QI1   (9 MST + 3 AIM + 7 other SDGs)
+  cdc_diabetes     1k   QI1   (5 MST + 3 AIM + 7 other SDGs)
+  cdc_diabetes   100k   QI1   (5 MST + 1 AIM + 7 other SDGs)
+  nist_sbo         1k   QI1   (5 MST        + 7 other SDGs — no AIM)
+  nist_arizona   10k/25feat QI1 (5 MST + 2 AIM + 7 other SDGs)
+  adult           20k   QI1   (9 MST + 4 AIM + 7 other SDGs) — submitted last
 
-TabPFN note
------------
-  TabPFN shines at small synth sizes (n ≤ 1024).  All synth here is 1k, so
-  TabPFN trains on the full synth without subsampling.  Its advantage over RF
-  should be most visible on high-DP-noise SDG outputs (MST/AIM small epsilon).
+california is excluded (MarginalRF is categorical-only; california is continuous).
 
 Usage (from repo root):
     conda activate recon_
@@ -24,8 +23,8 @@ Usage (from repo root):
     python experiment_scripts/run_new_attacks_sweep.py --dry-run
     python experiment_scripts/run_new_attacks_sweep.py --workers 8
     python experiment_scripts/run_new_attacks_sweep.py --dataset adult
-    python experiment_scripts/run_new_attacks_sweep.py --attack TabPFN
     python experiment_scripts/run_new_attacks_sweep.py --sdg Synthpop
+    python experiment_scripts/run_new_attacks_sweep.py --sample 0
 """
 
 from __future__ import annotations
@@ -49,6 +48,9 @@ from attack_defaults import ATTACK_PARAM_DEFAULTS
 
 
 # ── Dataset configurations ─────────────────────────────────────────────────────
+# Each dataset specifies its own sdg_methods — available SDGs differ by dataset
+# and size.  Only methods with synth.csv present in sample_00 are listed.
+# adult 20k is last so it doesn't starve earlier (faster) datasets of workers.
 
 DATASET_CONFIGS = [
     {
@@ -58,78 +60,171 @@ DATASET_CONFIGS = [
         "type":        "categorical",
         "qi_variants": ["QI1"],
         "data_root":   "/home/golobs/data/reconstruction_data/adult/size_10000",
+        "sdg_methods": [
+            ("MST",             {"epsilon": 0.1}),
+            ("MST",             {"epsilon": 0.3}),
+            ("MST",             {"epsilon": 1.0}),
+            ("MST",             {"epsilon": 3.0}),
+            ("MST",             {"epsilon": 10.0}),
+            ("MST",             {"epsilon": 30.0}),
+            ("MST",             {"epsilon": 100.0}),
+            ("MST",             {"epsilon": 300.0}),
+            ("MST",             {"epsilon": 1000.0}),
+            ("AIM",             {"epsilon": 0.3}),
+            ("AIM",             {"epsilon": 1.0}),
+            ("AIM",             {"epsilon": 3.0}),
+            # AIM eps=10 has no synth.csv for size_10000
+            ("TVAE",            {}),
+            ("CTGAN",           {}),
+            ("ARF",             {}),
+            ("TabDDPM",         {}),
+            ("Synthpop",        {}),
+            ("RankSwap",        {}),
+            ("CellSuppression", {}),
+        ],
     },
-    #{
-    #    "base":        "cdc_diabetes",
-    #    "name":        "cdc_diabetes",
-    #    "size":        1_000,
-    #    "type":        "categorical",
-    #    "qi_variants": ["QI1"],
-    #    "data_root":   "/home/golobs/data/reconstruction_data/cdc_diabetes/size_1000",
-    #},
+    {
+        "base":        "cdc_diabetes",
+        "name":        "cdc_diabetes",
+        "size":        1_000,
+        "type":        "categorical",
+        "qi_variants": ["QI1"],
+        "data_root":   "/home/golobs/data/reconstruction_data/cdc_diabetes/size_1000",
+        "sdg_methods": [
+            ("MST",             {"epsilon": 0.1}),
+            ("MST",             {"epsilon": 1.0}),
+            ("MST",             {"epsilon": 10.0}),
+            ("MST",             {"epsilon": 100.0}),
+            ("MST",             {"epsilon": 1000.0}),
+            ("AIM",             {"epsilon": 1.0}),
+            ("AIM",             {"epsilon": 3.0}),
+            ("AIM",             {"epsilon": 10.0}),
+            ("TVAE",            {}),
+            ("CTGAN",           {}),
+            ("ARF",             {}),
+            ("TabDDPM",         {}),
+            ("Synthpop",        {}),
+            ("RankSwap",        {}),
+            ("CellSuppression", {}),
+        ],
+    },
+    {
+        "base":        "cdc_diabetes",
+        "name":        "cdc_diabetes",
+        "size":        100_000,
+        "type":        "categorical",
+        "qi_variants": ["QI1"],
+        "data_root":   "/home/golobs/data/reconstruction_data/cdc_diabetes/size_100000",
+        "sdg_methods": [
+            ("MST",             {"epsilon": 0.1}),
+            ("MST",             {"epsilon": 1.0}),
+            ("MST",             {"epsilon": 10.0}),
+            ("MST",             {"epsilon": 100.0}),
+            ("MST",             {"epsilon": 1000.0}),
+            ("AIM",             {"epsilon": 1.0}),
+            # AIM eps=10 has no synth.csv for size_100000
+            ("TVAE",            {}),
+            ("CTGAN",           {}),
+            ("ARF",             {}),
+            ("TabDDPM",         {}),
+            ("Synthpop",        {}),
+            ("RankSwap",        {}),
+            ("CellSuppression", {}),
+        ],
+    },
+    {
+        "base":        "nist_sbo",
+        "name":        "nist_sbo",
+        "size":        1_000,
+        "type":        "categorical",
+        "qi_variants": ["QI1"],
+        "data_root":   "/home/golobs/data/reconstruction_data/nist_sbo/size_1000",
+        "sdg_methods": [
+            ("MST",             {"epsilon": 0.1}),
+            ("MST",             {"epsilon": 1.0}),
+            ("MST",             {"epsilon": 10.0}),
+            ("MST",             {"epsilon": 100.0}),
+            ("MST",             {"epsilon": 1000.0}),
+            # No AIM data generated for nist_sbo
+            ("TVAE",            {}),
+            ("CTGAN",           {}),
+            ("ARF",             {}),
+            ("TabDDPM",         {}),
+            ("Synthpop",        {}),
+            ("RankSwap",        {}),
+            ("CellSuppression", {}),
+        ],
+    },
+    {
+        "base":        "nist_arizona_data",
+        "name":        "nist_arizona_25feat",
+        "size":        10_000,
+        "type":        "categorical",
+        "qi_variants": ["QI1"],
+        "data_root":   "/home/golobs/data/reconstruction_data/nist_arizona_data/size_10000_25feat",
+        "n_features":  25,
+        "sdg_methods": [
+            ("MST",             {"epsilon": 0.1}),
+            ("MST",             {"epsilon": 1.0}),
+            ("MST",             {"epsilon": 10.0}),
+            ("MST",             {"epsilon": 100.0}),
+            ("MST",             {"epsilon": 1000.0}),
+            ("AIM",             {"epsilon": 1.0}),
+            ("AIM",             {"epsilon": 3.0}),
+            ("TVAE",            {}),
+            ("CTGAN",           {}),
+            ("ARF",             {}),
+            ("TabDDPM",         {}),
+            ("Synthpop",        {}),
+            ("RankSwap",        {}),
+            ("CellSuppression", {}),
+        ],
+    },
+    # adult 20k is last — more samples keep workers busy longer; run after smaller datasets
+    {
+        "base":        "adult",
+        "name":        "adult",
+        "size":        20_000,
+        "type":        "categorical",
+        "qi_variants": ["QI1"],
+        "data_root":   "/home/golobs/data/reconstruction_data/adult/size_20000",
+        "sdg_methods": [
+            ("MST",             {"epsilon": 0.1}),
+            ("MST",             {"epsilon": 0.3}),
+            ("MST",             {"epsilon": 1.0}),
+            ("MST",             {"epsilon": 3.0}),
+            ("MST",             {"epsilon": 10.0}),
+            ("MST",             {"epsilon": 30.0}),
+            ("MST",             {"epsilon": 100.0}),
+            ("MST",             {"epsilon": 300.0}),
+            ("MST",             {"epsilon": 1000.0}),
+            ("AIM",             {"epsilon": 0.3}),
+            ("AIM",             {"epsilon": 1.0}),
+            ("AIM",             {"epsilon": 3.0}),
+            ("AIM",             {"epsilon": 10.0}),
+            ("TVAE",            {}),
+            ("CTGAN",           {}),
+            ("ARF",             {}),
+            ("TabDDPM",         {}),
+            ("Synthpop",        {}),
+            ("RankSwap",        {}),
+            ("CellSuppression", {}),
+        ],
+    },
 ]
 
 SAMPLE_RANGE = list(range(5))   # sample_00 through sample_04
 
 
-# ── SDG methods ────────────────────────────────────────────────────────────────
-# Restricted to methods available for both adult 1k and cdc_diabetes 1k.
-# (adult 1k has a broader MST/AIM grid; we use the common subset.)
-
-SDG_METHODS = [
-    ("MST",      {"epsilon": 0.1}),
-    ("MST",      {"epsilon": 1.0}),
-    ("MST",      {"epsilon": 10.0}),
-    ("MST",      {"epsilon": 100.0}),
-    ("MST",      {"epsilon": 1000.0}),
-    ("AIM",      {"epsilon": 1.0}),
-    #("AIM",      {"epsilon": 10.0}),
-    ("TVAE",     {}),
-    ("CTGAN",    {}),
-    ("ARF",      {}),
-    ("TabDDPM",  {}),
-    ("Synthpop", {}),
-    ("RankSwap", {}),
-    ("CellSuppression", {}),
-]
-
-
 # ── Attack configurations ──────────────────────────────────────────────────────
 # Each entry: (attack_method, method_specific_params, display_label)
-# display_label: used in run_name and WandB to distinguish variants of the same
-#   attack.  Leave empty ("") to use attack_method directly.
+# display_label: leave "" to use attack_method directly.
+#
+# Using default params (knn_k=100, graph_type="mst") — validated as the best
+# MarginalRF configuration from the adult 1k ablation.
 
 ATTACK_CONFIGS = [
-    # ── Baseline ──────────────────────────────────────────────────────────────
-    #("RandomForest",   {},                                                    ""),
-
-    # ── TabPFN (in-context learning) ──────────────────────────────────────────
-    ("TabPFN",         {},                                                    ""),
-
-    # ── MarginalRF: PMI mode (global vs local) × graph structure ──────────────
-    #
-    # Graph types:
-    #   mst      → maximum spanning tree, exact BP (one forward+backward pass)
-    #   complete → all pairs connected, loopy BP (approximate, may capture
-    #              non-tree interactions the MST misses)
-    #   topk     → top-K MI edges, loopy BP (middle ground; topk=None → 2×|feats|)
-    #
-    # PMI modes:
-    #   knn_k=None  → global (unconditional) PMI — fast, may double-count QI
-    #   knn_k=100   → local (conditional) PMI via K nearest synth neighbours
-
-    # MST + global PMI (fastest, may double-count QI signal)
-    ("MarginalRF",     {"knn_k": None,  "graph_type": "mst"},                "MarginalRF_mst_global"),
-    # MST + local PMI (validated baseline from prior experiments)
-    ("MarginalRF",     {"knn_k": 50,   "graph_type": "mst"},                "MarginalRF_mst_local_50"),
-    ("MarginalRF",     {"knn_k": 100,   "graph_type": "mst"},                "MarginalRF_mst_local_100"),
-    ("MarginalRF",     {"knn_k": 200,   "graph_type": "mst"},                "MarginalRF_mst_local_200"),
-    # Complete graph + local PMI (loopy BP — captures all pairwise interactions)
-    ("MarginalRF",     {"knn_k": 100,   "graph_type": "complete"},           "MarginalRF_complete_local_100"),
-    # Top-K edges + local PMI (loopy BP — sparse but allows cycles)
-    ("MarginalRF",     {"knn_k": 100,   "graph_type": "topk"},               "MarginalRF_topk_local_100"),
-    # Complete graph + global PMI (upper bound on graph density, no local cost)
-    ("MarginalRF",     {"knn_k": None,  "graph_type": "complete"},           "MarginalRF_complete_global"),
+    ("MarginalRF", {}, ""),
 ]
 
 
@@ -137,7 +232,7 @@ ATTACK_CONFIGS = [
 
 N_WORKERS     = 8
 WANDB_PROJECT = "tabular-reconstruction-attacks"
-WANDB_GROUP   = "new-attacks-sweep-1k"
+WANDB_GROUP   = "marginalrf-all-datasets"
 
 
 # ── Job specification ──────────────────────────────────────────────────────────
@@ -150,7 +245,7 @@ class Job:
     sdg_params:     dict
     attack_method:  str
     attack_params:  dict
-    attack_label:   str     # display name in run_name / WandB; defaults to attack_method
+    attack_label:   str
     qi:             str
 
     @property
@@ -173,7 +268,7 @@ class Job:
     @property
     def run_name(self) -> str:
         return (
-            f"{self.dataset_name}__"
+            f"{self.dataset_name}_sz{self.dataset_cfg['size']}__"
             f"s{self.sample_idx:02d}__"
             f"{self.sdg_label}__"
             f"{self.effective_label}__"
@@ -183,17 +278,21 @@ class Job:
 
 def generate_jobs(
     dataset_filter: str | None = None,
+    size_filter:    int | None = None,
     attack_filter:  str | None = None,
     sdg_filter:     str | None = None,
     sample_filter:  int | None = None,
 ) -> list[Job]:
     jobs = []
     for ds_cfg in DATASET_CONFIGS:
-        if dataset_filter and ds_cfg["name"] != dataset_filter:
+        if dataset_filter and ds_cfg["name"] != dataset_filter and ds_cfg["base"] != dataset_filter:
             continue
+        if size_filter is not None and ds_cfg["size"] != size_filter:
+            continue
+        sdg_methods = ds_cfg.get("sdg_methods")
         for sample_idx, (sdg_method, sdg_params), (attack_method, attack_params, attack_label), qi in itertools.product(
             SAMPLE_RANGE,
-            SDG_METHODS,
+            sdg_methods,
             ATTACK_CONFIGS,
             ds_cfg["qi_variants"],
         ):
@@ -239,14 +338,14 @@ def _worker_setup_paths():
 def run_job(job: Job) -> dict[str, Any]:
     """Execute one experiment job in a worker process."""
     _worker_setup_paths()
-    sys.argv = sys.argv[:1]   # prevent parse_args() in master_experiment_script from choking
+    sys.argv = sys.argv[:1]
 
     import numpy as np
     import wandb
     from get_data import load_data
     from master_experiment_script import _prepare_config, _run_attack, _score_reconstruction
 
-    ds        = job.dataset_cfg
+    ds         = job.dataset_cfg
     sample_dir = job.sample_dir
 
     cfg = {
@@ -293,7 +392,7 @@ def run_job(job: Job) -> dict[str, Any]:
             "attack_params": effective_attack_params,
             "qi":            job.qi,
         },
-        tags=[ds["name"], f"size_{ds['size']}", "new-attacks", job.effective_label],
+        tags=[ds["name"], f"size_{ds['size']}", "marginalrf", job.effective_label],
         group=WANDB_GROUP,
         reinit=True,
     )
@@ -360,51 +459,53 @@ def _print_summary(rows: list[dict]):
     if not successes:
         return
 
-    # Group by (dataset, label, qi) → mean RA over samples + SDG methods
     groups: dict[tuple, list] = defaultdict(list)
     for r in successes:
-        key = (r["dataset"], r.get("label") or r["attack"], r["qi"])
+        key = (r["dataset"], r["size"], r.get("label") or r["attack"], r["qi"])
         if r["ra_mean"] is not None:
             groups[key].append(r["ra_mean"])
 
-    print(f"\n  {'Dataset':<16}  {'Attack / Label':<30}  {'QI':<6}  {'Mean RA':>10}")
-    print(f"  {'-'*70}")
-    for (dataset, label, qi), vals in sorted(groups.items()):
+    print(f"\n  {'Dataset':<20}  {'Size':>7}  {'Attack':<14}  {'QI':<8}  {'Mean RA':>10}")
+    print(f"  {'-'*66}")
+    for (dataset, size, label, qi), vals in sorted(groups.items()):
         mean_val = round(float(np.mean(vals)), 4)
-        print(f"  {dataset:<16}  {label:<30}  {qi:<6}  {mean_val:>10.4f}")
+        print(f"  {dataset:<20}  {size:>7}  {label:<14}  {qi:<8}  {mean_val:>10.4f}")
     print(f"{'='*80}\n")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="New-attacks sweep: TabPFN + MarginalRF variants.")
+    parser = argparse.ArgumentParser(description="MarginalRF sweep across all datasets.")
     parser.add_argument("--dry-run",    action="store_true", help="Print job list and exit.")
     parser.add_argument("--serial",     action="store_true", help="Run sequentially in the main process.")
     parser.add_argument("--workers",    type=int,  default=N_WORKERS,  help="Parallel workers.")
-    parser.add_argument("--dataset",    type=str,  default=None, help="Restrict to this dataset name (e.g. 'adult').")
-    parser.add_argument("--attack",     type=str,  default=None, help="Restrict to this attack method or label.")
+    parser.add_argument("--dataset",    type=str,  default=None, help="Restrict to this dataset name or base (e.g. 'adult', 'cdc_diabetes').")
+    parser.add_argument("--size",       type=int,  default=None, help="Restrict to this dataset size (e.g. 20000).")
     parser.add_argument("--sdg",        type=str,  default=None, help="Restrict to this SDG method/label.")
     parser.add_argument("--sample",     type=int,  default=None, help="Restrict to this sample index.")
     parser.add_argument("--progress-log", type=str,
-                        default=str(Path(__file__).parent.parent / "outfiles" / "new_attacks_progress.log"),
+                        default=str(Path(__file__).parent.parent / "outfiles" / "marginalrf_progress.log"),
                         metavar="FILE",
                         help="Write one progress line per completed job (tail -f to monitor).")
     args = parser.parse_args()
 
     all_jobs = generate_jobs(
         dataset_filter=args.dataset,
-        attack_filter=args.attack,
+        size_filter=args.size,
         sdg_filter=args.sdg,
         sample_filter=args.sample,
     )
 
     progress_log = open(args.progress_log, "w", buffering=1) if args.progress_log else None
 
+    dataset_summary = ", ".join(
+        f"{d['name']} {d['size']}" for d in DATASET_CONFIGS
+    )
     header = (
         f"{'='*80}\n"
-        f"  New-attacks sweep\n"
-        f"  Datasets:    {', '.join(d['name'] for d in DATASET_CONFIGS)}\n"
+        f"  MarginalRF all-datasets sweep\n"
+        f"  Datasets:    {dataset_summary}\n"
         f"  Jobs total:  {len(all_jobs)}\n"
         f"  Workers:     {args.workers}\n"
         f"  WandB group: {WANDB_GROUP}\n"
@@ -420,7 +521,6 @@ def main():
         print(f"\n{len(all_jobs)} jobs total.")
         return
 
-    # Verify sample directories exist before dispatching
     missing = []
     for job in all_jobs:
         p = Path(job.sample_dir)
@@ -466,7 +566,7 @@ def main():
             val_str = f"{val:.4f}" if val is not None else "N/A"
             line = (
                 f"  [{n_done:>{width}}/{len(all_jobs)}]"
-                f"  {job.run_name:<70}  RA={val_str}{eta_str}"
+                f"  {job.run_name:<80}  RA={val_str}{eta_str}"
             )
             results.append(result_or_exc)
         print(line)
@@ -499,7 +599,7 @@ def main():
 
     script_dir = Path(__file__).parent
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_path = script_dir / f"new_attacks_results_{ts}.csv"
+    csv_path = script_dir / f"marginalrf_results_{ts}.csv"
     _save_summary_csv(results, csv_path)
 
     if progress_log:

@@ -47,10 +47,15 @@ SAMPLE_SIZE = 10_000
 SAMPLE_DIR  = f"{DATA_ROOT}{DATASET}/size_{SAMPLE_SIZE}/sample_01"
 
 SDG_METHODS = [
-    ("TabDDPM",  {}),
-    ("MST",      {"epsilon": 1000.0}),
-    ("Synthpop", {}),
+    ("TabDDPM",         {}),
+    ("MST",             {"epsilon": 1000.0}),
+    ("Synthpop",        {}),
+    ("CellSuppression", {}),
+    ("MST",             {"epsilon": 1.0}),
 ]
+
+# Skip SDG methods whose output CSV already exists (set True to recompute all)
+SKIP_EXISTING = True
 
 QI_NAME       = "QI1"
 DATA_TYPE     = "categorical"   # "categorical" or "continuous"
@@ -387,7 +392,7 @@ def run_analysis(sdg_method, sdg_params):
         full_df["outlier_score"] = o_scores.reset_index(drop=True).values
         full_df["is_outlier"]    = o_flags.reset_index(drop=True).values
 
-        out_path = out_dir / f"{DATASET}_{sdg_label}_{QI_NAME}.csv"
+        out_path = out_dir / f"{DATASET}_{sdg_label}_{ATTACK_METHOD}_{QI_NAME}.csv"
         full_df.to_csv(out_path, index=False)
         print(f"  Row scores saved → {out_path}")
 
@@ -415,6 +420,12 @@ if __name__ == "__main__":
     all_results = []
     for sdg_method, sdg_params in SDG_METHODS:
         sdg_label = sdg_dirname(sdg_method, sdg_params)
+        if SKIP_EXISTING:
+            from pathlib import Path as _P
+            _existing = _P(OUTPUT_DIR) / f"{DATASET}_{sdg_label}_{QI_NAME}.csv"
+            if _existing.exists():
+                print(f"\n  Skipping {sdg_label} (CSV already exists: {_existing})")
+                continue
         try:
             result = run_analysis(sdg_method, sdg_params)
             all_results.append(result)

@@ -77,9 +77,82 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "lbp_max_iter":         20,    # max loopy BP iterations (ignored for "mst")
         "lbp_damping":          0.5,   # loopy BP step-size: 1.0=full update, 0.0=no update
         # Column marginal correction — nudges aggregate predictions toward the synth marginal
-        "col_correction_alpha": 0.5,   # strength: 0.0=off, 1.0=full; TODO: ablation sweep over [0,0.25,0.5,0.75,1.0]
+        "col_correction_alpha": 0.5,   # strength: 0.0=off, 1.0=full
         "col_correction_mode":  "global", # "global" (cross-row normalisation) | "knn" (per-row local marginal)
         "col_correction_iters": 1,     # outer (row-BP + col-correction) iterations; >1 = alternating refinement
+        # ── Architectural variants (all default to the original behaviour) ──
+        # unary_model: classifier used for per-feature posteriors P(feat | QI)
+        #   "RF"        RandomForestClassifier   (original default)
+        #   "LightGBM"  LGBMClassifier           — lgb_* params below
+        #   "NaiveBayes" GaussianNB
+        #   "MLP"       sklearn MLPClassifier    — mlp_* params below
+        "unary_model":       "RF",
+        "lgb_n_estimators":  100,
+        "lgb_max_depth":     -1,    # -1 = unlimited (LightGBM convention)
+        "lgb_learning_rate": 0.1,
+        "lgb_num_leaves":    31,
+        # entropy_weighted: scale outgoing BP messages by sender confidence
+        #   (1 − H/H_max); uncertain nodes contribute less to neighbours' beliefs
+        "entropy_weighted":  False,
+        # qi_in_graph: include eligible QI features as observed (near-delta) nodes
+        #   in the graphical model; BP propagates QI certainty to hidden neighbours
+        "qi_in_graph":       False,
+        # max_qi_cardinality: cardinality threshold for QI feature inclusion when
+        #   qi_in_graph=True. None → use max_pair_cardinality (default behavior).
+        #   Set higher (e.g. 10000) to include all QI features regardless of cardinality.
+        "max_qi_cardinality": None,
+    },
+
+    # ── MarginalRF variant: QI nodes in graph + entropy-weighted BP ──────────
+    "MarginalRF_graphQI_entropyBP": {
+        "num_estimators":       25,
+        "max_depth":            25,
+        "max_pair_cardinality": 50,
+        "knn_k":                100,
+        "alpha":                1e-6,
+        "graph_type":           "mst",
+        "top_k_edges":          None,
+        "lbp_max_iter":         20,
+        "lbp_damping":          0.5,
+        "col_correction_alpha": 0.5,
+        "col_correction_mode":  "global",
+        "col_correction_iters": 1,
+        "unary_model":          "RF",
+        "lgb_n_estimators":     100,
+        "lgb_max_depth":        -1,
+        "lgb_learning_rate":    0.1,
+        "lgb_num_leaves":       31,
+        "entropy_weighted":     True,
+        "qi_in_graph":          True,
+        "max_qi_cardinality":   None,
+    },
+
+    # ── MarginalRF_continuous (attacks/marginal_rf.py) ──────────────────────────
+    # Continuous adaptation via quantile discretization. Inherits all MarginalRF
+    # params; adds n_bins (discretization resolution) and overrides knn_k to None
+    # (global PMI, avoids lexicographic-sort issue with continuous QI encoding).
+    "MarginalRF_continuous": {
+        "num_estimators":       25,
+        "max_depth":            25,
+        "max_pair_cardinality": 50,
+        "knn_k":                None,   # global PMI: avoids ordinal-encoding artefacts on continuous QI
+        "alpha":                1e-6,
+        "graph_type":           "mst",
+        "top_k_edges":          None,
+        "lbp_max_iter":         20,
+        "lbp_damping":          0.5,
+        "col_correction_alpha": 0.5,
+        "col_correction_mode":  "global",
+        "col_correction_iters": 1,
+        "unary_model":          "RF",
+        "lgb_n_estimators":     100,
+        "lgb_max_depth":        -1,
+        "lgb_learning_rate":    0.1,
+        "lgb_num_leaves":       31,
+        "entropy_weighted":     False,
+        "qi_in_graph":          False,
+        "max_qi_cardinality":   None,
+        "n_bins":               20,     # quantile bins per hidden continuous feature
     },
 
     # ── ML regressors (attacks/ML_regression.py) ─────────────────────────────
@@ -102,6 +175,19 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "epochs":        500,
         "patience":      60,
         "dropout_rate":  0.2,
+    },
+
+    # ── Joint MLP (attacks/joint_mlp.py) ─────────────────────────────────────
+    # Single shared-trunk network predicting all hidden features simultaneously.
+    # One softmax head per feature; loss = sum of per-feature cross-entropies.
+    "JointMLP": {
+        "test_size":     0.2,
+        "hidden_dims":   [1000, 500],
+        "batch_size":    256,
+        "learning_rate": 0.0005,
+        "epochs":        300,
+        "patience":      125,
+        "dropout_rate":  0.0,
     },
 
     # ── Attention (attacks/attention_classifier.py) ──────────────────────────

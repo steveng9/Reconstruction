@@ -87,6 +87,78 @@ _COL_CORR_ALPHA_DEFAULT = 0.5   # correction strength: 0.0 = off, 1.0 = full
 _COL_CORR_MODE_DEFAULT  = "global"  # "global" | "knn"
 _COL_CORR_ITERS_DEFAULT = 1         # (row-BP + col-correction) outer iterations
 
+# Variant: configurable unary model
+_UNARY_MODEL_DEFAULT       = "RF"  # "RF" | "LightGBM" | "NaiveBayes" | "MLP"
+_LGB_N_ESTIMATORS_DEFAULT  = 100
+_LGB_MAX_DEPTH_DEFAULT     = -1    # -1 = unlimited (LightGBM convention)
+_LGB_LEARNING_RATE_DEFAULT = 0.1
+_LGB_NUM_LEAVES_DEFAULT    = 31
+
+# Variant: entropy-weighted belief propagation
+_ENTROPY_WEIGHTED_DEFAULT = False
+
+# Variant: QI nodes as observed variables in the graphical model
+_QI_IN_GRAPH_DEFAULT  = False
+_MAX_QI_CARD_DEFAULT  = None  # None → use max_pair_cardinality; integer → separate QI threshold
+
+
+# ---------------------------------------------------------------------------
+# Unary model helper
+# ---------------------------------------------------------------------------
+
+def _fit_unary_model(model_name: str, params: dict,
+                     X_train: np.ndarray, y: np.ndarray,
+                     X_test: np.ndarray):
+    """Fit a per-feature unary classifier; return (test_probas, classes).
+
+    All returned probas are shape (n_test, n_classes) matching sklearn's
+    predict_proba convention.  ``model_name`` must be one of:
+
+        "RF"          RandomForestClassifier  (original default)
+        "LightGBM"    LGBMClassifier          (faster, often better-calibrated)
+        "NaiveBayes"  GaussianNB              (simple baseline; works on ordinal QI)
+        "MLP"         sklearn MLPClassifier   (non-linear, slower)
+
+    LightGBM hyper-params read from ``params``:
+        lgb_n_estimators  (default 100)
+        lgb_max_depth     (default -1 = unlimited)
+        lgb_learning_rate (default 0.1)
+        lgb_num_leaves    (default 31)
+
+    MLP hyper-params read from ``params``:
+        mlp_hidden_dims   (default [300])
+        mlp_epochs        (default 250)
+        mlp_lr            (default 0.001)
+    """
+    if model_name == "LightGBM":
+        from lightgbm import LGBMClassifier
+        clf = LGBMClassifier(
+            n_estimators  = params.get("lgb_n_estimators",  _LGB_N_ESTIMATORS_DEFAULT),
+            max_depth      = params.get("lgb_max_depth",      _LGB_MAX_DEPTH_DEFAULT),
+            learning_rate  = params.get("lgb_learning_rate",  _LGB_LEARNING_RATE_DEFAULT),
+            num_leaves     = params.get("lgb_num_leaves",     _LGB_NUM_LEAVES_DEFAULT),
+            verbose        = -1,
+            n_jobs         = 1,
+        )
+    elif model_name == "NaiveBayes":
+        from sklearn.naive_bayes import GaussianNB
+        clf = GaussianNB(var_smoothing=params.get("nb_var_smoothing", 1e-9))
+    elif model_name == "MLP":
+        from sklearn.neural_network import MLPClassifier
+        clf = MLPClassifier(
+            hidden_layer_sizes = tuple(params.get("mlp_hidden_dims", [300])),
+            max_iter           = params.get("mlp_epochs",     250),
+            learning_rate_init = params.get("mlp_lr",         0.001),
+            early_stopping     = False,
+        )
+    else:  # "RF" (default)
+        clf = RandomForestClassifier(
+            n_estimators = params.get("num_estimators", _RF_N_ESTIMATORS_DEFAULT),
+            max_depth    = params.get("max_depth",      _RF_MAX_DEPTH_DEFAULT),
+        )
+    clf.fit(X_train, y)
+    return clf.predict_proba(X_test), clf.classes_
+
 
 # ---------------------------------------------------------------------------
 # Mutual information helpers (for MST structure learning)
@@ -240,6 +312,30 @@ def _local_log_pmi_tables(
 
 
 # ---------------------------------------------------------------------------
+# Entropy-weighting helper for BP
+# ---------------------------------------------------------------------------
+
+def _entropy_weights(log_beliefs: np.ndarray) -> np.ndarray:
+    """Per-target confidence weights = 1 − H(p) / H_max  ∈  [0, 1].
+
+    Used by entropy-weighted BP to scale outgoing messages from each node.
+    A confident node (H ≈ 0) sends its message at full strength (weight ≈ 1).
+    A maximally uncertain node (H ≈ log C) sends a near-zero message (weight ≈ 0),
+    preventing uncertain beliefs from misleading neighbours.
+
+    log_beliefs : (n_targets, C)  normalised log-probabilities
+    returns     : (n_targets,)    weights in [0, 1]
+    """
+    p = np.exp(log_beliefs)                          # (T, C)
+    C = log_beliefs.shape[1]
+    if C < 2:
+        return np.ones(log_beliefs.shape[0])
+    safe_lp = np.where(p > 0, log_beliefs, 0.0)     # avoid -inf * 0
+    H       = -np.sum(p * safe_lp, axis=1)          # (T,)
+    return np.clip(1.0 - H / np.log(C), 0.0, 1.0)
+
+
+# ---------------------------------------------------------------------------
 # Belief propagation on a tree
 # ---------------------------------------------------------------------------
 
@@ -247,12 +343,18 @@ def _bp_tree(
     tree: nx.Graph,
     log_unaries: dict,          # feat → (n_targets, C_feat)
     log_pmi: dict,              # (fa, fb) → (n_targets, C_a, C_b)  OR  (C_a, C_b)
+    entropy_weighted: bool = False,
 ) -> dict:
     """Exact sum-product belief propagation on a tree.
 
     ``log_pmi`` values may be either 2-D (global, shared across targets) or
     3-D (local, one table per target).  Both orientations are handled
     transparently.
+
+    When ``entropy_weighted=True``, each outgoing message is scaled by the
+    sender's per-target confidence weight (1 − H/H_max).  Uncertain nodes
+    contribute less to their neighbours' beliefs, reducing the risk of
+    propagating wrong predictions as confident signals.
 
     Returns log_beliefs: feat → (n_targets, C_feat) normalised.
     """
@@ -321,6 +423,10 @@ def _bp_tree(
             continue
         J       = _get_pmi(node, par)          # (C_node, C_par) or (T, C_node, C_par)
         log_msg = _send_message(beliefs[node], J)
+        if entropy_weighted:
+            w       = _entropy_weights(beliefs[node])         # (T,)
+            log_msg = log_msg - logsumexp(log_msg, axis=1, keepdims=True)  # normalise
+            log_msg = w[:, None] * log_msg                                  # scale
         messages[(node, par)] = log_msg
         beliefs[par] = beliefs[par] + log_msg
 
@@ -330,6 +436,10 @@ def _bp_tree(
             b_excl  = beliefs[node] - messages[(child, node)]
             J       = _get_pmi(child, node)    # (C_child, C_node) or (T, C_child, C_node)
             log_msg = _recv_message(b_excl, J)
+            if entropy_weighted:
+                w       = _entropy_weights(b_excl)            # (T,)
+                log_msg = log_msg - logsumexp(log_msg, axis=1, keepdims=True)
+                log_msg = w[:, None] * log_msg
             messages[(node, child)] = log_msg
             beliefs[child] = beliefs[child] + log_msg
 
@@ -482,6 +592,7 @@ def _lbp_loopy(
     max_iter: int,
     damping: float,         # step-size: 1.0=full update each iter, 0.0=no update
     tol: float = 1e-4,
+    entropy_weighted: bool = False,
 ) -> dict:
     """Loopy sum-product belief propagation via damped iterative message passing.
 
@@ -540,6 +651,9 @@ def _lbp_loopy(
                     raw = logsumexp(b_excl[:, :, None] + J, axis=1)
                 # Log-normalise for numerical stability
                 raw = raw - logsumexp(raw, axis=1, keepdims=True)
+                if entropy_weighted:
+                    w   = _entropy_weights(b_excl)   # (T,)
+                    raw = w[:, None] * raw
                 new_messages[(u, v)] = raw
 
         # Apply damping and track convergence
@@ -568,7 +682,8 @@ def _lbp_loopy(
 # Main attack function
 # ---------------------------------------------------------------------------
 
-def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features):
+def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features,
+                               _extra_numeric_train=None, _extra_numeric_test=None):
     """Reconstruction attack combining RF posteriors with synth pairwise marginals.
 
     Attack params (set via cfg["attack_params"]):
@@ -611,6 +726,15 @@ def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features):
             >1 = alternating refinement; each iteration re-runs row-BP with
                  the previous iteration's corrected beliefs as unary inputs.
 
+    _extra_numeric_train : np.ndarray | None, shape (n_synth, D_extra)
+        Optional numeric columns appended to the ordinal-encoded QI before RF
+        fitting.  Used by soft chaining to pass one-hot encodings of previously
+        predicted synth features.  KNN (for local PMI) still uses QI-only space.
+    _extra_numeric_test : np.ndarray | None, shape (n_targets, D_extra)
+        Counterpart of _extra_numeric_train for target rows.  Soft chaining
+        passes predicted probability distributions here so the RF sees soft
+        conditioning from earlier chain steps.
+
     Returns
     -------
     reconstructed_df : pd.DataFrame
@@ -630,11 +754,27 @@ def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features):
     col_alpha         = params.get("col_correction_alpha", _COL_CORR_ALPHA_DEFAULT)
     col_mode          = params.get("col_correction_mode",  _COL_CORR_MODE_DEFAULT)
     col_iters         = params.get("col_correction_iters", _COL_CORR_ITERS_DEFAULT)
+    # Variant params
+    unary_model       = params.get("unary_model",          _UNARY_MODEL_DEFAULT)
+    entropy_weighted  = params.get("entropy_weighted",     _ENTROPY_WEIGHTED_DEFAULT)
+    qi_in_graph       = params.get("qi_in_graph",          _QI_IN_GRAPH_DEFAULT)
+    max_qi_card       = params.get("max_qi_cardinality",   _MAX_QI_CARD_DEFAULT)
+    # Effective QI cardinality limit: explicit value overrides max_pair_cardinality
+    _qi_card_limit    = max_qi_card if max_qi_card is not None else max_card
 
     # ── Step 1: RF posteriors ──────────────────────────────────────────────
-    enc     = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
-    X_train = enc.fit_transform(deid[qi].astype(str))
-    X_test  = enc.transform(targets[qi].astype(str))
+    enc        = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
+    X_train_qi = enc.fit_transform(deid[qi].astype(str))
+    X_test_qi  = enc.transform(targets[qi].astype(str))
+
+    # Augment with soft-chaining extras (probability vectors from earlier steps).
+    # KNN for local PMI still uses QI-only space (X_train_qi / X_test_qi).
+    if _extra_numeric_train is not None:
+        X_train = np.hstack([X_train_qi, _extra_numeric_train])
+        X_test  = np.hstack([X_test_qi,  _extra_numeric_test])
+    else:
+        X_train = X_train_qi
+        X_test  = X_test_qi
 
     rf_probas:  dict = {}   # feat → (n_targets, C)
     rf_classes: dict = {}   # feat → string class labels
@@ -645,10 +785,9 @@ def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features):
             rf_probas[feat]  = None
             rf_classes[feat] = None
             continue
-        model = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth)
-        model.fit(X_train, y)
-        rf_probas[feat]  = model.predict_proba(X_test)
-        rf_classes[feat] = model.classes_
+        probas, classes = _fit_unary_model(unary_model, params, X_train, y, X_test)
+        rf_probas[feat]  = probas
+        rf_classes[feat] = classes
 
     # ── Step 2: Identify tree-eligible features ────────────────────────────
     tree_features = [
@@ -656,35 +795,80 @@ def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features):
         if rf_probas.get(f) is not None and len(rf_classes[f]) <= max_card
     ]
 
+    # ── Step 2b: (variant) QI nodes as observed graph variables ───────────
+    # When qi_in_graph=True, eligible QI features (cardinality ≤ max_card) are
+    # added to the graphical model as observed nodes with near-delta unaries at
+    # each target's known QI value.  BP then propagates this certainty to
+    # connected hidden nodes via QI-hidden PMI edges.
+    qi_graph_features: list = []    # eligible QI features for the graph
+    qi_graph_classes:  dict = {}    # feat → sorted class array (from synth)
+    qi_graph_unaries:  dict = {}    # feat → (n_targets, C) near-delta log-probs
+
+    if qi_in_graph:
+        n_t = len(targets)
+        for feat in qi:
+            card = deid[feat].astype(str).nunique()
+            if card > _qi_card_limit:
+                continue
+            vals     = sorted(deid[feat].astype(str).unique().tolist())
+            cls      = np.array(vals)
+            qi_graph_classes[feat] = cls
+            cls_to_idx             = {v: i for i, v in enumerate(vals)}
+            C                      = len(vals)
+            # Near-delta: −1e9 everywhere, 0.0 at observed class (large positive unary)
+            unary = np.full((n_t, C), -1e9, dtype=np.float64)
+            for t_idx, val in enumerate(targets[feat].astype(str)):
+                idx = cls_to_idx.get(val)
+                if idx is not None:
+                    unary[t_idx, idx] = 0.0
+                else:
+                    # OOV QI value unseen in synth → uniform (can't infer a class)
+                    unary[t_idx, :] = 0.0
+            log_z = logsumexp(unary, axis=1, keepdims=True)
+            qi_graph_unaries[feat] = unary - log_z
+            qi_graph_features.append(feat)
+
+    # Graph nodes = tree-eligible hidden features  +  (optional) eligible QI features
+    all_graph_features = tree_features + qi_graph_features
+    # Unified class lookup used when building PMI tables for all graph edges
+    all_graph_classes  = {**rf_classes, **qi_graph_classes}
+
     # ── Step 3: Build graph over eligible features ────────────────────────
     log_pmi_tables: dict = {}
     graph        = nx.Graph()
     knn_indices  = None   # may remain None if tree_features < 2 or knn_k is None
+    effective_k  = 0
 
-    if len(tree_features) >= 2:
+    if len(all_graph_features) >= 2:
         if graph_type == "mst":
-            graph = _build_mst(deid, tree_features)
+            graph = _build_mst(deid, all_graph_features)
         elif graph_type == "complete":
-            graph = _build_complete_graph(deid, tree_features)
+            graph = _build_complete_graph(deid, all_graph_features)
         elif graph_type == "topk":
-            graph = _build_topk_graph(deid, tree_features, top_k_edges)
+            graph = _build_topk_graph(deid, all_graph_features, top_k_edges)
         else:
             raise ValueError(
                 f"Unknown graph_type={graph_type!r}. Choose 'mst', 'complete', or 'topk'."
             )
 
-        # ── Step 3a: KNN in QI space for local marginals ───────────────────
+        # ── Step 3a: KNN in QI-only space for local marginals ─────────────
+        # Always use the QI-only encoding (not augmented) so the local synth
+        # neighbourhood reflects QI similarity, not soft-chaining extras.
         if knn_k is not None:
             effective_k = min(knn_k, len(deid))
             knn         = NearestNeighbors(n_neighbors=effective_k, metric="euclidean")
-            knn.fit(X_train)
-            _, knn_indices = knn.kneighbors(X_test)  # (n_targets, effective_k)
+            knn.fit(X_train_qi)
+            _, knn_indices = knn.kneighbors(X_test_qi)  # (n_targets, effective_k)
         else:
             knn_indices = None
 
         # ── Step 3b: Compute log-PMI tables for each graph edge ────────────
+        # all_graph_classes covers both hidden and (optional) QI node classes.
         for fa, fb in graph.edges():
-            ca, cb = rf_classes[fa], rf_classes[fb]
+            ca = all_graph_classes.get(fa)
+            cb = all_graph_classes.get(fb)
+            if ca is None or cb is None:
+                continue
             n_cells = len(ca) * len(cb)
             # Local PMI requires on average ≥ 5 counts per cell; otherwise
             # the empirical joint is too noisy and we fall back to global.
@@ -726,18 +910,28 @@ def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features):
     effective_col_iters = col_iters if col_alpha > 0 else 1
 
     for _iter in range(effective_col_iters):
-        # --- Row-BP step (tree_features only) ---
-        if len(tree_features) >= 2:
+        # --- Row-BP step (all graph nodes: tree_features + optional QI nodes) ---
+        if len(all_graph_features) >= 2:
             log_unaries_tree: dict = {
                 feat: log_beliefs_all[feat] for feat in tree_features
             }
+            # QI observed nodes: near-delta unaries (not in log_beliefs_all)
+            for feat in qi_graph_features:
+                log_unaries_tree[feat] = qi_graph_unaries[feat]
+
             if graph_type == "mst":
-                tree_beliefs = _bp_tree(graph, log_unaries_tree, log_pmi_tables)
+                tree_beliefs = _bp_tree(
+                    graph, log_unaries_tree, log_pmi_tables,
+                    entropy_weighted=entropy_weighted,
+                )
             else:
                 tree_beliefs = _lbp_loopy(
                     graph, log_unaries_tree, log_pmi_tables,
                     max_iter=lbp_max_iter, damping=lbp_damping,
+                    entropy_weighted=entropy_weighted,
                 )
+            # Write back updated beliefs for hidden features only;
+            # QI nodes are observed — their beliefs are not decoded.
             for feat in tree_features:
                 if feat in tree_beliefs:
                     log_beliefs_all[feat] = tree_beliefs[feat]
@@ -793,3 +987,207 @@ def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features):
         classes_.append(feat_classes)
 
     return recon, probas, classes_
+
+
+# ---------------------------------------------------------------------------
+# Soft chaining wrapper
+# ---------------------------------------------------------------------------
+
+def marginal_rf_soft_chained_reconstruction(cfg, deid, targets, qi, hidden_features,
+                                             chain_order=None):
+    """Soft chaining for MarginalRF.
+
+    At each chain step k, MarginalRF runs on the remaining hidden features
+    [feat_k, ..., feat_N] with an augmented QI that includes soft probability
+    information from *eligible* previously predicted features [feat_1, ...,
+    feat_{k-1}]:
+
+      Synth augmentation (training side):
+        Append one-hot(deid[feat_j]) for each j < k where feat_j is eligible.
+        Synth values are certain (delta distributions).
+
+      Target augmentation (test side):
+        Append predicted_probas_j for each j < k where feat_j is eligible.
+        The full probability distribution propagates uncertainty downstream.
+
+    Eligibility for soft conditioning:
+        A feature's predicted-proba block is added to the soft extras only when
+        its cardinality ≤ ``max_pair_cardinality`` (same threshold that gates BP
+        graph inclusion).  High-cardinality features (e.g. fnlwgt with thousands
+        of unique values) have near-uniform RF posteriors that would add thousands
+        of near-zero columns to subsequent RFs, overwhelming the QI signal.
+        These features are still predicted at their chain step, but their probas
+        are not propagated forward.
+
+    The BP correction over remaining features still runs at every step, capturing
+    inter-feature correlations among those not yet predicted.
+
+    KNN for local PMI is always computed in the original QI-only space.
+
+    Parameters
+    ----------
+    chain_order : list[str] | None
+        Prediction order.  If None, uses hidden_features order.
+        Should be computed by the caller with _get_chaining_order.
+
+    Returns
+    -------
+    reconstructed : pd.DataFrame
+    probas : list[np.ndarray | None]  — one per hidden feature, in
+             hidden_features order (not chain_order).
+    classes_ : list[np.ndarray | None]
+    """
+    params    = cfg.get("attack_params", {})
+    max_card  = params.get("max_pair_cardinality", _MAX_PAIR_CARD_DEFAULT)
+
+    if chain_order is None:
+        chain_order = list(hidden_features)
+
+    reconstructed = targets.copy()
+
+    # Accumulators for the augmented numeric blocks
+    extra_synth: np.ndarray | None = None   # (n_synth, D_accumulated)
+    extra_test:  np.ndarray | None = None   # (n_targets, D_accumulated)
+
+    # Store per-feature results keyed by feature name (reorder at the end)
+    feat_probas:  dict[str, np.ndarray | None] = {}
+    feat_classes: dict[str, np.ndarray | None] = {}
+
+    n_synth   = len(deid)
+
+    for step_idx, feature in enumerate(chain_order):
+        remaining = chain_order[step_idx:]   # current feature + not-yet-predicted
+
+        extra_dim = extra_synth.shape[1] if extra_synth is not None else 0
+        print(f"  [SoftChain MarginalRF] step {step_idx + 1}/{len(chain_order)}: "
+              f"predicting {feature!r}, {len(remaining)} remaining, "
+              f"extra_dims={extra_dim}")
+
+        # Run MarginalRF on the remaining features with augmented QI
+        recon_step, probas_step, classes_step = marginal_rf_reconstruction(
+            cfg, deid, targets, qi, remaining,
+            _extra_numeric_train=extra_synth,
+            _extra_numeric_test=extra_test,
+        )
+
+        # Commit this feature's hard prediction to the running reconstruction
+        reconstructed[feature] = recon_step[feature]
+
+        # probas_step[0] corresponds to `feature` (first in `remaining`)
+        this_proba   = probas_step[0]    # (n_targets, C_feat) or None
+        this_classes = classes_step[0]   # (C_feat,) class labels or None
+
+        feat_probas[feature]  = this_proba
+        feat_classes[feature] = this_classes
+
+        # Build soft-conditioning block for the next step — only when
+        # cardinality is within the eligibility threshold (avoids flooding
+        # subsequent RFs with thousands of near-zero columns for high-cardinality
+        # features like fnlwgt whose posteriors are essentially uniform).
+        if (step_idx < len(chain_order) - 1
+                and this_proba is not None
+                and this_classes is not None
+                and len(this_classes) <= max_card):
+
+            n_classes = len(this_classes)
+            cls_to_idx = {str(c): i for i, c in enumerate(this_classes)}
+
+            # Synth block: one-hot of true synth values (certainty)
+            synth_codes = np.array(
+                [cls_to_idx.get(str(v), 0) for v in deid[feature].astype(str)],
+                dtype=np.int32,
+            )
+            synth_block = np.zeros((n_synth, n_classes), dtype=np.float32)
+            synth_block[np.arange(n_synth), synth_codes] = 1.0
+
+            # Target block: predicted probability distribution (soft)
+            target_block = this_proba.astype(np.float32)   # (n_targets, n_classes)
+
+            extra_synth = (np.hstack([extra_synth, synth_block])
+                           if extra_synth is not None else synth_block)
+            extra_test  = (np.hstack([extra_test,  target_block])
+                           if extra_test  is not None else target_block)
+
+    # Return probas/classes in original hidden_features order
+    out_probas  = [feat_probas.get(f)  for f in hidden_features]
+    out_classes = [feat_classes.get(f) for f in hidden_features]
+
+
+# ---------------------------------------------------------------------------
+# Continuous adaptation — quantile-discretized MarginalRF
+# ---------------------------------------------------------------------------
+
+_N_BINS_CONT_DEFAULT = 20  # quantile bins per hidden continuous feature
+
+
+def marginal_rf_regression_reconstruction(cfg, deid, targets, qi, hidden_features):
+    """Continuous adaptation of MarginalRF via quantile discretization.
+
+    Discretizes each hidden continuous feature into ``n_bins`` equal-frequency
+    (quantile) bins derived from the synthetic data, runs the full categorical
+    MarginalRF algorithm on the discretized values (capturing pairwise joint
+    structure between hidden features), then maps the argmax bin prediction
+    back to the bin midpoint from the synth distribution.
+
+    By default uses global (unconditional) PMI tables (``knn_k=None``) rather
+    than local KNN-based tables, because ordinal-encoding continuous QI values
+    as strings yields lexicographic rather than numeric order, degrading the
+    synth-neighbour neighbourhood.  Set knn_k explicitly to enable local PMI.
+
+    Additional params (set via cfg["attack_params"]):
+        n_bins (int, default 20): quantile bins per hidden feature.
+        knn_k  (default None): synth neighbours for local PMI; None → global.
+    """
+    params = cfg["attack_params"]
+    n_bins = params.get("n_bins", _N_BINS_CONT_DEFAULT)
+
+    # --- Discretize hidden features in synth into quantile bins ---
+    synth_disc   = deid.copy()
+    bin_midpoints: dict[str, np.ndarray] = {}
+
+    for feat in hidden_features:
+        vals = deid[feat].dropna().values.astype(float)
+        if len(vals) == 0:
+            bin_midpoints[feat] = np.array([0.0])
+            synth_disc[feat] = 0
+            continue
+        edges = np.unique(np.percentile(vals, np.linspace(0, 100, n_bins + 1)))
+        if len(edges) < 2:
+            bin_midpoints[feat] = np.array([float(edges[0]) if len(edges) > 0 else 0.0])
+            synth_disc[feat] = 0
+            continue
+        midpoints = (edges[:-1] + edges[1:]) / 2.0
+        # Assign each synth row to a bin (0-indexed)
+        bin_idx = np.searchsorted(edges[1:-1], vals, side="right")
+        bin_idx = np.clip(bin_idx, 0, len(midpoints) - 1)
+        synth_disc[feat] = bin_idx
+        bin_midpoints[feat] = midpoints
+
+    # --- Build a cfg copy that forces global PMI and categorical mode ---
+    disc_params = dict(params)
+    if "knn_k" not in disc_params:
+        disc_params["knn_k"] = None   # global PMI — avoids lexicographic QI encoding issue
+    disc_cfg = {**cfg, "data_type": "categorical",
+                "attack_params": disc_params}
+
+    # --- Run categorical MarginalRF on the discretized synth ---
+    recon_disc, _, _ = marginal_rf_reconstruction(
+        disc_cfg, synth_disc, targets, qi, hidden_features
+    )
+
+    # --- Decode bin predictions → continuous midpoints ---
+    recon_cont = targets[hidden_features].copy().astype(float)
+    for feat in hidden_features:
+        mids = bin_midpoints[feat]
+        n_actual_bins = len(mids)
+        raw = recon_disc[feat].values
+        try:
+            bins_pred = raw.astype(int)
+        except (ValueError, TypeError):
+            bins_pred = np.array([int(float(v)) for v in raw])
+        bins_pred = np.clip(bins_pred, 0, n_actual_bins - 1)
+        recon_cont[feat] = [mids[b] for b in bins_pred]
+
+    return recon_cont, None, None
+
+    return reconstructed, out_probas, out_classes

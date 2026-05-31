@@ -104,6 +104,7 @@ QIs = {
     # Story: given publicly observable location/age/population, reconstruct economic features
     "california": {
         "QI1": ["Latitude", "Longitude", "HouseAge", "Population"],
+        "QI_large": ["Latitude", "Longitude", "HouseAge", "Population", "AveBedrms", "AveRooms"],
     },
     # nist_arizona_25feat: 25-col IPUMS subset (mirrors NIST CRC competition, F-code encoding)
     # nist_arizona_50feat: 50-col subset
@@ -240,7 +241,8 @@ minus_QIs = {
         "QI_joint_Diabetes_HighBP_Stroke_lowcard": ["Diabetes_binary", "HighBP", "Stroke"],
     },
     "california": {
-        "QI1": ["MedInc", "AveRooms", "AveBedrms", "AveOccup", "MedHouseVal"],
+        "QI1":     ["MedInc", "AveRooms", "AveBedrms", "AveOccup", "MedHouseVal"],
+        "QI_large": ["MedInc", "AveOccup", "MedHouseVal"],
     },
     # 25-feat: all 18 non-QI features (mirrors NIST CRC competition format)
     "nist_arizona_25feat": {

@@ -11,7 +11,7 @@ Attacks are organized by data type (categorical vs continuous).
 # Categorical attacks
 from .NN_classifier import mlp_classification_reconstruction
 from .tabpfn_attack import tabpfn_reconstruction
-from .marginal_rf import marginal_rf_reconstruction
+from .marginal_rf import marginal_rf_reconstruction, marginal_rf_regression_reconstruction
 from .ML_classifiers import (
     KNN_reconstruction,
     lgboost_reconstruction,
@@ -21,6 +21,7 @@ from .ML_classifiers import (
     naive_bayes_reconstruction
 )
 from .attention_classifier import attention_reconstruction, attention_autoregressive_reconstruction
+from .joint_mlp import joint_mlp_reconstruction
 from .baselines_classifiers import (
     mode_baseline,
     random_baseline,
@@ -105,9 +106,11 @@ ATTACK_REGISTRY = {
 
         # Marginal-corrected RF
         "MarginalRF": marginal_rf_reconstruction,
+        "MarginalRF_graphQI_entropyBP": marginal_rf_reconstruction,  # alias: qi_in_graph=True, entropy_weighted=True
 
         # Neural Networks
         "MLP": mlp_classification_reconstruction,
+        "JointMLP": joint_mlp_reconstruction,
         "Attention": attention_reconstruction,
         "AttentionAutoregressive": attention_autoregressive_reconstruction,
 
@@ -138,6 +141,9 @@ ATTACK_REGISTRY = {
         "HuberRegressor": huber_regressor_reconstruction,
         "RANSACRegressor": ransac_regressor_reconstruction,
         "SGDRegressor": sdgregressor_reconstruction,
+
+        # Marginal-corrected RF (continuous via quantile discretization)
+        "MarginalRF_continuous": marginal_rf_regression_reconstruction,
 
         # Neural Networks
         "MLP": mlp_repression_reconstruction,
