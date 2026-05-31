@@ -21,3 +21,6 @@ manual_references.bib
 # Miscellaneous generated/working files
 mirador_report.txt
 workspace/
+
+# Internal research notes (not artifact material)
+notes/
