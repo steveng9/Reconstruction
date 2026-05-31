@@ -536,7 +536,7 @@ Key WandB metrics logged per run:
 
 ## Citation
 
-If you use this code or the MarginalRF / PartialMST / PartialTabDDPM / ConditionedRePaint attacks in your research, please cite:
+If you use this code or the MarginalRF / PartialMST / PartialTabDDPM / ConditionedRePaint / JointMLP / Attention attacks in your research, please cite:
 
 ```bibtex
 @article{golob2027sok,
