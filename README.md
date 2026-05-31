@@ -5,7 +5,7 @@ This repository is the artifact for:
 > **SoK: Reconstruction Attacks on Synthetic Tabular Data (Insights from Winning the NIST CRC)**
 > Submitted to *Privacy Enhancing Technologies Symposium (PoPETs) 2027*
 
-The framework systematically evaluates **reconstruction attacks** (attribute inference) on de-identified and synthetic tabular data. Given a synthetic dataset and a target record's quasi-identifying features (e.g., age, sex, race), each attack attempts to reconstruct the target's hidden attribute values. We benchmark **13 attack algorithms** against **9 synthetic data generation (SDG) methods** across **5 benchmark datasets**, and introduce four new attacks: **MarginalRF**, **PartialMST**, **PartialTabDDPM**, and **ConditionedRePaint**.
+The framework systematically evaluates **reconstruction attacks** (attribute inference) on de-identified and synthetic tabular data. Given a synthetic dataset and a target record's quasi-identifying features (e.g., age, sex, race), each attack attempts to reconstruct the target's hidden attribute values. We benchmark **13 attack algorithms** against **9 synthetic data generation (SDG) methods** across **5 benchmark datasets**, and introduce six new attacks: **MarginalRF**, **PartialMST**, **PartialTabDDPM**, **ConditionedRePaint**, **Attention**, and **JointMLP**.
 
 The same methodology placed **first among all red teams** in the 2025 NIST Privacy Collaborative Research Cycle (CRC).
 
@@ -410,6 +410,26 @@ These attacks treat each hidden feature independently, training one model per fe
 | TabPFN | `tabpfn_attack.py` | Pre-trained transformer, single forward pass |
 | LinearReconstruction | `SOTA_attacks/` | LP attack (Annamalai et al. 2024); binary features only, requires Gurobi |
 
+### Each feature in isolation — continuous data
+
+For continuous datasets (California Housing), classifiers are replaced by regressors. All are registered under `data_type: "continuous"`.
+
+| Name | Class | Notes |
+|---|---|---|
+| Mean | `baselines_continuous.py` | Predict the synthetic column mean |
+| Median | `baselines_continuous.py` | Predict the synthetic column median |
+| KNN | `ML_regression.py` | k-nearest-neighbor regressor |
+| RandomForest | `ML_regression.py` | Random forest regressor |
+| LightGBM | `ML_regression.py` | Gradient-boosted regressor |
+| LinearRegression | `ML_regression.py` | Polynomial (degree 2) linear regression |
+| Ridge | `ML_regression.py` | Ridge regression |
+| Lasso | `ML_regression.py` | Lasso regression |
+| ElasticNet | `ML_regression.py` | Elastic net regression |
+| SGDRegressor | `ML_regression.py` | Stochastic gradient descent regressor |
+| MLP | `NN_regression.py` | PyTorch MLP regressor |
+
+Scoring for continuous features uses normalized RMSE (lower is better), inverted so higher is still better, consistent with the categorical $R_{adv}$ direction.
+
 ### Feature-correlated: autoregressive
 
 | Name | Description |
@@ -565,4 +585,4 @@ This work also uses the LinearReconstruction attack from:
 
 This project is released under the MIT License. See [LICENSE](LICENSE) for details.
 
-The `NIST_code/` directory contains scripts provided by NIST CRC organizers under their respective terms. The `SOTA_attacks/linear_reconstruction.py` is adapted from [steveng9/recon-synth](https://github.com/steveng9/recon-synth) (forked from [Filienko/recon-synth](https://github.com/Filienko/recon-synth)); see that repository for its license.
+The `SOTA_attacks/linear_reconstruction.py` is adapted from [steveng9/recon-synth](https://github.com/steveng9/recon-synth) (forked from [Filienko/recon-synth](https://github.com/Filienko/recon-synth)); see that repository for its license.
