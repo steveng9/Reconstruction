@@ -196,7 +196,7 @@ df.to_csv('california/full_data.csv', index=False)
 **Type**: Categorical (integer-coded IPUMS variables)  
 **Source**: IPUMS USA (registration required)
 
-Register at [https://usa.ipums.org/](https://usa.ipums.org/) and request the 1940 Arizona census extract. Select the 25-column feature subset described in `NIST_code/README.md`. Rename or link the downloaded file to `nist_arizona_data/full_data.csv`.
+Register at [https://usa.ipums.org/](https://usa.ipums.org/) and request the 1940 Arizona census extract with the 25-column subset described below. Rename or link the downloaded file to `nist_arizona_data/full_data.csv`.
 
 We study three feature-subset variants:
 - **`nist_arizona_25feat`**: 25 columns (mirrors the NIST CRC competition format)
@@ -373,13 +373,6 @@ Reconstruction/
 │   └── example_cfg.yaml          ← Fully annotated example configuration
 │
 ├── SOTA_attacks/                 ← Wrapper for LinearReconstruction (Annamalai et al. 2024)
-│
-├── NIST_code/                    ← Data generation scripts from the NIST CRC organizers
-│   ├── README.md                 ← Dataset feature list and QI definitions
-│   ├── generate_deid_data_from_strata_COMPO.ipynb  ← Main generation notebook
-│   ├── arizona_Rsynthpop.Rmd     ← Synthpop (R)
-│   ├── arizona_sdcmicro_cell_suppression.Rmd        ← CellSuppression (R)
-│   └── arizona_sdcmicro_rankswap.Rmd                ← RankSwap (R)
 │
 ├── NIST-CRC_leaderboardScripts/  ← Our NIST CRC competition submission scripts
 │
