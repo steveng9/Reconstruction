@@ -191,6 +191,7 @@ df.to_csv('california/full_data.csv', index=False)
 **Hidden features**: AveBedrms, Population, AveOccup, MedInc, MedHouseVal
 
 ### Dataset 4: NIST Arizona (IPUMS 1940 Census)
+This was the dataset used in the NIST CRC competition.
 
 **Size**: 293,999 rows, up to 98 features  
 **Type**: Categorical (integer-coded IPUMS variables)  
