@@ -9,7 +9,7 @@ This directory contains wrappers for published reconstruction attack implementat
 **Paper**: ["A Linear Reconstruction Approach for Attribute Inference Attacks against Synthetic Data"](https://arxiv.org/abs/2301.10053)
 **Authors**: M.S.M.S. Annamalai, A. Gadotti, L. Rocher
 **Conference**: USENIX Security 2024
-**Source Repository**: https://github.com/steveng9/recon-synth (forked from https://github.com/Filienko/recon-synth)
+**Source Repository**: https://github.com/synthetic-society/recon-synth (our fork: https://github.com/steveng9/recon-synth)
 
 #### How It Works
 

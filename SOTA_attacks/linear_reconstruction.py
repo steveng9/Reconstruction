@@ -4,7 +4,7 @@ Linear Reconstruction Attack wrapper.
 Paper: "A Linear Reconstruction Approach for Attribute Inference Attacks against Synthetic Data"
 Authors: M.S.M.S. Annamalai, A. Gadotti, L. Rocher
 Conference: USENIX Security 2024
-Source: https://github.com/Filienko/recon-synth (forked to github.com/steveng9/recon-synth)
+Source: https://github.com/synthetic-society/recon-synth (forked to github.com/steveng9/recon-synth)
 
 This attack uses k-way marginal queries and LP solving (Gurobi) to reconstruct
 secret attributes. It only works on:

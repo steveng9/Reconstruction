@@ -585,4 +585,4 @@ This work also uses the LinearReconstruction attack from:
 
 This project is released under the MIT License. See [LICENSE](LICENSE) for details.
 
-The `SOTA_attacks/linear_reconstruction.py` is adapted from [steveng9/recon-synth](https://github.com/steveng9/recon-synth) (forked from [Filienko/recon-synth](https://github.com/Filienko/recon-synth)); see that repository for its license.
+The `SOTA_attacks/linear_reconstruction.py` is adapted from [synthetic-society/recon-synth](https://github.com/synthetic-society/recon-synth) (our fork: [steveng9/recon-synth](https://github.com/steveng9/recon-synth)); see that repository for its license.
