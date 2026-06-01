@@ -25,3 +25,7 @@ workspace/
 # Internal research notes (not artifact material)
 notes/
 NIST_code/
+
+# Claude Code instructions / working files (not artifact material)
+CLAUDE.md
+.claude/
