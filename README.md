@@ -569,17 +569,6 @@ If you use this code or the CoBP-RA / CondMST / CondDDPM / CondRePaint / MultiHe
 }
 ```
 
-This work also uses the LinearReconstruction attack from:
-
-```bibtex
-@inproceedings{annamalai2024linear,
-  title     = {A Linear Reconstruction Approach for Attribute Inference Attacks against Synthetic Data},
-  author    = {Annamalai, M.S.M.S. and Gadotti, A. and Rocher, L.},
-  booktitle = {33rd USENIX Security Symposium},
-  year      = {2024}
-}
-```
-
 ---
 
 ## License
