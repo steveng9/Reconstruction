@@ -19,12 +19,12 @@ distribution given the fixed QI values.
 
 Three attack variants
 ---------------------
-standard (PartialMST):
+standard (CondMST):
     Classic MST — selects pairwise (2-way) cliques by mutual-information
     weight to form a spanning tree.  Each hidden feature conditions on at
     most one other column (its tree-parent), which may or may not be a QI.
 
-bounded (PartialMSTBounded):
+bounded (CondMSTBounded):
     For each hidden feature h, selects the highest-scoring subset of
     (max_clique_size - 1) QI columns and forms a clique
     (QI_i, ..., QI_j, h).  During sampling, h conditions on up to
@@ -36,7 +36,7 @@ bounded (PartialMSTBounded):
     max_clique_size=|QI|+1: equivalent to the "star" variant where every
     hidden col directly conditions on all QI cols.
 
-hub (PartialMSTHub):
+hub (CondMSTHub):
     One single clique over all QI columns captures the joint QI
     distribution.  Each hidden feature is then connected to its highest-MI
     QI column via a pairwise edge.  The hub is shared across all hidden
@@ -63,7 +63,7 @@ Decoding pipeline (model → original):
 
 Checkpointing
 -------------
-The fitted model (a _PartialMSTSynthesizer pickle) is saved to
+The fitted model (a _CondMSTSynthesizer pickle) is saved to
     {dataset_dir}/{sdg_dirname}/partial_mst_artifacts_{qi_key}[_{variant}_k{k}]/mst_model.pkl
 and reused on subsequent runs unless `retrain=True` is set in attack_params.
 The artifact dir includes SDG subdirectory, QI key, and variant tag so each
@@ -186,7 +186,7 @@ def _sample_from_proba(proba, n, sample_mode, top_pct):
 # Subclass that stores the compress_domain `supports` dict
 # ---------------------------------------------------------------------------
 
-class _PartialMSTSynthesizer(MSTSynthesizer):
+class _CondMSTSynthesizer(MSTSynthesizer):
     """MSTSynthesizer with noiseless training and high-order clique selection.
 
     Set these *instance* attributes before calling fit() to activate the
@@ -368,7 +368,7 @@ class _PartialMSTSynthesizer(MSTSynthesizer):
                 uf.union(hub_clique[0], c)
         else:
             print(
-                f"[PartialMSTHub] QI hub domain size {hub_domain:,} > "
+                f"[CondMSTHub] QI hub domain size {hub_domain:,} > "
                 f"{MAX_HUB_DOMAIN:,}; skipping hub clique — "
                 "falling back to pairwise QI connections."
             )
@@ -441,7 +441,7 @@ def _sdg_dirname(cfg):
 def _fit_mst_on_synth(synth, meta, bin_continuous_as_ordinal, n_bins,
                       qi=None, clique_variant="standard", max_clique_size=3,
                       iters=10000):
-    """Fit a _PartialMSTSynthesizer on synth (noiseless — no DP).
+    """Fit a _CondMSTSynthesizer on synth (noiseless — no DP).
 
     Returns (model, bin_edges) where bin_edges is {col -> np.array of edges}
     for columns that were pre-binned (empty dict if bin_continuous_as_ordinal
@@ -474,7 +474,7 @@ def _fit_mst_on_synth(synth, meta, bin_continuous_as_ordinal, n_bins,
 
     preprocessor_eps = 0.0 if not continuous else 0.3  # only spent if continuous cols remain
 
-    model = _PartialMSTSynthesizer(epsilon=1.0)  # epsilon is ignored (MST() override is noiseless)
+    model = _CondMSTSynthesizer(epsilon=1.0)  # epsilon is ignored (MST() override is noiseless)
     model.qi_orig_cols    = list(qi) if qi else []
     model.clique_variant  = clique_variant
     model.max_clique_size = max_clique_size
@@ -497,7 +497,7 @@ def _forward_compress(supports, model_col, label_codes):
     to the catch-all index (= number of supported values).
 
     Args:
-        supports: dict {model_col -> bool_array}  (from _PartialMSTSynthesizer._supports)
+        supports: dict {model_col -> bool_array}  (from _CondMSTSynthesizer._supports)
         model_col: e.g. 'col3'
         label_codes: np.int array of LabelTransformer output codes
 
@@ -516,7 +516,7 @@ def _encode_qi(model, targets_qi, qi, bin_edges):
     """Encode QI columns from original space to compressed domain codes.
 
     Args:
-        model: fitted _PartialMSTSynthesizer
+        model: fitted _CondMSTSynthesizer
         targets_qi: DataFrame containing at least the QI columns
         qi: list of original QI column names
         bin_edges: dict {col -> bin_edge_array} for continuous columns
@@ -570,7 +570,7 @@ def _conditional_sample(model, encoded_qi, n_targets,
     strategy specified by sample_mode / top_pct.
 
     Args:
-        model        : fitted _PartialMSTSynthesizer
+        model        : fitted _CondMSTSynthesizer
         encoded_qi   : dict {model_col -> np.int array(n_targets)} for QI columns
         n_targets    : number of target rows
         sample_mode  : "sample" | "argmax" | "top_pct"  (see _sample_from_proba)
@@ -666,7 +666,7 @@ def _decode_hidden(model, sampled_dataset, hidden_cols, bin_edges):
     """Decode hidden columns from compressed domain back to original values.
 
     Args:
-        model: fitted _PartialMSTSynthesizer
+        model: fitted _CondMSTSynthesizer
         sampled_dataset: Dataset in compressed domain (output of _conditional_sample)
         hidden_cols: list of original column names to decode
         bin_edges: dict {col -> bin_edge_array} for pre-binned continuous columns
@@ -719,7 +719,7 @@ def _decode_probas(model, col_probas, hidden_cols, bin_edges):
         uniformly across all unsupported original values.
 
     Args:
-        model     : fitted _PartialMSTSynthesizer
+        model     : fitted _CondMSTSynthesizer
         col_probas: dict {model_col -> np.array(n_targets, n_compressed_classes)}
         hidden_cols: list of original column names
         bin_edges : dict {col -> bin_edge_array} for pre-binned continuous columns
@@ -939,7 +939,7 @@ def partial_mst_reconstruction(cfg, synth, targets, qi, hidden_features):
 # ---------------------------------------------------------------------------
 
 def partial_mst_bounded_reconstruction(cfg, synth, targets, qi, hidden_features):
-    """PartialMST with bounded high-order QI cliques (bounded variant).
+    """CondMST with bounded high-order QI cliques (bounded variant).
 
     Each hidden feature is placed in a direct clique with up to
     (max_clique_size - 1) QI features, chosen by maximum sum-of-pairwise-MI
@@ -947,7 +947,7 @@ def partial_mst_bounded_reconstruction(cfg, synth, targets, qi, hidden_features)
     multiple QI values simultaneously, giving stronger QI signal than the
     standard pairwise MST.
 
-    attack_params (in addition to standard PartialMST params)
+    attack_params (in addition to standard CondMST params)
     ----------------------------------------------------------
     max_clique_size (int, default 3):
         Maximum nodes per high-order clique (must be ≥ 2).
@@ -961,7 +961,7 @@ def partial_mst_bounded_reconstruction(cfg, synth, targets, qi, hidden_features)
 
 
 def partial_mst_hub_reconstruction(cfg, synth, targets, qi, hidden_features):
-    """PartialMST with a single QI hub clique + pairwise hidden-QI edges (hub variant).
+    """CondMST with a single QI hub clique + pairwise hidden-QI edges (hub variant).
 
     One clique (QI_1, ..., QI_k) captures the full joint QI distribution.
     Each hidden feature connects to its highest-MI QI column via a pairwise
@@ -973,7 +973,7 @@ def partial_mst_hub_reconstruction(cfg, synth, targets, qi, hidden_features):
     If the joint QI domain exceeds MAX_HUB_DOMAIN (1 000 000), the hub clique
     is skipped with a printed warning.
 
-    attack_params: same as standard PartialMST; max_clique_size is ignored.
+    attack_params: same as standard CondMST; max_clique_size is ignored.
     """
     params  = cfg.get("attack_params", {})
     cfg_sub = {**cfg, "attack_params": {**params, "clique_variant": "hub"}}

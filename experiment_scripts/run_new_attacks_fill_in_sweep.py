@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-New-attacks fill-in sweep: TabPFN and MarginalRF variants on datasets not yet
+New-attacks fill-in sweep: TabPFN and CoBP-RA variants on datasets not yet
 covered by run_new_attacks_sweep.py.
 
 Datasets
@@ -8,11 +8,11 @@ Datasets
   cdc_diabetes  100k   QI1
   nist_sbo        1k   QI1, QI_large
 
-NOTE: california (continuous) is excluded — TabPFN and MarginalRF are
+NOTE: california (continuous) is excluded — TabPFN and CoBP-RA are
 registered as categorical attacks only.  Add continuous variants to
 attacks/__init__.py before including california here.
 
-MarginalRF ablation modes
+CoBP-RA ablation modes
 --------------------------
   knn_k=None   global (unconditional) PMI — fast, may double-count QI-mediated correlation
   knn_k=50     local PMI, small neighbourhood
@@ -27,7 +27,7 @@ Usage (from repo root):
     python experiment_scripts/run_new_attacks_fill_in_sweep.py --dataset cdc_diabetes
     python experiment_scripts/run_new_attacks_fill_in_sweep.py --dataset nist_sbo
     python experiment_scripts/run_new_attacks_fill_in_sweep.py --attack TabPFN
-    python experiment_scripts/run_new_attacks_fill_in_sweep.py --attack MarginalRF_mst_local_100
+    python experiment_scripts/run_new_attacks_fill_in_sweep.py --attack CoBP-RA_mst_local_100
     python experiment_scripts/run_new_attacks_fill_in_sweep.py --sdg Synthpop
     python experiment_scripts/run_new_attacks_fill_in_sweep.py --qi QI_large
 """
@@ -79,7 +79,7 @@ DATASET_CONFIGS = [
     #        ("CellSuppression", {}),
     #    ],
     #},
-    # ── california excluded — TabPFN/MarginalRF are categorical-only ───────────
+    # ── california excluded — TabPFN/CoBP-RA are categorical-only ───────────
     # Uncomment and add continuous variants to attacks/__init__.py to enable.
     # {
     #     "base":        "california",
@@ -141,15 +141,15 @@ ATTACK_CONFIGS = [
     # ── TabPFN (in-context learning) ──────────────────────────────────────────
     ("TabPFN",     {},                                                    ""),
 
-    # ── MarginalRF: PMI mode (global vs local) × graph structure ──────────────
-    #("MarginalRF", {"knn_k": None,  "graph_type": "mst"},                "MarginalRF_mst_global"),
-    #("MarginalRF", {"knn_k": 50,    "graph_type": "mst"},                "MarginalRF_mst_local_50"),
-    #("MarginalRF", {"knn_k": 100,   "graph_type": "mst"},                "MarginalRF_mst_local_100"),
-    #("MarginalRF", {"knn_k": 200,   "graph_type": "mst"},                "MarginalRF_mst_local_200"),
-    #("MarginalRF", {"knn_k": 500,   "graph_type": "mst"},                "MarginalRF_mst_local_500"),
-    #("MarginalRF", {"knn_k": 100,   "graph_type": "complete"},           "MarginalRF_complete_local_100"),
-    #("MarginalRF", {"knn_k": 100,   "graph_type": "topk"},               "MarginalRF_topk_local_100"),
-    #("MarginalRF", {"knn_k": None,  "graph_type": "complete"},           "MarginalRF_complete_global"),
+    # ── CoBP-RA: PMI mode (global vs local) × graph structure ──────────────
+    #("CoBP-RA", {"knn_k": None,  "graph_type": "mst"},                "CoBP-RA_mst_global"),
+    #("CoBP-RA", {"knn_k": 50,    "graph_type": "mst"},                "CoBP-RA_mst_local_50"),
+    #("CoBP-RA", {"knn_k": 100,   "graph_type": "mst"},                "CoBP-RA_mst_local_100"),
+    #("CoBP-RA", {"knn_k": 200,   "graph_type": "mst"},                "CoBP-RA_mst_local_200"),
+    #("CoBP-RA", {"knn_k": 500,   "graph_type": "mst"},                "CoBP-RA_mst_local_500"),
+    #("CoBP-RA", {"knn_k": 100,   "graph_type": "complete"},           "CoBP-RA_complete_local_100"),
+    #("CoBP-RA", {"knn_k": 100,   "graph_type": "topk"},               "CoBP-RA_topk_local_100"),
+    #("CoBP-RA", {"knn_k": None,  "graph_type": "complete"},           "CoBP-RA_complete_global"),
 ]
 
 
@@ -411,7 +411,7 @@ def _print_summary(rows: list[dict]):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="New-attacks fill-in sweep: TabPFN + MarginalRF on cdc_diabetes 100k and nist_sbo 1k."
+        description="New-attacks fill-in sweep: TabPFN + CoBP-RA on cdc_diabetes 100k and nist_sbo 1k."
     )
     parser.add_argument("--dry-run",    action="store_true", help="Print job list and exit.")
     parser.add_argument("--serial",     action="store_true", help="Run sequentially in the main process.")

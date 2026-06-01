@@ -1,4 +1,4 @@
-"""MarginalRF reconstruction attack.
+"""CoBP-RA reconstruction attack.
 
 Combines a Random Forest's per-feature posterior probabilities with pairwise
 marginal constraints learned from the synthetic data, using belief propagation
@@ -995,9 +995,9 @@ def marginal_rf_reconstruction(cfg, deid, targets, qi, hidden_features,
 
 def marginal_rf_soft_chained_reconstruction(cfg, deid, targets, qi, hidden_features,
                                              chain_order=None):
-    """Soft chaining for MarginalRF.
+    """Soft chaining for CoBP-RA.
 
-    At each chain step k, MarginalRF runs on the remaining hidden features
+    At each chain step k, CoBP-RA runs on the remaining hidden features
     [feat_k, ..., feat_N] with an augmented QI that includes soft probability
     information from *eligible* previously predicted features [feat_1, ...,
     feat_{k-1}]:
@@ -1059,11 +1059,11 @@ def marginal_rf_soft_chained_reconstruction(cfg, deid, targets, qi, hidden_featu
         remaining = chain_order[step_idx:]   # current feature + not-yet-predicted
 
         extra_dim = extra_synth.shape[1] if extra_synth is not None else 0
-        print(f"  [SoftChain MarginalRF] step {step_idx + 1}/{len(chain_order)}: "
+        print(f"  [SoftChain CoBP-RA] step {step_idx + 1}/{len(chain_order)}: "
               f"predicting {feature!r}, {len(remaining)} remaining, "
               f"extra_dims={extra_dim}")
 
-        # Run MarginalRF on the remaining features with augmented QI
+        # Run CoBP-RA on the remaining features with augmented QI
         recon_step, probas_step, classes_step = marginal_rf_reconstruction(
             cfg, deid, targets, qi, remaining,
             _extra_numeric_train=extra_synth,
@@ -1114,18 +1114,18 @@ def marginal_rf_soft_chained_reconstruction(cfg, deid, targets, qi, hidden_featu
 
 
 # ---------------------------------------------------------------------------
-# Continuous adaptation — quantile-discretized MarginalRF
+# Continuous adaptation — quantile-discretized CoBP-RA
 # ---------------------------------------------------------------------------
 
 _N_BINS_CONT_DEFAULT = 20  # quantile bins per hidden continuous feature
 
 
 def marginal_rf_regression_reconstruction(cfg, deid, targets, qi, hidden_features):
-    """Continuous adaptation of MarginalRF via quantile discretization.
+    """Continuous adaptation of CoBP-RA via quantile discretization.
 
     Discretizes each hidden continuous feature into ``n_bins`` equal-frequency
     (quantile) bins derived from the synthetic data, runs the full categorical
-    MarginalRF algorithm on the discretized values (capturing pairwise joint
+    CoBP-RA algorithm on the discretized values (capturing pairwise joint
     structure between hidden features), then maps the argmax bin prediction
     back to the bin midpoint from the synth distribution.
 
@@ -1170,7 +1170,7 @@ def marginal_rf_regression_reconstruction(cfg, deid, targets, qi, hidden_feature
     disc_cfg = {**cfg, "data_type": "categorical",
                 "attack_params": disc_params}
 
-    # --- Run categorical MarginalRF on the discretized synth ---
+    # --- Run categorical CoBP-RA on the discretized synth ---
     recon_disc, _, _ = marginal_rf_reconstruction(
         disc_cfg, synth_disc, targets, qi, hidden_features
     )

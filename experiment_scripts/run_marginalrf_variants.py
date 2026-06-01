@@ -1,19 +1,19 @@
 #!/usr/bin/env python
 """
-MarginalRF architectural variants sweep.
+CoBP-RA architectural variants sweep.
 
-Tests three novel architectural changes to the MarginalRF attack, each
+Tests three novel architectural changes to the CoBP-RA attack, each
 independently and in one combination, against the baseline:
 
-  MarginalRF            — baseline (RF unary, no entropy weighting, hidden-only graph)
-  MarginalRF_LGBUnary   — LightGBM replaces RandomForest as the per-feature unary model
-  MarginalRF_EntropyBP  — entropy-weighted message passing (uncertain nodes dampen their
+  CoBP-RA            — baseline (RF unary, no entropy weighting, hidden-only graph)
+  CoBP-RA_LGBUnary   — LightGBM replaces RandomForest as the per-feature unary model
+  CoBP-RA_EntropyBP  — entropy-weighted message passing (uncertain nodes dampen their
                           messages by 1 − H/H_max, preventing wrong confident propagation)
-  MarginalRF_QIGraph    — QI features included as observed (near-delta) nodes in the
+  CoBP-RA_QIGraph    — QI features included as observed (near-delta) nodes in the
                           graphical model; BP propagates QI certainty to hidden neighbours
-  MarginalRF_LGB_EntropyBP — combination: LGB unary + entropy weighting
+  CoBP-RA_LGB_EntropyBP — combination: LGB unary + entropy weighting
 
-These are architectural variants of MarginalRF itself — distinct from the
+These are architectural variants of CoBP-RA itself — distinct from the
 chaining/ensembling enhancements in run_marginalrf_chains_ensembles.py.
 
 Dataset: adult 10k, QI1, samples 00–04, 5 focused SDGs.
@@ -24,7 +24,7 @@ Usage (from repo root):
     python experiment_scripts/run_marginalrf_variants.py
     python experiment_scripts/run_marginalrf_variants.py --dry-run
     python experiment_scripts/run_marginalrf_variants.py --workers 6
-    python experiment_scripts/run_marginalrf_variants.py --attack MarginalRF_QIGraph
+    python experiment_scripts/run_marginalrf_variants.py --attack CoBP-RA_QIGraph
     python experiment_scripts/run_marginalrf_variants.py --sdg TabDDPM --sample 0
 """
 
@@ -71,21 +71,21 @@ SDG_METHODS = [
 
 # ── Attack configurations ──────────────────────────────────────────────────────
 # Each entry: (label, attack_method, attack_params_overrides)
-# All configs use attack_method="MarginalRF"; the label distinguishes them in
+# All configs use attack_method="CoBP-RA"; the label distinguishes them in
 # WandB and results CSVs.  Variants differ only in their attack_params.
 
-_MRF = ATTACK_PARAM_DEFAULTS["MarginalRF"]
+_MRF = ATTACK_PARAM_DEFAULTS["CoBP-RA"]
 
 ATTACK_CONFIGS = [
     # ── Baseline ──────────────────────────────────────────────────────────
     # All defaults: RF unary, no entropy weighting, hidden features only in graph.
     (
-        "MarginalRF",
-        "MarginalRF",
+        "CoBP-RA",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": dict(_MRF),
+            "CoBP-RA": dict(_MRF),
         },
     ),
 
@@ -96,12 +96,12 @@ ATTACK_CONFIGS = [
     # tells us whether any deviation from RF calibration hurts, or only
     # overconfidence specifically.  NB is also essentially free to run.
     (
-        "MarginalRF_NBUnary",
-        "MarginalRF",
+        "CoBP-RA_NBUnary",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": {**dict(_MRF), "unary_model": "NaiveBayes"},
+            "CoBP-RA": {**dict(_MRF), "unary_model": "NaiveBayes"},
         },
     ),
 
@@ -112,12 +112,12 @@ ATTACK_CONFIGS = [
     # Hypothesis: prevents wrong confident predictions from propagating and
     #             pulling other features' beliefs astray.
     (
-        "MarginalRF_EntropyBP",
-        "MarginalRF",
+        "CoBP-RA_EntropyBP",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": {**dict(_MRF), "entropy_weighted": True},
+            "CoBP-RA": {**dict(_MRF), "entropy_weighted": True},
         },
     ),
 
@@ -130,12 +130,12 @@ ATTACK_CONFIGS = [
     # Hypothesis: captures QI-hidden correlations that the RF unary misses
     #             (especially for features weakly predicted by QI alone).
     (
-        "MarginalRF_QIGraph",
-        "MarginalRF",
+        "CoBP-RA_QIGraph",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": {**dict(_MRF), "qi_in_graph": True},
+            "CoBP-RA": {**dict(_MRF), "qi_in_graph": True},
         },
     ),
 
@@ -143,12 +143,12 @@ ATTACK_CONFIGS = [
     # Tests whether entropy weighting can compensate for NB's under-confidence
     # by boosting confident NB predictions and suppressing the noisy uniform ones.
     (
-        "MarginalRF_NB_EntropyBP",
-        "MarginalRF",
+        "CoBP-RA_NB_EntropyBP",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": {**dict(_MRF),
+            "CoBP-RA": {**dict(_MRF),
                            "unary_model":      "NaiveBayes",
                            "entropy_weighted": True},
         },
@@ -272,8 +272,8 @@ def run_job(job: Job) -> dict[str, Any]:
 
     prepared = _prepare_config(cfg)
 
-    # Extract the resolved MarginalRF params for WandB logging
-    mrf_params  = job.attack_params.get("MarginalRF", {})
+    # Extract the resolved CoBP-RA params for WandB logging
+    mrf_params  = job.attack_params.get("CoBP-RA", {})
     wandb_cfg = {
         "sample_idx":       job.sample_idx,
         "dataset":          DATASET_NAME,
@@ -385,13 +385,13 @@ def _print_summary(rows: list[dict]):
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="MarginalRF architectural variants sweep.")
+    parser = argparse.ArgumentParser(description="CoBP-RA architectural variants sweep.")
     parser.add_argument("--dry-run",      action="store_true")
     parser.add_argument("--serial",       action="store_true",
                         help="Run in main process (Ctrl-C killable).")
     parser.add_argument("--workers",      type=int, default=N_WORKERS)
     parser.add_argument("--attack",       type=str, default=None,
-                        help="Restrict to one attack label (e.g. MarginalRF_QIGraph).")
+                        help="Restrict to one attack label (e.g. CoBP-RA_QIGraph).")
     parser.add_argument("--sdg",          type=str, default=None)
     parser.add_argument("--sample",       type=int, default=None)
     parser.add_argument("--progress-log", type=str,
@@ -407,7 +407,7 @@ def main():
 
     header = (
         f"{'='*80}\n"
-        f"  MarginalRF architectural variants sweep\n"
+        f"  CoBP-RA architectural variants sweep\n"
         f"  Dataset:  {DATASET_NAME} {DATASET_SIZE}\n"
         f"  Configs:  {len(ATTACK_CONFIGS)} variants\n"
         f"  SDGs:     {len(SDG_METHODS)}\n"

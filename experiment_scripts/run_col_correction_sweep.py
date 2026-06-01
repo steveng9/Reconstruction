@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Column-correction ablation sweep: MarginalRF with varying col_correction_alpha/mode.
+Column-correction ablation sweep: CoBP-RA with varying col_correction_alpha/mode.
 
 Fixes the row-wise part to MST + global PMI (knn_k=None, graph_type="mst") and
 ablates the new column marginal correction parameters:
@@ -23,7 +23,7 @@ Usage (from repo root):
     python experiment_scripts/run_col_correction_sweep.py --dataset adult_1k
     python experiment_scripts/run_col_correction_sweep.py --size 1000
     python experiment_scripts/run_col_correction_sweep.py --sdg Synthpop
-    python experiment_scripts/run_col_correction_sweep.py --attack MarginalRF_col_alpha0
+    python experiment_scripts/run_col_correction_sweep.py --attack CoBP-RA_col_alpha0
 """
 
 from __future__ import annotations
@@ -99,23 +99,23 @@ SDG_METHODS = [
 
 ATTACK_CONFIGS = [
     # Baseline: no column correction (pure MST + global BP)
-    ("MarginalRF", {"knn_k": None, "graph_type": "mst", "col_correction_alpha": 0.0},
-     "MarginalRF_col_alpha0"),
+    ("CoBP-RA", {"knn_k": None, "graph_type": "mst", "col_correction_alpha": 0.0},
+     "CoBP-RA_col_alpha0"),
 
     # Global column correction, varying alpha
-    ("MarginalRF", {"knn_k": None, "graph_type": "mst",
+    ("CoBP-RA", {"knn_k": None, "graph_type": "mst",
                     "col_correction_alpha": 0.5, "col_correction_mode": "global"},
-     "MarginalRF_col_alpha0.5_global"),
+     "CoBP-RA_col_alpha0.5_global"),
 
-    ("MarginalRF", {"knn_k": None, "graph_type": "mst",
+    ("CoBP-RA", {"knn_k": None, "graph_type": "mst",
                     "col_correction_alpha": 1.0, "col_correction_mode": "global"},
-     "MarginalRF_col_alpha1_global"),
+     "CoBP-RA_col_alpha1_global"),
 
     # KNN (local) column correction — requires knn_k for local marginal computation
     # Note: knn_k=100 also enables local row-wise PMI.
-    ("MarginalRF", {"knn_k": 100, "graph_type": "mst",
+    ("CoBP-RA", {"knn_k": 100, "graph_type": "mst",
                     "col_correction_alpha": 0.5, "col_correction_mode": "knn"},
-     "MarginalRF_col_alpha0.5_knn"),
+     "CoBP-RA_col_alpha0.5_knn"),
 ]
 
 
@@ -365,7 +365,7 @@ def _print_summary(rows: list[dict]):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Column-correction ablation sweep for MarginalRF.")
+    parser = argparse.ArgumentParser(description="Column-correction ablation sweep for CoBP-RA.")
     parser.add_argument("--dry-run",      action="store_true", help="Print job list and exit.")
     parser.add_argument("--serial",       action="store_true", help="Run sequentially in the main process.")
     parser.add_argument("--workers",      type=int, default=N_WORKERS, help="Parallel workers.")
@@ -394,7 +394,7 @@ def main():
         f"{'='*80}\n"
         f"  Column-correction ablation sweep\n"
         f"  Datasets:    adult 1k + adult 10k\n"
-        f"  Configs:     {len(ATTACK_CONFIGS)} MarginalRF variants\n"
+        f"  Configs:     {len(ATTACK_CONFIGS)} CoBP-RA variants\n"
         f"  Jobs total:  {len(all_jobs)}\n"
         f"  Workers:     {args.workers}\n"
         f"  WandB group: {WANDB_GROUP}\n"

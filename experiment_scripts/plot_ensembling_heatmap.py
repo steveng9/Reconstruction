@@ -44,8 +44,8 @@ ATTACK_ORDER = [
     "RandomForest",
     "LightGBM",
     "MLP",
-    "TabDDPM",
-    "PartialMSTBounded",
+    "CondDDPM",
+    "CondMSTBounded",
 ]
 
 SHORT_LABELS = {
@@ -57,8 +57,9 @@ SHORT_LABELS = {
     "RandomForest":       "RF",
     "LightGBM":           "LGB",
     "MLP":                "MLP",
-    "PartialMSTBounded":  "PartMST",
-    "Attention":          "Attn",
+    "CondMSTBounded":     "CondMST",
+    "CondDDPM":           "CondDDPM",
+    "ARFFormer":          "Attn",
     "SVM":                "SVM",
 }
 
@@ -119,97 +120,188 @@ def build_matrix(df: pd.DataFrame, attacks: list[str], diff: bool
     return matrix, delta
 
 
-def plot_heatmap(matrix: np.ndarray, delta: np.ndarray, attacks: list[str],
-                 diff: bool, title: str, out_path: str | None):
-    n = len(attacks)
-    labels = [SHORT_LABELS.get(a, a) for a in attacks]
-
-    plot_data = delta if diff else matrix
-
-    # Mask: NaN cells (missing data) shown in light grey
+def _heatmap_scales(plot_data: np.ndarray, n: int, diff: bool):
     mask = np.isnan(plot_data)
-
-    fig, ax = plt.subplots(figsize=(max(7, n * 0.85), max(6, n * 0.75)))
-
     if diff:
-        vmin, vmax = -0.05, 0.05
-        cmap = "RdYlGn"
-        cbar_label = "Ensemble gain over best individual (RA pp)"
+        off_diag = plot_data[~np.eye(n, dtype=bool) & ~mask]
+        actual_min = off_diag.min() if off_diag.size else -1.0
+        actual_max = off_diag.max() if off_diag.size else 0.0
+        vmin = float(np.floor(actual_min))
+        vmax = max(float(np.ceil(actual_max)), 1.0)
+        cmap, fmt = "RdYlGn", "+.1f"
+        cbar_label = "Gain over best individual (RA pp)"
     else:
         finite = plot_data[~mask]
         vmin = finite.min() if finite.size else 0.0
         vmax = finite.max() if finite.size else 1.0
-        cmap = "YlOrRd"
-        cbar_label = "Mean RA (avg over samples × SDG)"
+        cmap, fmt = "YlOrRd", ".1f"
+        cbar_label = "Mean RA (%)"
+    return vmin, vmax, cmap, fmt, cbar_label
+
+
+def _draw_panel(ax, cbar_ax, matrix: np.ndarray, delta: np.ndarray,
+                attacks: list[str], diff: bool, title: str, show_xlabel: bool,
+                show_xticks: bool = True):
+    """Draw one heatmap panel onto the provided axes."""
+    n = len(attacks)
+    labels = [SHORT_LABELS.get(a, a) for a in attacks]
+    plot_data = delta if diff else matrix
+    mask = np.isnan(plot_data)
+    vmin, vmax, cmap, fmt, cbar_label = _heatmap_scales(plot_data, n, diff)
 
     sns.heatmap(
-        plot_data,
-        mask=mask,
-        ax=ax,
-        vmin=vmin, vmax=vmax,
-        cmap=cmap,
-        annot=True,
-        fmt=".1f",
-        annot_kws={"size": 8},
-        linewidths=0.4,
-        linecolor="white",
-        square=True,
-        cbar_kws={"label": cbar_label, "shrink": 0.8},
-        xticklabels=labels,
-        yticklabels=labels,
+        plot_data, mask=mask, ax=ax,
+        vmin=vmin, vmax=vmax, cmap=cmap,
+        annot=True, fmt=fmt, annot_kws={"size": 9},
+        linewidths=0.4, linecolor="white", square=True,
+        cbar=True, cbar_ax=cbar_ax,
+        cbar_kws={"label": cbar_label},
+        xticklabels=labels, yticklabels=labels,
     )
-
-    # Highlight diagonal cells (individual attacks) with a border
     for i in range(n):
         if not np.isnan(plot_data[i, i]):
             ax.add_patch(mpatches.Rectangle(
-                (i, i), 1, 1,
-                fill=False, edgecolor="black", lw=2.5, clip_on=False,
+                (i, i), 1, 1, fill=False, edgecolor="black", lw=2.5, clip_on=False,
             ))
+    ax.set_title(title, fontsize=22, pad=14)
+    ax.set_ylabel("Attack A", fontsize=18)
+    ax.set_xlabel("Attack B" if show_xlabel else "", fontsize=18)
+    if show_xticks:
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=40, ha="right", fontsize=16)
+    else:
+        ax.set_xticklabels([])
+    ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=16)
+    cbar_ax.tick_params(labelsize=14)
+    cbar_ax.yaxis.label.set_size(15)
 
-    ax.set_title(title, fontsize=13, pad=12)
-    ax.set_xlabel("Attack B", fontsize=11)
-    ax.set_ylabel("Attack A", fontsize=11)
-    ax.tick_params(axis="x", rotation=45)
-    ax.tick_params(axis="y", rotation=0)
-
-    # Legend note for diagonal
     diag_patch = mpatches.Patch(facecolor="none", edgecolor="black",
-                                linewidth=2, label="Diagonal = individual attack score")
-    ax.legend(handles=[diag_patch], loc="upper left",
-              bbox_to_anchor=(1.18, 1), borderaxespad=0, fontsize=9)
+                                linewidth=2, label="Diagonal = individual score")
+    cbar_ax.legend(handles=[diag_patch], loc="upper left",
+                   bbox_to_anchor=(-0.3, -0.04), borderaxespad=0, fontsize=14,
+                   frameon=True)
 
-    plt.tight_layout()
 
+def plot_heatmap(matrix: np.ndarray, delta: np.ndarray, attacks: list[str],
+                 diff: bool, title: str, out_path: str | None):
+    n = len(attacks)
+    fig, ax = plt.subplots(figsize=(max(7, n * 0.85), max(6, n * 0.75)))
+    fig.subplots_adjust(right=0.78)
+    cbar_ax = fig.add_axes([0.80, 0.15, 0.03, 0.7])
+    _draw_panel(ax, cbar_ax, matrix, delta, attacks, diff, title, show_xlabel=True)
     if out_path:
         plt.savefig(out_path, dpi=200, bbox_inches="tight")
         print(f"Saved to {out_path}")
     else:
         plt.show()
+    plt.close(fig)
+
+
+def plot_combined(panels: list[tuple[np.ndarray, np.ndarray, list[str], bool, str]],
+                  out_path: str):
+    """Stack multiple heatmap panels vertically in a single figure."""
+    import matplotlib.gridspec as gridspec
+
+    n_panels = len(panels)
+    n_attacks = len(panels[0][2])
+    cell_size      = 0.42                     # inches per heatmap cell
+    heatmap_side   = n_attacks * cell_size    # e.g. 3.78 in for 9 attacks
+    left_margin    = 1.8                      # room for 16pt y-tick labels
+    right_margin   = 3.2                      # colorbar + legend
+    top_margin     = 0.65                     # title above heatmap
+    bot_margin_xt  = 0.95                     # bottom panel: room for rotated x-ticks
+    bot_margin_no  = 0.10                     # other panels: no x-tick labels
+    gap_inches     = 0.15                     # breathing room between panels (for titles)
+
+    fig_w = left_margin + heatmap_side + right_margin
+
+    # Per-panel heights
+    panel_heights = [
+        top_margin + heatmap_side + (bot_margin_xt if i == n_panels - 1 else bot_margin_no)
+        for i in range(n_panels)
+    ]
+    total_h = sum(panel_heights) + gap_inches * (n_panels - 1)
+
+    fig = plt.figure(figsize=(fig_w, total_h))
+
+    hm_left  = left_margin / fig_w
+    hm_right = (left_margin + heatmap_side) / fig_w
+    cb_left  = (left_margin + heatmap_side + 0.25) / fig_w
+    cb_w     = 0.28 / fig_w
+
+    # Build bottom positions from the bottom up
+    bottoms = []
+    y = 0.0
+    for i in range(n_panels - 1, -1, -1):
+        bottoms.insert(0, y)
+        y += panel_heights[i] + gap_inches
+    bottoms = [b / total_h for b in bottoms]
+
+    for p_idx, (matrix, delta, attacks, diff, title) in enumerate(panels):
+        is_bottom  = (p_idx == n_panels - 1)
+        bot_margin = bot_margin_xt if is_bottom else bot_margin_no
+        bot        = bottoms[p_idx]
+        hm_h       = heatmap_side / total_h
+        hm_bot     = bot + bot_margin / total_h
+
+        ax      = fig.add_axes([hm_left, hm_bot, hm_right - hm_left, hm_h])
+        cbar_ax = fig.add_axes([cb_left, hm_bot + hm_h * 0.10,
+                                cb_w, hm_h * 0.78])
+
+        _draw_panel(ax, cbar_ax, matrix, delta, attacks, diff, title,
+                    show_xlabel=is_bottom, show_xticks=is_bottom)
+
+    plt.savefig(out_path, dpi=200, bbox_inches="tight")
+    print(f"Saved combined to {out_path}")
+    plt.close(fig)
+
+
+COMBINED_PANELS = [
+    # (sdg_filter, title)
+    (None,        "All SDG methods (average)"),
+    ("TabDDPM",   "TabDDPM"),
+    ("MST_eps10", "MST ($\\varepsilon=10$)"),
+    ("TVAE",      "TVAE"),
+]
+
+
+def _resolve_attacks(df: pd.DataFrame) -> list[str]:
+    present = set(df.loc[df["type"] == "individual", "attack"].unique())
+    attacks = [a for a in ATTACK_ORDER if a in present]
+    for a in sorted(present - set(attacks)):
+        attacks.append(a)
+    return attacks
 
 
 def main():
     parser = argparse.ArgumentParser(description="Plot ensembling heatmap.")
     parser.add_argument("csv", help="CSV produced by run_ensembling_heatmap.py")
     parser.add_argument("--sdg",  default=None,
-                        help="Filter to rows whose 'sdg' column starts with this string "
-                             "(e.g. 'TabDDPM', 'MST_eps1'). Default: average over all SDG methods.")
+                        help="Filter to rows whose 'sdg' column starts with this string.")
     parser.add_argument("--diff", action="store_true",
                         help="Show ensemble gain over best individual instead of raw RA.")
     parser.add_argument("--out",  default=None,
                         help="Output file path (PDF/PNG). Omit to show interactively.")
-    parser.add_argument("--title", default=None,
-                        help="Custom plot title.")
+    parser.add_argument("--title", default=None, help="Custom plot title.")
+    parser.add_argument("--combined", action="store_true",
+                        help="Produce one PDF with all 5 SDG panels stacked vertically.")
     args = parser.parse_args()
 
-    df = load_results(args.csv, args.sdg)
+    full_df = pd.read_csv(args.csv)
 
-    # Determine which attacks are actually present in the CSV
-    present_indiv = set(df.loc[df["type"] == "individual", "attack"].unique())
-    attacks = [a for a in ATTACK_ORDER if a in present_indiv]
-    # Append any attacks in the CSV but not in ATTACK_ORDER
-    for a in sorted(present_indiv - set(attacks)):
-        attacks.append(a)
+    if args.combined:
+        if not args.out:
+            sys.exit("ERROR: --combined requires --out")
+        panels = []
+        for sdg_filter, title in COMBINED_PANELS:
+            df = load_results(args.csv, sdg_filter)
+            attacks = _resolve_attacks(df)
+            matrix, delta = build_matrix(df, attacks, diff=args.diff)
+            panels.append((matrix, delta, attacks, args.diff, title))
+        plot_combined(panels, args.out)
+        return
+
+    df = load_results(args.csv, args.sdg)
+    attacks = _resolve_attacks(df)
 
     if len(attacks) < 2:
         sys.exit("ERROR: need at least 2 attacks in the CSV to plot a heatmap.")
@@ -217,11 +309,7 @@ def main():
     matrix, delta = build_matrix(df, attacks, diff=args.diff)
 
     sdg_str = f" — {args.sdg}" if args.sdg else " — all SDG methods"
-    title = args.title or (
-        f"Ensemble heatmap{sdg_str}\n"
-        f"{'Gain over best individual (RA pp)' if args.diff else 'Mean RA (avg over samples)'}"
-    )
-
+    title = args.title or f"Ensemble heatmap{sdg_str}"
     plot_heatmap(matrix, delta, attacks, diff=args.diff, title=title, out_path=args.out)
 
 

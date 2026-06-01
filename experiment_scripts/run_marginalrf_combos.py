@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-MarginalRF combination variants sweep.
+CoBP-RA combination variants sweep.
 
 Builds on the individual-variant findings from run_marginalrf_variants.py:
 
@@ -9,13 +9,13 @@ Builds on the individual-variant findings from run_marginalrf_variants.py:
 
 This sweep tests:
 
-  MarginalRF_QIGraph_EntropyBP       — both best variants combined (RF unary)
-  MarginalRF_QIGraph_AllQI           — QI graph with no cardinality limit on QI
+  CoBP-RA_QIGraph_EntropyBP       — both best variants combined (RF unary)
+  CoBP-RA_QIGraph_AllQI           — QI graph with no cardinality limit on QI
                                        features (includes e.g. age=73 for adult,
                                        which is excluded at the default threshold=50)
-  MarginalRF_QIGraph_EntropyBP_AllQI — combo: QIGraph + EntropyBP + all QI features
+  CoBP-RA_QIGraph_EntropyBP_AllQI — combo: QIGraph + EntropyBP + all QI features
 
-The baseline MarginalRF is intentionally NOT re-run; use the NB-variants sweep
+The baseline CoBP-RA is intentionally NOT re-run; use the NB-variants sweep
 results for comparison (same dataset/samples, consistent randomness).
 
 Dataset: adult 10k, QI1, samples 00–04, 5 SDGs.
@@ -26,7 +26,7 @@ Usage (from repo root):
     python experiment_scripts/run_marginalrf_combos.py
     python experiment_scripts/run_marginalrf_combos.py --dry-run
     python experiment_scripts/run_marginalrf_combos.py --workers 4
-    python experiment_scripts/run_marginalrf_combos.py --attack MarginalRF_QIGraph_EntropyBP
+    python experiment_scripts/run_marginalrf_combos.py --attack CoBP-RA_QIGraph_EntropyBP
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ SDG_METHODS = [
 
 # ── Attack configurations ──────────────────────────────────────────────────────
 
-_MRF = ATTACK_PARAM_DEFAULTS["MarginalRF"]
+_MRF = ATTACK_PARAM_DEFAULTS["CoBP-RA"]
 
 ATTACK_CONFIGS = [
     # ── Combo: QIGraph + EntropyBP ────────────────────────────────────────
@@ -81,12 +81,12 @@ ATTACK_CONFIGS = [
     # adds explicit QI certainty propagation. Hypothesis: the two are orthogonal
     # improvements that compound.
     (
-        "MarginalRF_QIGraph_EntropyBP",
-        "MarginalRF",
+        "CoBP-RA_QIGraph_EntropyBP",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": {**dict(_MRF),
+            "CoBP-RA": {**dict(_MRF),
                            "qi_in_graph":      True,
                            "entropy_weighted": True},
         },
@@ -99,12 +99,12 @@ ATTACK_CONFIGS = [
     # Hypothesis: age carries strong direct signal for hidden features (income,
     # occupation) that BP can propagate even without it being in the unary QI.
     (
-        "MarginalRF_QIGraph_AllQI",
-        "MarginalRF",
+        "CoBP-RA_QIGraph_AllQI",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": {**dict(_MRF),
+            "CoBP-RA": {**dict(_MRF),
                            "qi_in_graph":       True,
                            "max_qi_cardinality": 10_000},
         },
@@ -113,12 +113,12 @@ ATTACK_CONFIGS = [
     # ── Combo: QIGraph + EntropyBP + all QI features ──────────────────────
     # Full combination: every QI feature in the graph, entropy-weighted messages.
     (
-        "MarginalRF_QIGraph_EntropyBP_AllQI",
-        "MarginalRF",
+        "CoBP-RA_QIGraph_EntropyBP_AllQI",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": {**dict(_MRF),
+            "CoBP-RA": {**dict(_MRF),
                            "qi_in_graph":       True,
                            "entropy_weighted":  True,
                            "max_qi_cardinality": 10_000},
@@ -243,7 +243,7 @@ def run_job(job: Job) -> dict[str, Any]:
 
     prepared = _prepare_config(cfg)
 
-    mrf_params = job.attack_params.get("MarginalRF", {})
+    mrf_params = job.attack_params.get("CoBP-RA", {})
     wandb_cfg = {
         "sample_idx":        job.sample_idx,
         "dataset":           DATASET_NAME,
@@ -355,7 +355,7 @@ def _print_summary(rows: list[dict]):
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="MarginalRF combination variants sweep.")
+    parser = argparse.ArgumentParser(description="CoBP-RA combination variants sweep.")
     parser.add_argument("--dry-run",      action="store_true")
     parser.add_argument("--serial",       action="store_true",
                         help="Run in main process (Ctrl-C killable).")
@@ -376,7 +376,7 @@ def main():
 
     header = (
         f"{'='*80}\n"
-        f"  MarginalRF combination variants sweep\n"
+        f"  CoBP-RA combination variants sweep\n"
         f"  Dataset:  {DATASET_NAME} {DATASET_SIZE}\n"
         f"  Configs:  {len(ATTACK_CONFIGS)} variants\n"
         f"  SDGs:     {len(SDG_METHODS)}\n"

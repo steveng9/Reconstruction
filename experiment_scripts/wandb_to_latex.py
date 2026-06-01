@@ -67,13 +67,13 @@ SDG_ORDER = [
 # Maps old attack label names → current canonical names.
 # Applied at fetch time so deduplication (keep most-recent) drops older partial runs.
 LABEL_REMAP: dict[str, str] = {
-    "MarginalRF_global":       "MarginalRF_mst_global",
-    "MarginalRF_local_k50":    "MarginalRF_mst_local_50",
-    "MarginalRF_local_k100":   "MarginalRF_mst_local_100",
-    "MarginalRF_local_k200":   "MarginalRF_mst_local_200",
-    "MarginalRF_mst_local":    "MarginalRF_mst_local_100",
-    "MarginalRF_complete_local": "MarginalRF_complete_local_100",
-    "MarginalRF_topk_local":   "MarginalRF_topk_local_100",
+    "CoBP-RA_global":       "CoBP-RA_mst_global",
+    "CoBP-RA_local_k50":    "CoBP-RA_mst_local_50",
+    "CoBP-RA_local_k100":   "CoBP-RA_mst_local_100",
+    "CoBP-RA_local_k200":   "CoBP-RA_mst_local_200",
+    "CoBP-RA_mst_local":    "CoBP-RA_mst_local_100",
+    "CoBP-RA_complete_local": "CoBP-RA_complete_local_100",
+    "CoBP-RA_topk_local":   "CoBP-RA_topk_local_100",
 }
 
 # Attack groups control row ordering and \midrule placement.
@@ -82,21 +82,21 @@ ATTACK_GROUPS = [
     ("Baselines",      ["Mode", "Random", "MeasureDeid"]),
     ("ML Classifiers", ["KNN", "NaiveBayes", "LogisticRegression", "SVM",
                         "RandomForest", "LightGBM"]),
-    ("Neural",         ["MLP", "Attention", "AttentionAutoregressive"]),
-    ("Partial SDG",      ["TabDDPM", "TabDDPMWithMLP", "ConditionedRePaint", "RePaint", "PartialMST", "PartialMSTIndependent", "PartialMSTBounded"]),
+    ("Neural",         ["MLP", "ARFFormer", "ARFFormerAutoregressive"]),
+    ("Partial SDG",      ["CondDDPM", "CondDDPMWithMLP", "CondRePaint", "RePaint", "CondMST", "CondMSTIndependent", "CondMSTBounded"]),
     ("SOTA",           ["LinearReconstruction"]),
     ("New Attacks",    ["TabPFN",
-                        "MarginalRF_mst_global",
-                        "MarginalRF_mst_local_50",
-                        "MarginalRF_mst_local_100",
-                        "MarginalRF_mst_local_200",
-                        "MarginalRF_complete_local_100",
-                        "MarginalRF_topk_local_100",
-                        "MarginalRF_complete_global",
-                        "MarginalRF_col_alpha0",
-                        "MarginalRF_col_alpha0.5_global",
-                        "MarginalRF_col_alpha1_global",
-                        "MarginalRF_col_alpha0.5_knn"]),
+                        "CoBP-RA_mst_global",
+                        "CoBP-RA_mst_local_50",
+                        "CoBP-RA_mst_local_100",
+                        "CoBP-RA_mst_local_200",
+                        "CoBP-RA_complete_local_100",
+                        "CoBP-RA_topk_local_100",
+                        "CoBP-RA_complete_global",
+                        "CoBP-RA_col_alpha0",
+                        "CoBP-RA_col_alpha0.5_global",
+                        "CoBP-RA_col_alpha1_global",
+                        "CoBP-RA_col_alpha0.5_knn"]),
 ]
 
 ATTACK_DISPLAY: dict[str, str] = {
@@ -110,29 +110,29 @@ ATTACK_DISPLAY: dict[str, str] = {
     "RandomForest":            "Random Forest",
     "LightGBM":                "LightGBM",
     "MLP":                     r"\textsc{mlp}",
-    "Attention":               "Attention",
-    "AttentionAutoregressive": "Attention (AR)",
-    "TabDDPM":                 "TabDDPM",
-    "ConditionedRePaint":      r"Cond.\ RePaint",
-    "TabDDPMWithMLP":         r"TabDDPM+MLP",
+    "ARFFormer":               "ARFFormer",
+    "ARFFormerAutoregressive": "ARFFormer (AR)",
+    "CondDDPM":                "CondDDPM",
+    "CondRePaint":      r"CondRePaint",
+    "CondDDPMWithMLP":         r"CondDDPM+MLP",
     #"RePaint":                 "RePaint",
     "LinearReconstruction":    "Linear Recon.",
-    "PartialMST":              "MST",
-    "PartialMSTIndependent":   "MST (1 ft./time)",
-    "PartialMSTBounded":       "MST, k=3",
+    "CondMST":              "CondMST",
+    "CondMSTIndependent":   "CondMST (indep.)",
+    "CondMSTBounded":       "CondMST, k=3",
     "TabPFN":                      "TabPFN",
-    "MarginalRF_mst_global":       r"MarginalRF (MST, global)",
-    "MarginalRF_mst_local_50":     r"MarginalRF (MST, local $k$=50)",
-    "MarginalRF_mst_local_100":    r"MarginalRF (MST, local $k$=100)",
-    "MarginalRF_mst_local_200":    r"MarginalRF (MST, local $k$=200)",
-    "MarginalRF_complete_local_100": r"MarginalRF (complete, local $k$=100)",
-    "MarginalRF_topk_local_100":   r"MarginalRF (top-$k$, local $k$=100)",
-    "MarginalRF_complete_global":  r"MarginalRF (complete, global)",
+    "CoBP-RA_mst_global":       r"CoBP-RA (MST, global)",
+    "CoBP-RA_mst_local_50":     r"CoBP-RA (MST, local $k$=50)",
+    "CoBP-RA_mst_local_100":    r"CoBP-RA (MST, local $k$=100)",
+    "CoBP-RA_mst_local_200":    r"CoBP-RA (MST, local $k$=200)",
+    "CoBP-RA_complete_local_100": r"CoBP-RA (complete, local $k$=100)",
+    "CoBP-RA_topk_local_100":   r"CoBP-RA (top-$k$, local $k$=100)",
+    "CoBP-RA_complete_global":  r"CoBP-RA (complete, global)",
     # Column-correction ablation
-    "MarginalRF_col_alpha0":          r"MarginalRF+col ($\alpha{=}0$, baseline)",
-    "MarginalRF_col_alpha0.5_global": r"MarginalRF+col ($\alpha{=}0.5$, global)",
-    "MarginalRF_col_alpha1_global":   r"MarginalRF+col ($\alpha{=}1$, global)",
-    "MarginalRF_col_alpha0.5_knn":    r"MarginalRF+col ($\alpha{=}0.5$, knn)",
+    "CoBP-RA_col_alpha0":          r"CoBP-RA+col ($\alpha{=}0$, baseline)",
+    "CoBP-RA_col_alpha0.5_global": r"CoBP-RA+col ($\alpha{=}0.5$, global)",
+    "CoBP-RA_col_alpha1_global":   r"CoBP-RA+col ($\alpha{=}1$, global)",
+    "CoBP-RA_col_alpha0.5_knn":    r"CoBP-RA+col ($\alpha{=}0.5$, knn)",
 }
 
 DATASET_DISPLAY: dict[str, str] = {
@@ -407,7 +407,7 @@ def main():
     parser.add_argument("--decimals", type=int, default=3,
                         help="Decimal places for table values (default: 3).")
     parser.add_argument("--attacks", nargs="+", default=None, metavar="ATTACK",
-                        help="Only include these attack methods (e.g. --attacks PartialMST PartialMSTBounded).")
+                        help="Only include these attack methods (e.g. --attacks CondMST CondMSTBounded).")
     parser.add_argument("--dataset", default=None,
                         help="Filter to this dataset name (overrides DATASET constant at top of file; "
                              "use 'all' to disable filtering).")
@@ -455,7 +455,7 @@ def main():
             # had no 'dataset' column (old single-dataset files that predate the column).
             df = df[(df["dataset"] == args.dataset) | df["dataset"].isna()]
         # Prefer 'label' over 'attack' when the CSV has a label column (e.g. new-attacks
-        # sweep where multiple MarginalRF variants share the same attack_method).
+        # sweep where multiple CoBP-RA variants share the same attack_method).
         if "label" in df.columns:
             mask = df["label"].notna() & (df["label"].astype(str).str.strip() != "")
             df.loc[mask, "attack"] = df.loc[mask, "label"]

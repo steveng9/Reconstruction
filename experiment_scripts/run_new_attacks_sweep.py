@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
-MarginalRF sweep across all datasets and sizes.
+CoBP-RA sweep across all datasets and sizes.
 
-Runs MarginalRF (default params: knn_k=100, graph_type="mst") on every dataset
+Runs CoBP-RA (default params: knn_k=100, graph_type="mst") on every dataset
 and sample size where synth data is available, 5 samples each.  Baseline RF
 results are assumed to already exist in WandB from earlier sweeps.
 
@@ -15,7 +15,7 @@ Datasets covered
   nist_arizona   10k/25feat QI1 (5 MST + 2 AIM + 7 other SDGs)
   adult           20k   QI1   (9 MST + 4 AIM + 7 other SDGs) — submitted last
 
-california is excluded (MarginalRF is categorical-only; california is continuous).
+california is excluded (CoBP-RA is categorical-only; california is continuous).
 
 Usage (from repo root):
     conda activate recon_
@@ -221,10 +221,10 @@ SAMPLE_RANGE = list(range(5))   # sample_00 through sample_04
 # display_label: leave "" to use attack_method directly.
 #
 # Using default params (knn_k=100, graph_type="mst") — validated as the best
-# MarginalRF configuration from the adult 1k ablation.
+# CoBP-RA configuration from the adult 1k ablation.
 
 ATTACK_CONFIGS = [
-    ("MarginalRF", {}, ""),
+    ("CoBP-RA", {}, ""),
 ]
 
 
@@ -476,7 +476,7 @@ def _print_summary(rows: list[dict]):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="MarginalRF sweep across all datasets.")
+    parser = argparse.ArgumentParser(description="CoBP-RA sweep across all datasets.")
     parser.add_argument("--dry-run",    action="store_true", help="Print job list and exit.")
     parser.add_argument("--serial",     action="store_true", help="Run sequentially in the main process.")
     parser.add_argument("--workers",    type=int,  default=N_WORKERS,  help="Parallel workers.")
@@ -504,7 +504,7 @@ def main():
     )
     header = (
         f"{'='*80}\n"
-        f"  MarginalRF all-datasets sweep\n"
+        f"  CoBP-RA all-datasets sweep\n"
         f"  Datasets:    {dataset_summary}\n"
         f"  Jobs total:  {len(all_jobs)}\n"
         f"  Workers:     {args.workers}\n"

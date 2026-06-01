@@ -62,9 +62,9 @@ def apply_chaining(attack_fn, cfg, synth, targets, qi, hidden_features):
         else:
             attack_method = cfg.get("attack_method", "")
 
-            # MarginalRF has a dedicated soft-chaining path that keeps the BP
+            # CoBP-RA has a dedicated soft-chaining path that keeps the BP
             # running over the remaining features at each step.
-            if attack_method == "MarginalRF":
+            if attack_method == "CoBP-RA":
                 from attacks.marginal_rf import marginal_rf_soft_chained_reconstruction
                 return marginal_rf_soft_chained_reconstruction(
                     cfg, synth, targets, qi, hidden_features, chain_order=order

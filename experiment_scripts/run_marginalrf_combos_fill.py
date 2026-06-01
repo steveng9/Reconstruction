@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
-MarginalRF combination variants sweep — FILL-IN RUN.
+CoBP-RA combination variants sweep — FILL-IN RUN.
 
-Fills the missing cells in Table 1 for the QI-graph MarginalRF variants.
+Fills the missing cells in Table 1 for the QI-graph CoBP-RA variants.
 The original run_marginalrf_combos.py covered 5 SDGs:
     MST eps1, MST eps10, TVAE, Synthpop, TabDDPM
 
@@ -63,38 +63,38 @@ SDG_METHODS = [
 
 # ── Attack configurations (same 3 as original combos run) ─────────────────────
 
-_MRF = ATTACK_PARAM_DEFAULTS["MarginalRF"]
+_MRF = ATTACK_PARAM_DEFAULTS["CoBP-RA"]
 
 ATTACK_CONFIGS = [
     (
-        "MarginalRF_QIGraph_EntropyBP",
-        "MarginalRF",
+        "CoBP-RA_QIGraph_EntropyBP",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": {**dict(_MRF),
+            "CoBP-RA": {**dict(_MRF),
                            "qi_in_graph":      True,
                            "entropy_weighted": True},
         },
     ),
     (
-        "MarginalRF_QIGraph_AllQI",
-        "MarginalRF",
+        "CoBP-RA_QIGraph_AllQI",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": {**dict(_MRF),
+            "CoBP-RA": {**dict(_MRF),
                            "qi_in_graph":       True,
                            "max_qi_cardinality": 10_000},
         },
     ),
     (
-        "MarginalRF_QIGraph_EntropyBP_AllQI",
-        "MarginalRF",
+        "CoBP-RA_QIGraph_EntropyBP_AllQI",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": {**dict(_MRF),
+            "CoBP-RA": {**dict(_MRF),
                            "qi_in_graph":       True,
                            "entropy_weighted":  True,
                            "max_qi_cardinality": 10_000},
@@ -217,7 +217,7 @@ def run_job(job: Job) -> dict[str, Any]:
 
     prepared = _prepare_config(cfg)
 
-    mrf_params = job.attack_params.get("MarginalRF", {})
+    mrf_params = job.attack_params.get("CoBP-RA", {})
     wandb_cfg = {
         "sample_idx":         job.sample_idx,
         "dataset":            DATASET_NAME,
@@ -331,7 +331,7 @@ def _print_summary(rows: list[dict]):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="MarginalRF combos fill-in: 7 missing SDG methods.")
+        description="CoBP-RA combos fill-in: 7 missing SDG methods.")
     parser.add_argument("--dry-run",      action="store_true")
     parser.add_argument("--serial",       action="store_true",
                         help="Run in main process (Ctrl-C killable).")
@@ -356,7 +356,7 @@ def main():
 
     header = (
         f"{'='*80}\n"
-        f"  MarginalRF combos fill-in sweep\n"
+        f"  CoBP-RA combos fill-in sweep\n"
         f"  Dataset:  {DATASET_NAME} {DATASET_SIZE}\n"
         f"  Configs:  {n_attack} variants\n"
         f"  SDGs:     {n_sdg} (fill-in)\n"

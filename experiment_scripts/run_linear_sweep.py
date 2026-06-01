@@ -114,14 +114,14 @@ ATTACK_CONFIGS = [
     # ── TabPFN (in-context learning) ──────────────────────────────────────────
     ("TabPFN",  {},  ""),
 
-    # ── MarginalRF: PMI mode (global vs local) × graph structure ──────────────
-    ("MarginalRF",  {"knn_k": None,  "graph_type": "mst"},       "MarginalRF_mst_global"),
-    ("MarginalRF",  {"knn_k": 50,    "graph_type": "mst"},       "MarginalRF_mst_local_50"),
-    ("MarginalRF",  {"knn_k": 100,   "graph_type": "mst"},       "MarginalRF_mst_local_100"),
-    ("MarginalRF",  {"knn_k": 200,   "graph_type": "mst"},       "MarginalRF_mst_local_200"),
-    ("MarginalRF",  {"knn_k": 100,   "graph_type": "complete"},  "MarginalRF_complete_local_100"),
-    ("MarginalRF",  {"knn_k": 100,   "graph_type": "topk"},      "MarginalRF_topk_local_100"),
-    ("MarginalRF",  {"knn_k": None,  "graph_type": "complete"},  "MarginalRF_complete_global"),
+    # ── CoBP-RA: PMI mode (global vs local) × graph structure ──────────────
+    ("CoBP-RA",  {"knn_k": None,  "graph_type": "mst"},       "CoBP-RA_mst_global"),
+    ("CoBP-RA",  {"knn_k": 50,    "graph_type": "mst"},       "CoBP-RA_mst_local_50"),
+    ("CoBP-RA",  {"knn_k": 100,   "graph_type": "mst"},       "CoBP-RA_mst_local_100"),
+    ("CoBP-RA",  {"knn_k": 200,   "graph_type": "mst"},       "CoBP-RA_mst_local_200"),
+    ("CoBP-RA",  {"knn_k": 100,   "graph_type": "complete"},  "CoBP-RA_complete_local_100"),
+    ("CoBP-RA",  {"knn_k": 100,   "graph_type": "topk"},      "CoBP-RA_topk_local_100"),
+    ("CoBP-RA",  {"knn_k": None,  "graph_type": "complete"},  "CoBP-RA_complete_global"),
 ]
 
 SAMPLE_RANGE  = list(range(5))   # samples 00–04; holdout is (idx+1)%5

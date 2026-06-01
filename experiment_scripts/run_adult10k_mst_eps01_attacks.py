@@ -17,12 +17,12 @@ Why only MST eps=0.1?
 Attacks included (all Table 1 attacks except SVM, which is O(n²) at n=10k):
   Baselines:   Mode, Random, MeasureDeid
   ML:          KNN, NaiveBayes, LogisticRegression, RandomForest, LightGBM
-  Neural:      MLP, Attention
-  Diffusion:   TabDDPM (retrain=True), ConditionedRePaint (retrain=True),
-               TabDDPMWithMLP (retrain=True)
-  PartialMST:  PartialMST (retrain=True), PartialMSTIndependent (retrain=True),
-               PartialMSTBounded k=3 (retrain=True)
-  MarginalRF:  MarginalRF, MarginalRF (QI graph), MarginalRF (QI+entropy BP)
+  Neural:      MLP, ARFFormer
+  Diffusion:   CondDDPM (retrain=True), CondRePaint (retrain=True),
+               CondDDPMWithMLP (retrain=True)
+  CondMST:  CondMST (retrain=True), CondMSTIndependent (retrain=True),
+               CondMSTBounded k=3 (retrain=True)
+  CoBP-RA:  CoBP-RA, CoBP-RA (QI graph), CoBP-RA (QI+entropy BP)
 
 WandB group: "mst-corrected-adult-10k"   (distinct from "main attack sweep 1")
 
@@ -65,10 +65,10 @@ QI_VARIANTS   = ["QI1"]
 
 SDG_METHODS   = [("MST", {"epsilon": 0.1})]   # only the corrected epsilon
 
-_MRF = ATTACK_PARAM_DEFAULTS.get("MarginalRF", {})
-_TAB = ATTACK_PARAM_DEFAULTS.get("TabDDPM", {})
-_REP = ATTACK_PARAM_DEFAULTS.get("ConditionedRePaint", {})
-_MLP = ATTACK_PARAM_DEFAULTS.get("TabDDPMWithMLP", {})
+_MRF = ATTACK_PARAM_DEFAULTS.get("CoBP-RA", {})
+_TAB = ATTACK_PARAM_DEFAULTS.get("CondDDPM", {})
+_REP = ATTACK_PARAM_DEFAULTS.get("CondRePaint", {})
+_MLP = ATTACK_PARAM_DEFAULTS.get("CondDDPMWithMLP", {})
 
 ATTACK_CONFIGS = [
     # ── Baselines ──────────────────────────────────────────────────────────
@@ -84,32 +84,32 @@ ATTACK_CONFIGS = [
     ("LightGBM",          "LightGBM",           {}),
     # ── Neural ─────────────────────────────────────────────────────────────
     ("MLP",               "MLP",               {}),
-    ("Attention",         "Attention",          {}),
+    ("ARFFormer",         "ARFFormer",          {}),
     # ── Diffusion (retrain=True because underlying synth changed) ──────────
-    # ORDERING: TabDDPM first so ConditionedRePaint can reuse its checkpoint.
+    # ORDERING: CondDDPM first so CondRePaint can reuse its checkpoint.
     # Both are set retrain=True to force fresh models on the new synth.
-    ("TabDDPM",           "TabDDPM",           {**_TAB, "retrain": True}),
-    ("ConditionedRePaint","ConditionedRePaint", {**_REP, "retrain": True}),
-    ("TabDDPMWithMLP",    "TabDDPMWithMLP",     {**_MLP, "retrain": True}),
-    # ── PartialMST (retrain=True: model fit on synth, must be redone) ──────
-    ("PartialMST",
-     "PartialMST",
-     {**ATTACK_PARAM_DEFAULTS.get("PartialMST", {}), "retrain": True}),
-    ("PartialMST_Indep",
-     "PartialMSTIndependent",
-     {**ATTACK_PARAM_DEFAULTS.get("PartialMSTIndependent", {}), "retrain": True}),
-    ("PartialMSTBounded_k3",
-     "PartialMSTBounded",
-     {**ATTACK_PARAM_DEFAULTS.get("PartialMSTBounded", {}), "retrain": True, "max_clique_size": 3}),
-    # ── MarginalRF ──────────────────────────────────────────────────────────
-    ("MarginalRF",
-     "MarginalRF",
+    ("CondDDPM",          "CondDDPM",          {**_TAB, "retrain": True}),
+    ("CondRePaint","CondRePaint", {**_REP, "retrain": True}),
+    ("CondDDPMWithMLP",    "CondDDPMWithMLP",     {**_MLP, "retrain": True}),
+    # ── CondMST (retrain=True: model fit on synth, must be redone) ──────
+    ("CondMST",
+     "CondMST",
+     {**ATTACK_PARAM_DEFAULTS.get("CondMST", {}), "retrain": True}),
+    ("CondMST_Indep",
+     "CondMSTIndependent",
+     {**ATTACK_PARAM_DEFAULTS.get("CondMSTIndependent", {}), "retrain": True}),
+    ("CondMSTBounded_k3",
+     "CondMSTBounded",
+     {**ATTACK_PARAM_DEFAULTS.get("CondMSTBounded", {}), "retrain": True, "max_clique_size": 3}),
+    # ── CoBP-RA ──────────────────────────────────────────────────────────
+    ("CoBP-RA",
+     "CoBP-RA",
      {**_MRF, "qi_in_graph": False, "entropy_weighted": False}),
-    ("MarginalRF_QIGraph",
-     "MarginalRF",
+    ("CoBP-RA_QIGraph",
+     "CoBP-RA",
      {**_MRF, "qi_in_graph": True, "entropy_weighted": False}),
-    ("MarginalRF_QIGraph_EntropyBP",
-     "MarginalRF",
+    ("CoBP-RA_QIGraph_EntropyBP",
+     "CoBP-RA",
      {**_MRF, "qi_in_graph": True, "entropy_weighted": True}),
 ]
 
@@ -284,7 +284,7 @@ def main():
     print(f"  Total jobs   : {len(jobs)}")
     print(f"  Attacks      : {sorted({j.attack_label for j in jobs})}")
     print(f"  SDG          : MST_eps0.1 (corrected, bin_continuous_as_ordinal=True)")
-    print(f"  NOTE: Diffusion attacks (TabDDPM/ConditionedRePaint/TabDDPMWithMLP)")
+    print(f"  NOTE: Diffusion attacks (CondDDPM/CondRePaint/CondDDPMWithMLP)")
     print(f"        train from scratch and take ~1-2 hrs per sample.")
 
     if args.dry_run:

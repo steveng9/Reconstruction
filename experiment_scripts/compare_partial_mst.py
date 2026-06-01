@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
-Compare PartialMST attack variants against baselines on nist_arizona_25feat.
+Compare CondMST attack variants against baselines on nist_arizona_25feat.
 
-Runs Mode, Random, RandomForest, PartialMST, and PartialMSTIndependent across
+Runs Mode, Random, RandomForest, CondMST, and CondMSTIndependent across
 all available samples for one or more SDG methods, then prints a per-attack
 summary table (mean RA averaged across samples and, optionally, SDG methods).
 
@@ -77,28 +77,28 @@ DEFAULT_SDG_METHODS = [
 ATTACKS = [
     ("Random",             "Random",                {}),
     ("RandomForest",       "RandomForest",          {}),
-    #("BoundedK4",          "PartialMSTBounded",     {"retrain": False, "max_clique_size": 4}),
-    #("BoundedK5",          "PartialMSTBounded",     {"retrain": False, "max_clique_size": 5}),
-    ("PartialMST",         "PartialMST",            {"retrain": False}),
-    ("PartialMST-argmax",  "PartialMST",            {"retrain": False, "sample_mode": "argmax"}),
-    #("PartialMST-top20",   "PartialMST",            {"retrain": False, "sample_mode": "top_pct", "top_pct": 20.0}),
-    ("BoundedK3",          "PartialMSTBounded",     {"retrain": False, "max_clique_size": 3}),
-    ("BoundedK3-top10%",    "PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 10.0}),
-    ("BoundedK3-top20%",    "PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 20.0}),
-    #("BoundedK3-top30%",    "PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 30.0}),
-    #("BoundedK3-top40%",    "PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 40.0}),
-    #("BoundedK3-top50%",    "PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 50.0}),
-    #("BoundedK3-top60%",    "PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 60.0}),
-    #("BoundedK3-argmax",   "PartialMSTBounded",     {"retrain": False, "sample_mode": "argmax", "max_clique_size": 3}),
-    ("BoundedK3-argmax",   "PartialMSTBounded",     {"retrain": False, "sample_mode": "argmax", "max_clique_size": 3}),
-    #("BoundedK4-argmax",   "PartialMSTBounded",     {"retrain": False, "sample_mode": "argmax", "max_clique_size": 4}),
-    #("PartialMSTIndep",    "PartialMSTIndependent", {"retrain": False}),
+    #("BoundedK4",          "CondMSTBounded",     {"retrain": False, "max_clique_size": 4}),
+    #("BoundedK5",          "CondMSTBounded",     {"retrain": False, "max_clique_size": 5}),
+    ("CondMST",         "CondMST",            {"retrain": False}),
+    ("CondMST-argmax",  "CondMST",            {"retrain": False, "sample_mode": "argmax"}),
+    #("CondMST-top20",   "CondMST",            {"retrain": False, "sample_mode": "top_pct", "top_pct": 20.0}),
+    ("BoundedK3",          "CondMSTBounded",     {"retrain": False, "max_clique_size": 3}),
+    ("BoundedK3-top10%",    "CondMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 10.0}),
+    ("BoundedK3-top20%",    "CondMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 20.0}),
+    #("BoundedK3-top30%",    "CondMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 30.0}),
+    #("BoundedK3-top40%",    "CondMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 40.0}),
+    #("BoundedK3-top50%",    "CondMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 50.0}),
+    #("BoundedK3-top60%",    "CondMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 60.0}),
+    #("BoundedK3-argmax",   "CondMSTBounded",     {"retrain": False, "sample_mode": "argmax", "max_clique_size": 3}),
+    ("BoundedK3-argmax",   "CondMSTBounded",     {"retrain": False, "sample_mode": "argmax", "max_clique_size": 3}),
+    #("BoundedK4-argmax",   "CondMSTBounded",     {"retrain": False, "sample_mode": "argmax", "max_clique_size": 4}),
+    #("CondMSTIndep",    "CondMSTIndependent", {"retrain": False}),
     # New variants:
-    #("BoundedK2",          "PartialMSTBounded",     {"retrain": False, "max_clique_size": 2}),
-    #("Hub",                "PartialMSTHub",         {"retrain": False}),
+    #("BoundedK2",          "CondMSTBounded",     {"retrain": False, "max_clique_size": 2}),
+    #("Hub",                "CondMSTHub",         {"retrain": False}),
 ]
 
-RETRAIN_METHODS = {"PartialMST", "PartialMSTIndependent", "PartialMSTBounded", "PartialMSTHub"}
+RETRAIN_METHODS = {"CondMST", "CondMSTIndependent", "CondMSTBounded", "CondMSTHub"}
 
 # ── Core run logic ────────────────────────────────────────────────────────────
 
@@ -224,7 +224,7 @@ def _save_csv(rows: list[dict], path: Path):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Compare PartialMST vs baselines.")
+    parser = argparse.ArgumentParser(description="Compare CondMST vs baselines.")
     parser.add_argument(
         "--sdg", nargs="+", default=None, metavar="SDG_DIRNAME",
         help=(
@@ -242,7 +242,7 @@ def main():
     )
     parser.add_argument(
         "--retrain", action="store_true",
-        help="Force retrain PartialMST checkpoints even if they exist.",
+        help="Force retrain CondMST checkpoints even if they exist.",
     )
     parser.add_argument(
         "--serial", action="store_true",
@@ -278,7 +278,7 @@ def main():
         print("No SDG methods found. Check DATA_ROOT or pass --sdg explicitly.")
         sys.exit(1)
 
-    # Apply --retrain flag to PartialMST attacks
+    # Apply --retrain flag to CondMST attacks
 
     attacks = []
     for name, method, params in ATTACKS:

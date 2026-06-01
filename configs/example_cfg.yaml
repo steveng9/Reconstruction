@@ -50,7 +50,7 @@ mia_params:
 
 # Attack selection
 attack_method: "RePaint"  # Name of the attack (see examples below)
-data_type: "agnostic"     # "categorical", "continuous", or "agnostic" (for TabDDPM/RePaint)
+data_type: "agnostic"     # "categorical", "continuous", or "agnostic" (for CondDDPM/RePaint)
 
 # Attack parameters (specific to chosen attack)
 attack_params:
@@ -103,7 +103,7 @@ attack_params:
     dropout: 0.1
     jump_fn: "jump_max10"
 
-  ConditionedRePaint:
+  CondRePaint:
     retrain: true
     num_epochs: 100_000
     resamples: 10
@@ -119,7 +119,7 @@ attack_params:
     batch_size: 2048
     lr: 0.0006
 
-  TabDDPM:
+  CondDDPM:
     retrain: true
     num_epochs: 100_000
     resamples: 10
@@ -135,7 +135,7 @@ attack_params:
     batch_size: 2048
     lr: 0.0006
 
-  MarginalRF:
+  CoBP-RA:
     num_estimators: 25
     max_depth: 25
     max_pair_cardinality: 50   # features with more unique values skip pairwise BP correction
@@ -204,7 +204,7 @@ attack_params:
     C: 1.0
     epsilon: 1.35
 
-  Attention:
+  ARFFormer:
     num_heads: 4
     embedding_dim: 64
     num_layers: 2
@@ -216,7 +216,7 @@ attack_params:
     epochs: 100
     patience: 30
 
-  AttentionAutoregressive:
+  ARFFormerAutoregressive:
     num_heads_AR: 4
     embedding_dim_AR: 64
     num_layers_AR: 2
@@ -262,7 +262,7 @@ random_seed: 42
 #   attack_method: "MLP"
 #   data_type: "categorical"
 #
-#   attack_method: "Attention"
+#   attack_method: "ARFFormer"
 #   data_type: "categorical"
 #
 #   attack_method: "Mode"  # baseline
@@ -300,13 +300,13 @@ random_seed: 42
 #   data_type: "continuous"
 #
 # DATA-TYPE AGNOSTIC (work on both categorical and continuous):
-#   attack_method: "TabDDPM"
+#   attack_method: "CondDDPM"
 #   data_type: "agnostic"  # or omit data_type
 #
 #   attack_method: "RePaint"
 #   data_type: "agnostic"  # or omit data_type
 #
-#   attack_method: "ConditionedRePaint"  # QI-conditioned training + RePaint sampling
+#   attack_method: "CondRePaint"  # QI-conditioned training + RePaint sampling
 #   data_type: "agnostic"  # or omit data_type
 
 

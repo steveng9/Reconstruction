@@ -2,12 +2,12 @@
 """
 run_marginalrf_qi_graph_eps01.py
 
-Runs the two QI-graph MarginalRF variants on MST_eps0.1, adult 10k, QI1,
+Runs the two QI-graph CoBP-RA variants on MST_eps0.1, adult 10k, QI1,
 across all 5 samples — filling the gap identified in the main paper table.
 
 Two attack variants:
-  MarginalRF_QIGraph:          qi_in_graph=True,  entropy_weighted=False
-  MarginalRF_QIGraph_EntropyBP: qi_in_graph=True,  entropy_weighted=True
+  CoBP-RA_QIGraph:          qi_in_graph=True,  entropy_weighted=False
+  CoBP-RA_QIGraph_EntropyBP: qi_in_graph=True,  entropy_weighted=True
 
 MST_eps0.1 was intentionally omitted from the original variants and combos sweeps
 (those scripts only included eps 1, 10, etc.).
@@ -52,18 +52,18 @@ SDG_METHODS = [
     ("MST", {"epsilon": 0.1}),
 ]
 
-_MRF = ATTACK_PARAM_DEFAULTS["MarginalRF"]
+_MRF = ATTACK_PARAM_DEFAULTS["CoBP-RA"]
 
 ATTACK_CONFIGS = [
     # ── Variant 1: QI nodes in graph, no entropy weighting ───────────────
     # Label used in the variants sweep files.
     (
-        "MarginalRF_QIGraph",
-        "MarginalRF",
+        "CoBP-RA_QIGraph",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": {**dict(_MRF),
+            "CoBP-RA": {**dict(_MRF),
                            "qi_in_graph":      True,
                            "entropy_weighted": False},
         },
@@ -71,12 +71,12 @@ ATTACK_CONFIGS = [
     # ── Variant 2: QI graph + entropy-weighted BP ─────────────────────────
     # Same label used in the combos sweep files.
     (
-        "MarginalRF_QIGraph_EntropyBP",
-        "MarginalRF",
+        "CoBP-RA_QIGraph_EntropyBP",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": {**dict(_MRF),
+            "CoBP-RA": {**dict(_MRF),
                            "qi_in_graph":      True,
                            "entropy_weighted": True},
         },
@@ -176,7 +176,7 @@ def run_job(job: Job) -> dict[str, Any]:
     }
     prepared = _prepare_config(cfg)
 
-    mrf_params = job.attack_params.get("MarginalRF", {})
+    mrf_params = job.attack_params.get("CoBP-RA", {})
     wandb_cfg = {
         "sample_idx":       job.sample_idx,
         "dataset":          DATASET_NAME,

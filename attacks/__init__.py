@@ -104,15 +104,15 @@ ATTACK_REGISTRY = {
         # Foundation model / in-context learning
         "TabPFN": tabpfn_reconstruction,
 
-        # Marginal-corrected RF
-        "MarginalRF": marginal_rf_reconstruction,
-        "MarginalRF_graphQI_entropyBP": marginal_rf_reconstruction,  # alias: qi_in_graph=True, entropy_weighted=True
+        # Belief-propagation-corrected RF (CoBP-RA, "the cobra attack")
+        "CoBP-RA": marginal_rf_reconstruction,
+        "CoBP-RA_graphQI_entropyBP": marginal_rf_reconstruction,  # alias: qi_in_graph=True, entropy_weighted=True
 
         # Neural Networks
         "MLP": mlp_classification_reconstruction,
-        "JointMLP": joint_mlp_reconstruction,
-        "Attention": attention_reconstruction,
-        "AttentionAutoregressive": attention_autoregressive_reconstruction,
+        "MultiHeadMLP": joint_mlp_reconstruction,
+        "ARFFormer": attention_reconstruction,
+        "ARFFormerAutoregressive": attention_autoregressive_reconstruction,
 
         # Baselines
         "Mode": mode_baseline,
@@ -142,8 +142,8 @@ ATTACK_REGISTRY = {
         "RANSACRegressor": ransac_regressor_reconstruction,
         "SGDRegressor": sdgregressor_reconstruction,
 
-        # Marginal-corrected RF (continuous via quantile discretization)
-        "MarginalRF_continuous": marginal_rf_regression_reconstruction,
+        # Belief-propagation-corrected RF (continuous via quantile discretization)
+        "CoBP-RA_continuous": marginal_rf_regression_reconstruction,
 
         # Neural Networks
         "MLP": mlp_repression_reconstruction,
@@ -159,15 +159,15 @@ ATTACK_REGISTRY = {
 
     # Data-type agnostic (work on both categorical and continuous)
     "agnostic": {
-        "TabDDPM": partial_tabddpm_reconstruction,
-        "TabDDPMEnsemble": tabddpm_ensemble_reconstruction,
-        "TabDDPMWithMLP": tabddpm_mlp_reconstruction,
+        "CondDDPM": partial_tabddpm_reconstruction,
+        "CondDDPMEnsemble": tabddpm_ensemble_reconstruction,
+        "CondDDPMWithMLP": tabddpm_mlp_reconstruction,
         "RePaint": repaint_reconstruction,
-        "ConditionedRePaint": conditioned_repaint_reconstruction,
-        "PartialMST": partial_mst_reconstruction,
-        "PartialMSTIndependent": partial_mst_independent_reconstruction,
-        "PartialMSTBounded": partial_mst_bounded_reconstruction,
-        "PartialMSTHub": partial_mst_hub_reconstruction,
+        "CondRePaint": conditioned_repaint_reconstruction,
+        "CondMST": partial_mst_reconstruction,
+        "CondMSTIndependent": partial_mst_independent_reconstruction,
+        "CondMSTBounded": partial_mst_bounded_reconstruction,
+        "CondMSTHub": partial_mst_hub_reconstruction,
     }
 }
 

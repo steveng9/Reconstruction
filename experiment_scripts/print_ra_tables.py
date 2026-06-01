@@ -44,9 +44,9 @@ SDG_LABELS = {
 ATTACK_ORDER = [
     "Random", "Mode", "MeasureDeid",
     "KNN", "NaiveBayes", "LogisticRegression", "RandomForest", "LightGBM", "SVM", "MLP",
-    "Attention", "TabPFN",
-    "PartialMST", "PartialMSTIndependent", "PartialMSTBounded",
-    "TabDDPM", "TabDDPMWithMLP", "ConditionedRePaint",
+    "ARFFormer", "TabPFN",
+    "CondMST", "CondMSTIndependent", "CondMSTBounded",
+    "CondDDPM", "CondDDPMWithMLP", "CondRePaint",
 ]
 
 # Minimum number of attacks that must have data for an epsilon SDG column to be included
@@ -102,7 +102,7 @@ def load_standard_pivot(conn, dataset, size, qi, split="standard"):
         FROM runs
         WHERE dataset=? AND dataset_size=? AND qi=? AND split=?
           AND attack_label NOT LIKE '%+%'
-          AND attack_label NOT LIKE 'MarginalRF%'
+          AND attack_label NOT LIKE 'CoBP-RA%'
           AND attack_label NOT IN ('FeatSelectorOracle','OracleEnsemble')
         GROUP BY attack_label, sdg_method
     """, conn, params=(dataset, size, qi, split))

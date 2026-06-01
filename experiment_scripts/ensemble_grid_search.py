@@ -16,8 +16,8 @@ Key features:
 Usage:
     python experiment_scripts/ensemble_grid_search.py
     python experiment_scripts/ensemble_grid_search.py --step 0.05 --top 30
-    python experiment_scripts/ensemble_grid_search.py --attacks MarginalRF MLP KNN NaiveBayes
-    python experiment_scripts/ensemble_grid_search.py --attacks MarginalRF LightGBM MLP KNN NaiveBayes
+    python experiment_scripts/ensemble_grid_search.py --attacks CoBP-RA MLP KNN NaiveBayes
+    python experiment_scripts/ensemble_grid_search.py --attacks CoBP-RA LightGBM MLP KNN NaiveBayes
     python experiment_scripts/ensemble_grid_search.py --sdg TabDDPM --out results_tabddpm.csv
 """
 
@@ -41,7 +41,7 @@ from enhancements.ensembling_wrapper import _soft_voting
 
 PROBAS_DIR   = Path(__file__).parent.parent / "outfiles" / "probas"
 DATA_ROOT    = "/home/golobs/data/reconstruction_data/adult/size_10000"
-ALL_ATTACKS  = ["MarginalRF", "LightGBM", "NaiveBayes", "KNN", "MLP"]
+ALL_ATTACKS  = ["CoBP-RA", "LightGBM", "NaiveBayes", "KNN", "MLP"]
 
 WEIGHT_CAPS = {
     "NaiveBayes": 0.5,
@@ -65,7 +65,7 @@ def load_all_probas(
     for i, pkl_path in enumerate(all_pkls):
         sample_dir = pkl_path.parent.parent.name   # "sample_00"
         sdg_label  = pkl_path.parent.name           # "MST_eps1"
-        atk_label  = pkl_path.stem                  # "MarginalRF"
+        atk_label  = pkl_path.stem                  # "CoBP-RA"
 
         sample_idx = int(sample_dir.split("_")[1])
 
@@ -136,7 +136,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Grid search over ensemble weights from saved attack probas.")
     parser.add_argument("--attacks", nargs="+",
-                        default=["MarginalRF", "MLP", "KNN", "NaiveBayes"],
+                        default=["CoBP-RA", "MLP", "KNN", "NaiveBayes"],
                         choices=ALL_ATTACKS,
                         help="Attacks to include (default excludes LGB).")
     parser.add_argument("--step",   type=float, default=0.1,

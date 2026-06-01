@@ -67,7 +67,7 @@ ATTACK_CONFIGS = [
     ("KNN",                        {}),
     ("NaiveBayes",                 {}),
     ("RandomForest",               {}),
-    ("MarginalRF_graphQI_entropyBP", {}),
+    ("CoBP-RA_graphQI_entropyBP", {}),
     ("MLP",                        {}),
     ("LightGBM",                   {}),
 ]

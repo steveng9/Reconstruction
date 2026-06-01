@@ -125,7 +125,7 @@ SDG_METHODS = [
 # For DATASET_TYPE="continuous", names shared across registries (Random, Mean,
 # MeasureDeid, KNN, RandomForest, LightGBM, MLP) automatically route to their
 # continuous (regression/baseline_cont) variants. Categorical-only attacks
-# (NaiveBayes, LogisticRegression, Attention, etc.) are kept below but commented.
+# (NaiveBayes, LogisticRegression, ARFFormer, etc.) are kept below but commented.
 ATTACK_CONFIGS = [
     # ── Baselines ─────────────────────────────────────────────────────────────
     # continuous variants (same name, routed by DATASET_TYPE)
@@ -161,31 +161,31 @@ ATTACK_CONFIGS = [
     #("MLP",          {}),        # continuous → MLPRegressor; categorical → MLPClassifier
     #("MLP",          {"hidden_dims": [128, 264, 64], "learning_rate": 0.0001, "patience": 60, "epochs": 400}),
     # categorical-only neural networks — uncomment for categorical datasets:
-    #("Attention",               {}),
-    #("AttentionAutoregressive", {}),
+    #("ARFFormer",               {}),
+    #("ARFFormerAutoregressive", {}),
 
     # ── SOTA (requires Gurobi academic licence) ───────────────────────────────
     # ("LinearReconstruction",  {}),
 
     # ── Partial diffusion (agnostic — work on categorical and continuous) ──────
-    # TabDDPM and ConditionedRePaint share the same artifact dir and trained model
+    # CondDDPM and CondRePaint share the same artifact dir and trained model
     # (identical QI-conditioned training; differ only in sampling). Whichever runs
     # second will find model_ckpt.pkl already present and skip retraining automatically.
     # Pass retrain=True to force retraining from scratch.
-    #("TabDDPM",            {"retrain": True}),   # QI-conditioned + TabDDPM sampling
+    #("CondDDPM",           {"retrain": True}),   # QI-conditioned + DDPM sampling
     # ("RePaint",           {"retrain": False}),   # standard training + RePaint sampling
-    #("ConditionedRePaint", {"retrain": False}),   # QI-conditioned + RePaint sampling
-    #("TabDDPMWithMLP",     {"retrain": False, "retrain_mlp": True}),
+    #("CondRePaint", {"retrain": False}),   # QI-conditioned + RePaint sampling
+    #("CondDDPMWithMLP",     {"retrain": False, "retrain_mlp": True}),
 
     # ── Partial MST (agnostic) ─────────────────────────────────────────────────
-    #("PartialMST",            {"retrain": False}),
-    #("PartialMST",            {"retrain": False, "sample_mode": "argmax"}),
-    #("PartialMST",            {"retrain": False, "sample_mode": "top_pct", "top_pct": 15.0}),
-    #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3}),
-    #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "argmax"}),
-    #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 15.0}),
-    #("PartialMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 10.0}),
-    #("PartialMSTIndependent", {"retrain": False, "sample_mode": "top_pct", "top_pct": 15.0}),
+    #("CondMST",            {"retrain": False}),
+    #("CondMST",            {"retrain": False, "sample_mode": "argmax"}),
+    #("CondMST",            {"retrain": False, "sample_mode": "top_pct", "top_pct": 15.0}),
+    #("CondMSTBounded",     {"retrain": False, "max_clique_size": 3}),
+    #("CondMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "argmax"}),
+    #("CondMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 15.0}),
+    #("CondMSTBounded",     {"retrain": False, "max_clique_size": 3, "sample_mode": "top_pct", "top_pct": 10.0}),
+    #("CondMSTIndependent", {"retrain": False, "sample_mode": "top_pct", "top_pct": 15.0}),
 
 
 

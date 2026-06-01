@@ -528,10 +528,10 @@ def phase2_fetch_wandb(use_cache: bool = False, save_cache: bool = True) -> dict
 # Phase 3: Matching CSV rows → WandB
 # ---------------------------------------------------------------------------
 
-# WandB logs the BASE attack name (e.g. "MarginalRF") for all variant attacks.
-# CSV files record the full variant label (e.g. "MarginalRF_mst_local_100").
+# WandB logs the BASE attack name (e.g. "CoBP-RA") for all variant attacks.
+# CSV files record the full variant label (e.g. "CoBP-RA_mst_local_100").
 # _base_attack() maps variant labels back to their WandB base name for fallback lookup.
-_VARIANT_BASE_NAMES = ["MarginalRF"]
+_VARIANT_BASE_NAMES = ["CoBP-RA"]
 
 def _base_attack(label: str) -> str:
     for base in _VARIANT_BASE_NAMES:
@@ -650,7 +650,7 @@ def _match_row(row: pd.Series, lookup: dict) -> tuple[str, str, dict | None]:
     matches = _lookup_matches(lookup, dataset, dataset_size, sample, qi, sdg, attack)
 
     # ── Step 2: base-name fallback for variant attacks ─────────────────────
-    # WandB logs attack_method = "MarginalRF" for all MarginalRF_* variants.
+    # WandB logs attack_method = "CoBP-RA" for all CoBP-RA_* variants.
     # If exact lookup failed, retry with the base name and score-disambiguate.
     base_attack = _base_attack(attack)
     used_base_fallback = False

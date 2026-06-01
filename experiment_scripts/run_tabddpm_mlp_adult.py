@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-TabDDPMWithMLP (and TabDDPMEnsemble) reconstruction attacks on adult 10k data.
+CondDDPMWithMLP (and CondDDPMEnsemble) reconstruction attacks on adult 10k data.
 
 Workflow:
   1. First run — train diffusion model + MLP stacker, then reconstruct:
@@ -75,7 +75,7 @@ SHARED_DIFFUSION = {
 }
 
 ATTACKS = [
-    ("TabDDPMWithMLP", {
+    ("CondDDPMWithMLP", {
         **SHARED_DIFFUSION,
         "retrain":       _args.retrain,      # controls diffusion retraining
         "retrain_mlp":   _args.retrain_mlp,  # controls MLP-only retraining
@@ -84,7 +84,7 @@ ATTACKS = [
         "mlp_epochs":    500,
         "mlp_lr":        0.001,
     }),
-    #("TabDDPMEnsemble", {
+    #("CondDDPMEnsemble", {
     #    **SHARED_DIFFUSION,
     #    "retrain":           _args.retrain,
     #    "n_diffusion_samples": 5,
@@ -156,7 +156,7 @@ if __name__ == "__main__":
     else:
         sdg_list = SDG_METHODS
 
-    print(f"\nTabDDPMWithMLP sweep — adult size_{SAMPLE_SIZE} / sample_00")
+    print(f"\nCondDDPMWithMLP sweep — adult size_{SAMPLE_SIZE} / sample_00")
     print(f"  retrain={_args.retrain}  retrain_mlp={_args.retrain_mlp}")
     print(f"  SDG methods : {[sdg_label(m, p) for m, p in sdg_list]}")
     print(f"  Attacks     : {[a for a, _ in ATTACKS]}")

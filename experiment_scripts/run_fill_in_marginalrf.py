@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-run_fill_in_marginalrf.py — fill in MarginalRF_graphQI_entropyBP (best variant) results.
+run_fill_in_marginalrf.py — fill in CoBP-RA_graphQI_entropyBP (best variant) results.
 
 Uses the DB to determine which jobs are already done and skip them.
 Writes results incrementally (one row per job) to per-group CSVs AND inserts
@@ -14,8 +14,8 @@ Groups (run in priority order A → E → B → C → D):
   Group D — Adult 10k,           QI_large + QI_beh, 9 MST ε, 4 samples
 
 Attack labels stored in DB:
-  Groups A–D: "MarginalRF_graphQI_entropyBP"  (qi_in_graph=True, entropy_weighted=True)
-  Group  E:   "MarginalRF_continuous"          (quantile-discretized, knn_k=None)
+  Groups A–D: "CoBP-RA_graphQI_entropyBP"  (qi_in_graph=True, entropy_weighted=True)
+  Group  E:   "CoBP-RA_continuous"          (quantile-discretized, knn_k=None)
 
 Usage:
     conda activate recon_
@@ -140,13 +140,13 @@ _CALI_SDGS = [
 # ── Attack params ─────────────────────────────────────────────────────────────
 
 def _mrf_params() -> dict:
-    """Best MarginalRF variant: QI nodes in graph + entropy-weighted BP."""
-    return dict(ATTACK_PARAM_DEFAULTS["MarginalRF_graphQI_entropyBP"])
+    """Best CoBP-RA variant: QI nodes in graph + entropy-weighted BP."""
+    return dict(ATTACK_PARAM_DEFAULTS["CoBP-RA_graphQI_entropyBP"])
 
 
 def _mrf_cont_params() -> dict:
-    """MarginalRF_continuous defaults (knn_k=None for continuous QI)."""
-    return dict(ATTACK_PARAM_DEFAULTS["MarginalRF_continuous"])
+    """CoBP-RA_continuous defaults (knn_k=None for continuous QI)."""
+    return dict(ATTACK_PARAM_DEFAULTS["CoBP-RA_continuous"])
 
 
 # ── Job dataclass ─────────────────────────────────────────────────────────────
@@ -258,14 +258,14 @@ def generate_jobs(group_filter: str | None = None) -> list[Job]:
     if group_filter in (None, "A"):
         _add("A", "cdc_diabetes", "cdc_diabetes", 1_000, "categorical",
              _CDC_1K_SDGS, "QI1",
-             "MarginalRF_graphQI_entropyBP", _mrf_params(),
+             "CoBP-RA_graphQI_entropyBP", _mrf_params(),
              samples=5, wandb_group="marginalrf-cdc-1k")
 
     # ── Group E: California 1k (continuous, WITH memorization) ───────────
     if group_filter in (None, "E"):
         _add("E", "california", "california", 1_000, "continuous",
              _CALI_SDGS, "QI_large",
-             "MarginalRF_continuous", _mrf_cont_params(),
+             "CoBP-RA_continuous", _mrf_cont_params(),
              samples=5, wandb_group="marginalrf-california-continuous-1k",
              memorization=True)
 
@@ -273,21 +273,21 @@ def generate_jobs(group_filter: str | None = None) -> list[Job]:
     if group_filter in (None, "B"):
         _add("B", "cdc_diabetes", "cdc_diabetes", 100_000, "categorical",
              _CDC_100K_SDGS, "QI1",
-             "MarginalRF_graphQI_entropyBP", _mrf_params(),
+             "CoBP-RA_graphQI_entropyBP", _mrf_params(),
              samples=5, wandb_group="marginalrf-cdc-100k")
 
     # ── Group C: NIST SBO 1k ──────────────────────────────────────────────
     if group_filter in (None, "C"):
         _add("C", "nist_sbo", "nist_sbo", 1_000, "categorical",
              _SBO_SDGS, ["QI1", "QI_large"],
-             "MarginalRF_graphQI_entropyBP", _mrf_params(),
+             "CoBP-RA_graphQI_entropyBP", _mrf_params(),
              samples=5, wandb_group="marginalrf-sbo-1k")
 
     # ── Group D: Adult 10k MST epsilon sweep ──────────────────────────────
     if group_filter in (None, "D"):
         _add("D", "adult", "adult", 10_000, "categorical",
              _ADULT_MST_EPS_SDGS, ["QI_large", "QI_behavioral"],
-             "MarginalRF_graphQI_entropyBP", _mrf_params(),
+             "CoBP-RA_graphQI_entropyBP", _mrf_params(),
              samples=4,
              wandb_group="marginalrf-mst-eps-sweep-adult-10k")
 
@@ -496,7 +496,7 @@ class GroupCSV:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Fill in MarginalRF_graphQI_entropyBP results for the manuscript."
+        description="Fill in CoBP-RA_graphQI_entropyBP results for the manuscript."
     )
     parser.add_argument("--dry-run",  action="store_true",
                         help="Print planned jobs and exit (skips DB check).")

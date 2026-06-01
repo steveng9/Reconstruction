@@ -62,10 +62,10 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "rf_fallback_max_depth":     25,
     },
 
-    # ── MarginalRF (attacks/marginal_rf.py) ─────────────────────────────────
+    # ── CoBP-RA (attacks/marginal_rf.py) ─────────────────────────────────
     # RF posteriors + sum-product BP on an MST of pairwise synth marginals.
     # Reduces to plain RF when features are independent in synth (PMI ≈ 0).
-    "MarginalRF": {
+    "CoBP-RA": {
         "num_estimators":       25,
         "max_depth":            25,
         "max_pair_cardinality": 50,    # features above this skip pairwise correction
@@ -103,8 +103,8 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "max_qi_cardinality": None,
     },
 
-    # ── MarginalRF variant: QI nodes in graph + entropy-weighted BP ──────────
-    "MarginalRF_graphQI_entropyBP": {
+    # ── CoBP-RA variant: QI nodes in graph + entropy-weighted BP ──────────
+    "CoBP-RA_graphQI_entropyBP": {
         "num_estimators":       25,
         "max_depth":            25,
         "max_pair_cardinality": 50,
@@ -127,11 +127,11 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "max_qi_cardinality":   None,
     },
 
-    # ── MarginalRF_continuous (attacks/marginal_rf.py) ──────────────────────────
-    # Continuous adaptation via quantile discretization. Inherits all MarginalRF
+    # ── CoBP-RA_continuous (attacks/marginal_rf.py) ──────────────────────────
+    # Continuous adaptation via quantile discretization. Inherits all CoBP-RA
     # params; adds n_bins (discretization resolution) and overrides knn_k to None
     # (global PMI, avoids lexicographic-sort issue with continuous QI encoding).
-    "MarginalRF_continuous": {
+    "CoBP-RA_continuous": {
         "num_estimators":       25,
         "max_depth":            25,
         "max_pair_cardinality": 50,
@@ -177,10 +177,10 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "dropout_rate":  0.2,
     },
 
-    # ── Joint MLP (attacks/joint_mlp.py) ─────────────────────────────────────
+    # ── MultiHeadMLP (attacks/joint_mlp.py) ─────────────────────────────────────
     # Single shared-trunk network predicting all hidden features simultaneously.
     # One softmax head per feature; loss = sum of per-feature cross-entropies.
-    "JointMLP": {
+    "MultiHeadMLP": {
         "test_size":     0.2,
         "hidden_dims":   [1000, 500],
         "batch_size":    256,
@@ -190,8 +190,8 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "dropout_rate":  0.0,
     },
 
-    # ── Attention (attacks/attention_classifier.py) ──────────────────────────
-    "Attention": {
+    # ── ARFFormer (attacks/attention_classifier.py) ──────────────────────────
+    "ARFFormer": {
         "num_heads":       4,
         "embedding_dim":   64,   # must be divisible by num_heads
         "num_layers":      2,
@@ -203,7 +203,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "epochs":          100,
         "patience":        30,
     },
-    "AttentionAutoregressive": {
+    "ARFFormerAutoregressive": {
         "num_heads_AR":       4,
         "embedding_dim_AR":   64,   # must be divisible by num_heads_AR
         "num_layers_AR":      2,
@@ -219,9 +219,9 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
 
     # ── Partial diffusion — MIA_on_diffusion/midst_models/single_table_TabDDPM/
     #    tabddpm_reconstruction_attack.py lines 37-44, pipeline_utils.py line 576
-    #    All three attacks train the same model (TabDDPM & ConditionedRePaint
+    #    All three attacks train the same model (CondDDPM & CondRePaint
     #    share the artifact dir); they differ only in sampling strategy.
-    "TabDDPM": {
+    "CondDDPM": {
         "hidden_dims":       [512, 1024, 1024, 1024, 1024, 512],  # d_layers of the diffusion MLP; required (no fallback in tabddpm_reconstruction_attack.py)
         "dropout":           0.1,
         "batch_size":        4096,
@@ -245,7 +245,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "jump_fn":           "jump_max10",
         "sample_batch_size": 8192,
     },
-    "ConditionedRePaint": {
+    "CondRePaint": {
         "hidden_dims":       [512, 1024, 1024, 1024, 1024, 512],
         "dropout":           0.1,
         "batch_size":        4096,
@@ -257,7 +257,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "jump_fn":           "jump_max10",
         "sample_batch_size": 8192,
     },
-    "TabDDPMEnsemble": {
+    "CondDDPMEnsemble": {
         "hidden_dims":         [512, 1024, 1024, 1024, 1024, 512],
         "dropout":             0.1,
         "batch_size":          4096,
@@ -270,7 +270,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "n_diffusion_samples": 5,
         "ensemble_agg":        "majority",
     },
-    "TabDDPMWithMLP": {
+    "CondDDPMWithMLP": {
         "hidden_dims":     [512, 1024, 1024, 1024, 1024, 512],
         "dropout":         0.1,
         "batch_size":      4096,
@@ -286,10 +286,10 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "mlp_lr":          0.001,
     },
 
-    # ── Partial MST (attacks/partialMST.py) ──────────────────────────────────
-    # PartialMSTIndependent reuses the same defaults; each call trains on a
+    # ── CondMST (attacks/partialMST.py) ──────────────────────────────────
+    # CondMSTIndependent reuses the same defaults; each call trains on a
     # single-feature synth so checkpoints are automatically distinct.
-    "PartialMST": {
+    "CondMST": {
         "bin_continuous_as_ordinal": True,
         "n_bins":                   20,
         "iters":                    10000,
@@ -297,7 +297,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "sample_mode":              "sample",  # "sample" | "argmax" | "top_pct"
         "top_pct":                  20.0,      # used only when sample_mode="top_pct"
     },
-    "PartialMSTIndependent": {
+    "CondMSTIndependent": {
         "bin_continuous_as_ordinal": True,
         "n_bins":                   20,
         "iters":                    10000,
@@ -305,7 +305,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "sample_mode":              "sample",
         "top_pct":                  20.0,
     },
-    "PartialMSTBounded": {
+    "CondMSTBounded": {
         "bin_continuous_as_ordinal": True,
         "n_bins":                   20,
         "iters":                    10000,
@@ -315,7 +315,7 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "sample_mode":              "top_pct",
         "top_pct":                  10.0,
     },
-    "PartialMSTHub": {
+    "CondMSTHub": {
         "bin_continuous_as_ordinal": True,
         "n_bins":                   20,
         "iters":                    10000,

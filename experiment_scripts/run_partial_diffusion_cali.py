@@ -132,7 +132,7 @@ CONDITIONED_REPAINT_PARAMS = {
 ATTACKS = [
     ("TabDDPM",          TABDDPM_PARAMS),
     #("RePaint",            REPAINT_PARAMS),
-    ("ConditionedRePaint", CONDITIONED_REPAINT_PARAMS),
+    ("CondRePaint", CONDITIONED_REPAINT_PARAMS),
 ]
 
 

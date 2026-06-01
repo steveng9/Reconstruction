@@ -1,5 +1,5 @@
 """
-JointMLP: single neural network that predicts all hidden features simultaneously.
+MultiHeadMLP: single neural network that predicts all hidden features simultaneously.
 
 Trains a shared-trunk multi-output network with one softmax head per hidden feature.
 Loss = sum of per-feature cross-entropies; predictions are the argmax of each head.
@@ -58,7 +58,7 @@ def _reconstruct(synth, targets, qi, hidden_features,
     targets_loader = DataLoader(_DS(X_tgt_enc, zeros_y), batch_size=batch_size)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model  = _JointMLP(X_enc.shape[1], hidden_dims, y_enc.shape[1], dropout_rate).to(device)
+    model  = _MultiHeadMLP(X_enc.shape[1], hidden_dims, y_enc.shape[1], dropout_rate).to(device)
     opt    = optim.Adam(model.parameters(), lr=learning_rate)
 
     model = _train(model, train_loader, val_loader, opt, device, y_enc_obj, epochs, patience)
@@ -98,7 +98,7 @@ class _DS(Dataset):
         return self.X[idx], self.y[idx]
 
 
-class _JointMLP(nn.Module):
+class _MultiHeadMLP(nn.Module):
     def __init__(self, input_dim, hidden_dims, output_dim, dropout_rate):
         super().__init__()
         layers, prev = [], input_dim

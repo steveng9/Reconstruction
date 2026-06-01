@@ -73,10 +73,10 @@ SDG_METHODS = [
 # ── Individual attacks ─────────────────────────────────────────────────────────
 
 INDIVIDUAL_ATTACKS = [
-    ("MarginalRF", "MarginalRF", {
+    ("CoBP-RA", "CoBP-RA", {
         "chaining":   {"enabled": False},
         "ensembling": {"enabled": False},
-        "MarginalRF": dict(ATTACK_PARAM_DEFAULTS["MarginalRF"]),
+        "CoBP-RA": dict(ATTACK_PARAM_DEFAULTS["CoBP-RA"]),
     }),
     ("LightGBM", "LightGBM", {
         "chaining":   {"enabled": False},
@@ -185,7 +185,7 @@ def run_job(job: Job, force: bool = False) -> dict[str, Any]:
         "data_type":     DATASET_TYPE,
         "sdg_method":    job.sdg_method,
         "sdg_params":    job.sdg_params or None,
-        "attack_method": "MarginalRF",          # placeholder, overridden per attack
+        "attack_method": "CoBP-RA",          # placeholder, overridden per attack
         "memorization_test": {"enabled": False},
         "attack_params": {},
     }

@@ -5,7 +5,7 @@ This repository is the artifact for:
 > **SoK: Reconstruction Attacks on Synthetic Tabular Data (Insights from Winning the NIST CRC)**
 > Submitted to *Privacy Enhancing Technologies Symposium (PoPETs) 2027*
 
-The framework systematically evaluates **reconstruction attacks** (attribute inference) on de-identified and synthetic tabular data. Given a synthetic dataset and a target record's quasi-identifying features (e.g., age, sex, race), each attack attempts to reconstruct the target's hidden attribute values. We benchmark **13 attack algorithms** against **9 synthetic data generation (SDG) methods** across **5 benchmark datasets**, and introduce six new attacks: **MarginalRF**, **PartialMST**, **PartialTabDDPM**, **ConditionedRePaint**, **Attention**, and **JointMLP**.
+The framework systematically evaluates **reconstruction attacks** (attribute inference) on de-identified and synthetic tabular data. Given a synthetic dataset and a target record's quasi-identifying features (e.g., age, sex, race), each attack attempts to reconstruct the target's hidden attribute values. We benchmark **13 attack algorithms** against **9 synthetic data generation (SDG) methods** across **5 benchmark datasets**, and introduce six new attacks: **CoBP-RA**, **CondMST**, **CondDDPM**, **CondRePaint**, **ARFFormer**, and **MultiHeadMLP**.
 
 The same methodology placed **first among all red teams** in the 2025 NIST Privacy Collaborative Research Cycle (CRC).
 
@@ -69,7 +69,7 @@ Additional packages not in `environment.yaml`:
 ```bash
 pip install wandb lightgbm tabpfn
 
-# For PartialMST attack (private-pgm / mbi library):
+# For CondMST attack (private-pgm / mbi library):
 pip install git+https://github.com/ryan112358/private-pgm.git@01f02f17eba440f4e76c1d06fa5ee9eed0bd2bca
 ```
 
@@ -93,7 +93,7 @@ For GPU-accelerated methods (TVAE, CTGAN, ARF, TabDDPM), a CUDA-enabled GPU is r
 
 ### Step 4: Install external attack dependencies
 
-Two sibling repositories are required for the **PartialTabDDPM / ConditionedRePaint** and **LinearReconstruction** attacks.
+Two sibling repositories are required for the **CondDDPM / CondRePaint** and **LinearReconstruction** attacks.
 
 **TabDDPM / RePaint attacks** (must be a sibling directory of `Reconstruction/`):
 ```bash
@@ -242,11 +242,11 @@ python master_experiment_script.py --n_runs 1 --on_server T
 
 Results are logged to WandB under the project and group specified in the config YAML. Set `WANDB_MODE=offline` to run without a WandB account.
 
-### Run the MarginalRF attack on Adult (our best attack)
+### Run the CoBP-RA attack on Adult (our best attack)
 
 ```bash
 # Create a config pointing to adult/size_10000/sample_00, SDG_method=MST_eps1
-# attack_method: MarginalRF
+# attack_method: CoBP-RA
 # data_type: categorical
 python master_experiment_script.py --n_runs 1 --on_server T
 ```
@@ -326,11 +326,11 @@ Reconstruction/
 │   ├── ML_regression.py          ← KNN, LinearRegression, Ridge, Lasso, ElasticNet, SGD, RandomForest, LightGBM (continuous)
 │   ├── NN_classifier.py          ← MLP (categorical)
 │   ├── NN_regression.py          ← MLP (continuous)
-│   ├── attention_classifier.py   ← Attention, AttentionAutoregressive (new)
-│   ├── joint_mlp.py              ← JointMLP: single network over all hidden features (new)
-│   ├── marginal_rf.py            ← MarginalRF: RF posteriors + belief propagation (new, strongest attack)
-│   ├── partialMST.py             ← PartialMST, PartialMSTIndep, PartialMSTBounded, PartialMSTHub (new)
-│   ├── partialDiffusion.py       ← PartialTabDDPM, ConditionedRePaint, RePaint, TabDDPMWithMLP (new)
+│   ├── attention_classifier.py   ← ARFFormer, ARFFormerAutoregressive (new)
+│   ├── joint_mlp.py              ← MultiHeadMLP: single network over all hidden features (new)
+│   ├── marginal_rf.py            ← CoBP-RA: RF posteriors + belief propagation (new, strongest attack)
+│   ├── partialMST.py             ← CondMST, CondMSTIndep, CondMSTBounded, CondMSTHub (new)
+│   ├── partialDiffusion.py       ← CondDDPM, CondRePaint, RePaint, CondDDPMWithMLP (new)
 │   ├── tabpfn_attack.py          ← TabPFN: pre-trained transformer attack
 │   └── mia.py                    ← Membership inference: SynthDistance, NNDR, RA-as-MIA
 │
@@ -434,27 +434,27 @@ Scoring for continuous features uses normalized RMSE (lower is better), inverted
 
 | Name | Description |
 |---|---|
-| Attention | Multi-head self-attention encoder predicting hidden features in parallel |
-| AttentionAutoregressive | Same but predicts autoregressively |
+| ARFFormer | Multi-head self-attention encoder predicting hidden features in parallel |
+| ARFFormerAutoregressive | Same but predicts autoregressively |
 | Chaining (enhancement) | Wraps any base attack to predict features sequentially, each prediction fed forward |
 
 ### Feature-correlated: row-wise message passing
 
 | Name | Description |
 |---|---|
-| **MarginalRF** | **Our strongest attack.** Per-feature RF posteriors refined by belief propagation on an MI-weighted MST of hidden features. Local PMI tables from synth nearest-neighbors capture residual hidden-feature dependencies after conditioning on QI. Optional variants: `qi_in_graph` (QI as observed nodes), `entropy_weighted` (message damping by sender confidence). |
+| **CoBP-RA** (the "cobra" attack) | **Our strongest attack.** Per-feature RF posteriors refined by belief propagation on an MI-weighted MST of hidden features. Local PMI tables from synth nearest-neighbors capture residual hidden-feature dependencies after conditioning on QI. Optional variants: `qi_in_graph` (QI as observed nodes), `entropy_weighted` (message damping by sender confidence). |
 
 ### Feature-correlated: joint generative conditioning
 
 | Name | Description |
 |---|---|
-| JointMLP | Single neural network predicting all hidden features jointly |
-| PartialMST | MST graphical model fit on synth, sampled conditional on QI |
-| PartialMST (indep.) | Independent per-feature MST models |
-| PartialMST (k=3) | Bounded-clique variant with up to k-1 QI cols per clique |
-| PartialTabDDPM | Tabular diffusion model with QI-conditioned forward process |
-| ConditionedRePaint | Same diffusion model; RePaint sampling (QI re-noised at each step) |
-| TabDDPMWithMLP | Two-stage: diffusion hints → MLP stacker trained on synthetic pseudo-targets |
+| MultiHeadMLP | Single neural network predicting all hidden features jointly |
+| CondMST | MST graphical model fit on synth, sampled conditional on QI |
+| CondMST (indep.) | Independent per-feature MST models |
+| CondMST (k=3) | Bounded-clique variant with up to k-1 QI cols per clique |
+| CondDDPM | Tabular diffusion model with QI-conditioned forward process |
+| CondRePaint | Same diffusion model; RePaint sampling (QI re-noised at each step) |
+| CondDDPMWithMLP | Two-stage: diffusion hints → MLP stacker trained on synthetic pseudo-targets |
 
 ### Enhancements (composable)
 
@@ -503,7 +503,7 @@ sdg_method: "MST"
 sdg_params:
   epsilon: 1.0
 
-attack_method: "MarginalRF"
+attack_method: "CoBP-RA"
 data_type: "categorical"   # "categorical", "continuous", or "agnostic"
 
 memorization_test:
@@ -515,7 +515,7 @@ attack_params:
     enabled: false
   ensembling:
     enabled: false
-  MarginalRF:
+  CoBP-RA:
     num_estimators: 25
     max_depth: 25
     knn_k: 100
@@ -525,9 +525,9 @@ attack_params:
 
 ### Data type conventions
 
-- `"categorical"`: classification-based attacks (RF, LightGBM, MLP, MarginalRF, PartialMST, …)
+- `"categorical"`: classification-based attacks (RF, LightGBM, MLP, CoBP-RA, CondMST, …)
 - `"continuous"`: regression-based attacks (RF regressor, MLP regressor, …)
-- `"agnostic"`: works for both (PartialTabDDPM, ConditionedRePaint, RePaint)
+- `"agnostic"`: works for both (CondDDPM, CondRePaint, RePaint)
 
 ### Adding a new attack
 
@@ -556,7 +556,7 @@ Key WandB metrics logged per run:
 
 ## Citation
 
-If you use this code or the MarginalRF / PartialMST / PartialTabDDPM / ConditionedRePaint / JointMLP / Attention attacks in your research, please cite:
+If you use this code or the CoBP-RA / CondMST / CondDDPM / CondRePaint / MultiHeadMLP / ARFFormer attacks in your research, please cite:
 
 ```bibtex
 @article{golob2027sok,

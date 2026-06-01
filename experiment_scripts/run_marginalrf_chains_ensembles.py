@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 """
-MarginalRF chaining + ensembling sweep.
+CoBP-RA chaining + ensembling sweep.
 
 Compares, on adult 10k (5 samples, QI1, 5 focused SDGs):
 
-  MarginalRF            — baseline (no chaining, no ensembling)
-  MarginalRF_HardChain  — hard chaining, mutual-info ordering
-  MarginalRF_SoftChain  — soft chaining, mutual-info ordering (novel)
-  Ensemble_MRF_LGB      — soft-vote: MarginalRF + LightGBM
-  Ensemble_MRF_LGB_NB   — soft-vote: MarginalRF + LightGBM + NaiveBayes
-  Ensemble_MRF_5        — soft-vote: MarginalRF + RF + LightGBM + MLP + KNN
+  CoBP-RA            — baseline (no chaining, no ensembling)
+  CoBP-RA_HardChain  — hard chaining, mutual-info ordering
+  CoBP-RA_SoftChain  — soft chaining, mutual-info ordering (novel)
+  Ensemble_MRF_LGB      — soft-vote: CoBP-RA + LightGBM
+  Ensemble_MRF_LGB_NB   — soft-vote: CoBP-RA + LightGBM + NaiveBayes
+  Ensemble_MRF_5        — soft-vote: CoBP-RA + RF + LightGBM + MLP + KNN
 
 SDGs chosen to span a quality range where we already have decisive baseline
 numbers: MST_eps1 (low), MST_eps10 (mid), TVAE, Synthpop, TabDDPM (high).
@@ -19,7 +19,7 @@ Usage (from repo root):
     python experiment_scripts/run_marginalrf_chains_ensembles.py
     python experiment_scripts/run_marginalrf_chains_ensembles.py --dry-run
     python experiment_scripts/run_marginalrf_chains_ensembles.py --workers 8
-    python experiment_scripts/run_marginalrf_chains_ensembles.py --attack MarginalRF_SoftChain
+    python experiment_scripts/run_marginalrf_chains_ensembles.py --attack CoBP-RA_SoftChain
     python experiment_scripts/run_marginalrf_chains_ensembles.py --sdg TabDDPM
     python experiment_scripts/run_marginalrf_chains_ensembles.py --sample 0
 """
@@ -78,7 +78,7 @@ SDG_METHODS = [
 # attack_params_overrides contains chaining/ensembling sub-dicts plus any
 # method-specific entries needed so _prepare_config finds them.
 
-_MRF   = ATTACK_PARAM_DEFAULTS["MarginalRF"]
+_MRF   = ATTACK_PARAM_DEFAULTS["CoBP-RA"]
 _RF    = ATTACK_PARAM_DEFAULTS["RandomForest"]
 _LGB   = ATTACK_PARAM_DEFAULTS["LightGBM"]
 _MLP   = ATTACK_PARAM_DEFAULTS["MLP"]
@@ -88,22 +88,22 @@ _NB    = ATTACK_PARAM_DEFAULTS.get("NaiveBayes", {})
 ATTACK_CONFIGS = [
     # ── Baseline (no chaining, no ensembling) ─────────────────────────────
     (
-        "MarginalRF",
-        "MarginalRF",
+        "CoBP-RA",
+        "CoBP-RA",
         {
             "chaining":   {"enabled": False},
             "ensembling": {"enabled": False},
-            "MarginalRF": dict(_MRF),
+            "CoBP-RA": dict(_MRF),
         },
     ),
 
     # ── Hard chaining (mutual-info ordering) ──────────────────────────────
-    # At each step MarginalRF predicts one feature using QI + previously
+    # At each step CoBP-RA predicts one feature using QI + previously
     # hard-predicted features.  With a single remaining hidden feature the BP
     # has no pairs, so this is effectively RF hard-chaining.
     (
-        "MarginalRF_HardChain",
-        "MarginalRF",
+        "CoBP-RA_HardChain",
+        "CoBP-RA",
         {
             "chaining": {
                 "enabled":        True,
@@ -112,17 +112,17 @@ ATTACK_CONFIGS = [
                 "log_intermediate": False,
             },
             "ensembling": {"enabled": False},
-            "MarginalRF": dict(_MRF),
+            "CoBP-RA": dict(_MRF),
         },
     ),
 
     # ── Soft chaining (mutual-info ordering) ──────────────────────────────
-    # At each step MarginalRF runs on ALL remaining features with an augmented
+    # At each step CoBP-RA runs on ALL remaining features with an augmented
     # QI that appends predicted-proba vectors from earlier steps (one-hot on
     # synth, soft probas on targets).  BP still runs over remaining features.
     (
-        "MarginalRF_SoftChain",
-        "MarginalRF",
+        "CoBP-RA_SoftChain",
+        "CoBP-RA",
         {
             "chaining": {
                 "enabled":        True,
@@ -131,17 +131,17 @@ ATTACK_CONFIGS = [
                 "log_intermediate": False,
             },
             "ensembling": {"enabled": False},
-            "MarginalRF": dict(_MRF),
+            "CoBP-RA": dict(_MRF),
         },
     ),
 
-    # ── Ensemble: MarginalRF + LightGBM ───────────────────────────────────
+    # ── Ensemble: CoBP-RA + LightGBM ───────────────────────────────────
     # Using hard_voting: LGB's predict_proba outputs max=1.0 for all rows
     # (extreme overconfidence), which would dominate soft voting even when
     # wrong.  Hard voting treats both models symmetrically.
     (
         "Ensemble_MRF_LGB",
-        "MarginalRF",
+        "CoBP-RA",
         {
             "chaining": {"enabled": False},
             "ensembling": {
@@ -150,15 +150,15 @@ ATTACK_CONFIGS = [
                 "methods":         ["LightGBM"],
                 "aggregation":     "hard_voting",
             },
-            "MarginalRF": dict(_MRF),
+            "CoBP-RA": dict(_MRF),
             "LightGBM":   dict(_LGB),
         },
     ),
 
-    # ── Ensemble: MarginalRF + LightGBM + NaiveBayes ─────────────────────
+    # ── Ensemble: CoBP-RA + LightGBM + NaiveBayes ─────────────────────
     (
         "Ensemble_MRF_LGB_NB",
-        "MarginalRF",
+        "CoBP-RA",
         {
             "chaining": {"enabled": False},
             "ensembling": {
@@ -167,16 +167,16 @@ ATTACK_CONFIGS = [
                 "methods":         ["LightGBM", "NaiveBayes"],
                 "aggregation":     "hard_voting",
             },
-            "MarginalRF": dict(_MRF),
+            "CoBP-RA": dict(_MRF),
             "LightGBM":   dict(_LGB),
             "NaiveBayes": dict(_NB),
         },
     ),
 
-    # ── Ensemble: MarginalRF + RF + LightGBM + MLP + KNN ─────────────────
+    # ── Ensemble: CoBP-RA + RF + LightGBM + MLP + KNN ─────────────────
     (
         "Ensemble_MRF_5",
-        "MarginalRF",
+        "CoBP-RA",
         {
             "chaining": {"enabled": False},
             "ensembling": {
@@ -185,7 +185,7 @@ ATTACK_CONFIGS = [
                 "methods":         ["RandomForest", "LightGBM", "MLP", "KNN"],
                 "aggregation":     "hard_voting",
             },
-            "MarginalRF":   dict(_MRF),
+            "CoBP-RA":   dict(_MRF),
             "RandomForest": dict(_RF),
             "LightGBM":     dict(_LGB),
             "MLP":          dict(_MLP),
@@ -196,7 +196,7 @@ ATTACK_CONFIGS = [
 
 # Table fill-in (adult 10k, all 13 SDG columns): keep only the baseline plus the
 # best chain (hard, mutual-info) and best ensemble (MRF+RF+LGB+MLP+KNN) configs.
-_KEEP_LABELS = {"MarginalRF", "MarginalRF_HardChain", "Ensemble_MRF_5"}
+_KEEP_LABELS = {"CoBP-RA", "CoBP-RA_HardChain", "Ensemble_MRF_5"}
 ATTACK_CONFIGS = [c for c in ATTACK_CONFIGS if c[0] in _KEEP_LABELS]
 
 
@@ -422,13 +422,13 @@ def _print_summary(rows: list[dict]):
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="MarginalRF chaining + ensembling sweep.")
+    parser = argparse.ArgumentParser(description="CoBP-RA chaining + ensembling sweep.")
     parser.add_argument("--dry-run",      action="store_true")
     parser.add_argument("--serial",       action="store_true",
                         help="Run in main process (Ctrl-C killable).")
     parser.add_argument("--workers",      type=int, default=N_WORKERS)
     parser.add_argument("--attack",       type=str, default=None,
-                        help="Restrict to one attack label (e.g. MarginalRF_SoftChain).")
+                        help="Restrict to one attack label (e.g. CoBP-RA_SoftChain).")
     parser.add_argument("--sdg",          type=str, default=None)
     parser.add_argument("--sample",       type=int, default=None)
     parser.add_argument("--progress-log", type=str,
@@ -444,7 +444,7 @@ def main():
 
     header = (
         f"{'='*80}\n"
-        f"  MarginalRF chaining + ensembling sweep\n"
+        f"  CoBP-RA chaining + ensembling sweep\n"
         f"  Dataset:  {DATASET_NAME} {DATASET_SIZE}\n"
         f"  Configs:  {len(ATTACK_CONFIGS)} attack variants\n"
         f"  SDGs:     {len(SDG_METHODS)}\n"

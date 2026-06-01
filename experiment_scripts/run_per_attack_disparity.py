@@ -61,13 +61,13 @@ ATTACKS = [
     "KNN",
     "NaiveBayes",
     "RandomForest",
-    "MarginalRF_graphQI_entropyBP",
+    "CoBP-RA_graphQI_entropyBP",
     "MLP",
     "LightGBM",
 ]
 
 # (label, method, params) — ALL main SDG methods, so we can see whether a given
-# attack (e.g. MarginalRF) exposes disparity under one generator but not another.
+# attack (e.g. CoBP-RA) exposes disparity under one generator but not another.
 SDGS = [
     ("CellSuppression", "CellSuppression", {}),
     ("RankSwap",        "RankSwap",        {}),

@@ -6,7 +6,7 @@ Runs two tiers of jobs in one combined sweep:
 
   Tier 1 — cdc_diabetes/size_1000 / QI1 / all attacks
     Full suite: Mode, Random, KNN, NaiveBayes, LR, RF, LightGBM, MLP,
-                TabDDPM (retrain=True), ConditionedRePaint (retrain=False)
+                CondDDPM (retrain=True), CondRePaint (retrain=False)
     15 SDG methods, 5 samples  →  750 jobs
 
   Tier 2 — cdc_diabetes/size_100000 / QI1 / CPU-only attacks
@@ -18,7 +18,7 @@ Total: ~1240 jobs.
 
 Estimated wall-clock time with --workers 4 (recommended):
   CPU attacks finish in ~3–5 hours.
-  GPU (TabDDPM + CR) dominates at ~12–15 hours on 2 × RTX 6000 Ada.
+  GPU (CondDDPM + CR) dominates at ~12–15 hours on 2 × RTX 6000 Ada.
   Comfortably within a single overnight run.
 
 Usage:
@@ -117,7 +117,7 @@ ATTACK_CONFIGS_1K = [
     ("LightGBM",     {}),
     ("MLP",          {}),
     # Diffusion
-    ("TabDDPM",      {"retrain": True}),
+    ("CondDDPM",      {"retrain": True}),
 ]
 
 # CPU-only for 100k:
@@ -395,7 +395,7 @@ def main():
     if args.dry_run:
         for i, j in enumerate(all_jobs):
             print(f"  [{i+1:>5d}]  {j.run_name}")
-        n_gpu = sum(1 for j in all_jobs if j.attack_method in ("TabDDPM", "ConditionedRePaint"))
+        n_gpu = sum(1 for j in all_jobs if j.attack_method in ("CondDDPM", "CondRePaint"))
         n_cpu = len(all_jobs) - n_gpu
         print(f"\n{len(all_jobs)} jobs total  ({n_cpu} CPU,  {n_gpu} GPU/diffusion)")
         return

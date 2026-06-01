@@ -20,7 +20,7 @@ def _artifact_dir(cfg: dict, name: str) -> str:
     """Return a per-sample, per-SDG-method, per-QI artifact directory path.
 
     Pattern: {sample_dir}/{sdg_label}/{name}_{qi}
-    Mirrors the Attention attack convention so parallel jobs across different
+    Mirrors the ARFFormer attack convention so parallel jobs across different
     SDG methods or QI variants never share the same checkpoint.
     """
     method = cfg.get("sdg_method", "unknown")
@@ -317,7 +317,7 @@ def _train_tabddpm_mlp_stacker(cfg, synth, qi, hidden_features, mlp_artifact_dir
     # Train one _TorchMLP per hidden feature (classifier for discrete, regressor for continuous).
     # LabelEncoder converts string labels → integer class indices for CrossEntropyLoss.
     n_feats = len(hidden_features)
-    print(f"\n  [TabDDPMWithMLP] Training stacker MLPs on {n_rows} synth rows "
+    print(f"\n  [CondDDPMWithMLP] Training stacker MLPs on {n_rows} synth rows "
           f"({len(qi)} QI + {n_feats} hint features)  →  {n_feats} targets  "
           f"[device: {_TORCH_DEVICE}]", flush=True)
 

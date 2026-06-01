@@ -13,7 +13,7 @@ SDG methods: all pre-generated at size_1000 (MST×5ε, TVAE, CTGAN, ARF, TabDDPM
              Synthpop, RankSwap, CellSuppression).
 
 Attacks: Mode, Random, KNN, NaiveBayes, RandomForest, LightGBM, MLP.
-         (PartialMST deferred; LinearReconstruction infeasible at 123 hidden features.)
+         (CondMST deferred; LinearReconstruction infeasible at 123 hidden features.)
 
 Usage (from repo root):
     conda activate recon_
@@ -72,7 +72,7 @@ SDG_METHODS = [
     ("CellSuppression", {}),
 ]
 
-# Core categorical attacks — baselines through neural, no diffusion or PartialMST
+# Core categorical attacks — baselines through neural, no diffusion or CondMST
 ATTACK_CONFIGS = [
     # ── Baselines ─────────────────────────────────────────────────────────────
     ("Mode",            {}),

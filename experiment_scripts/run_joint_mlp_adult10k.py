@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-JointMLP sweep: adult 10k, all 5 samples, QI1, all requested SDG methods.
+MultiHeadMLP sweep: adult 10k, all 5 samples, QI1, all requested SDG methods.
 
 Usage (from repo root):
     conda activate recon_
@@ -65,13 +65,13 @@ SDG_METHODS = [
 ]
 
 ATTACK_CONFIGS = [
-    ("JointMLP", {}),
+    ("MultiHeadMLP", {}),
 ]
 
 N_WORKERS     = 4
 WANDB_PROJECT = "tabular-reconstruction-attacks"
 WANDB_GROUP   = "joint-mlp-adult-10k"
-WANDB_TAGS    = [DATASET_NAME, f"size_{DATASET_SIZE}", "JointMLP"]
+WANDB_TAGS    = [DATASET_NAME, f"size_{DATASET_SIZE}", "MultiHeadMLP"]
 
 
 # ── Job specification ──────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ def _print_summary(rows: list[dict]):
     successes = [r for r in rows if r.get("error") is None]
     failures  = [r for r in rows if r.get("error") is not None]
     print(f"\n{'='*70}")
-    print(f"  SWEEP COMPLETE — {DATASET_NAME} (JointMLP)")
+    print(f"  SWEEP COMPLETE — {DATASET_NAME} (MultiHeadMLP)")
     print(f"  {len(successes)} succeeded  /  {len(failures)} failed")
     if successes:
         import numpy as np
@@ -255,7 +255,7 @@ def _print_summary(rows: list[dict]):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="JointMLP sweep: adult 10k.")
+    parser = argparse.ArgumentParser(description="MultiHeadMLP sweep: adult 10k.")
     parser.add_argument("--dry-run",      action="store_true")
     parser.add_argument("--serial",       action="store_true")
     parser.add_argument("--workers",      type=int, default=N_WORKERS)
@@ -277,7 +277,7 @@ def main():
 
     header = (
         f"{'='*70}\n"
-        f"  JointMLP sweep: {DATASET_NAME} size={DATASET_SIZE}\n"
+        f"  MultiHeadMLP sweep: {DATASET_NAME} size={DATASET_SIZE}\n"
         f"  Jobs total: {len(all_jobs)}  Workers: {args.workers}\n"
         f"  WandB group: {WANDB_GROUP}\n"
         f"{'='*70}\n"

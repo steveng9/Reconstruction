@@ -3,7 +3,7 @@
 Memorization sweep: train vs holdout reconstruction accuracy across three datasets.
 
 Attacks run:
-  MarginalRF_QIGraph_EntropyBP  — best MarginalRF variant (qi_in_graph + entropy_weighted)
+  CoBP-RA_QIGraph_EntropyBP  — best CoBP-RA variant (qi_in_graph + entropy_weighted)
   RandomForest
   KNN
   NaiveBayes
@@ -148,13 +148,13 @@ SAMPLE_RANGE = [0, 1, 2]   # 3 trials; all have valid holdouts ((0+1)%5=1, etc.)
 # Each entry: (label, attack_method, param_overrides)
 # label distinguishes variants in WandB; attack_method is the registered name.
 
-_MRF = ATTACK_PARAM_DEFAULTS["MarginalRF"]
+_MRF = ATTACK_PARAM_DEFAULTS["CoBP-RA"]
 
 ATTACK_CONFIGS = [
-    # Best MarginalRF variant: QI nodes as observed graph variables + entropy-weighted BP
+    # Best CoBP-RA variant: QI nodes as observed graph variables + entropy-weighted BP
     (
-        "MarginalRF_QIGraph_EntropyBP",
-        "MarginalRF",
+        "CoBP-RA_QIGraph_EntropyBP",
+        "CoBP-RA",
         {"qi_in_graph": True, "entropy_weighted": True},
     ),
     ("RandomForest", "RandomForest", {}),

@@ -8,12 +8,12 @@ combinations are then computed from the cached results without re-running any
 attack.  This eliminates all redundant computation.
 
 Individual attacks logged (for reference):
-  MarginalRF, LightGBM, NaiveBayes, KNN, MLP
+  CoBP-RA, LightGBM, NaiveBayes, KNN, MLP
 
 Ensemble configurations (soft voting with per-model weights):
-  Ensemble_W_a: MarginalRF(0.40), LightGBM(0.30), NaiveBayes(0.15), KNN(0.15)
-  Ensemble_W_b: MarginalRF(0.35), LightGBM(0.25), MLP(0.25),        KNN(0.15)
-  Ensemble_W_c: MarginalRF(0.40), MLP(0.35),       KNN(0.15),        NaiveBayes(0.10)
+  Ensemble_W_a: CoBP-RA(0.40), LightGBM(0.30), NaiveBayes(0.15), KNN(0.15)
+  Ensemble_W_b: CoBP-RA(0.35), LightGBM(0.25), MLP(0.25),        KNN(0.15)
+  Ensemble_W_c: CoBP-RA(0.40), MLP(0.35),       KNN(0.15),        NaiveBayes(0.10)
 
 Soft voting aligns each model's class-probability array to a common class space,
 applies per-model weights, sums, and argmaxes.  Models without real probas
@@ -77,10 +77,10 @@ SDG_METHODS = [
 # Each entry: (label, attack_method, attack_params_overrides)
 
 INDIVIDUAL_ATTACKS = [
-    ("MarginalRF", "MarginalRF", {
+    ("CoBP-RA", "CoBP-RA", {
         "chaining":   {"enabled": False},
         "ensembling": {"enabled": False},
-        "MarginalRF": dict(ATTACK_PARAM_DEFAULTS["MarginalRF"]),
+        "CoBP-RA": dict(ATTACK_PARAM_DEFAULTS["CoBP-RA"]),
     }),
     ("LightGBM", "LightGBM", {
         "chaining":   {"enabled": False},
@@ -111,21 +111,21 @@ INDIVIDUAL_ATTACKS = [
 ENSEMBLE_CONFIGS = [
     # (a) MRF-heavy with LGB + equal small-weight models
     ("Ensemble_W_a", [
-        ("MarginalRF", 0.40),
+        ("CoBP-RA", 0.40),
         ("LightGBM",   0.30),
         ("NaiveBayes", 0.15),
         ("KNN",        0.15),
     ]),
     # (b) MRF + LGB + MLP triangle
     ("Ensemble_W_b", [
-        ("MarginalRF", 0.35),
+        ("CoBP-RA", 0.35),
         ("LightGBM",   0.25),
         ("MLP",        0.25),
         ("KNN",        0.15),
     ]),
     # (c) MRF + MLP strong, KNN + NB minor
     ("Ensemble_W_c", [
-        ("MarginalRF", 0.40),
+        ("CoBP-RA", 0.40),
         ("MLP",        0.35),
         ("KNN",        0.15),
         ("NaiveBayes", 0.10),
@@ -280,7 +280,7 @@ def run_job(job: Job) -> list[dict[str, Any]]:
         "data_type":   DATASET_TYPE,
         "sdg_method":  job.sdg_method,
         "sdg_params":  job.sdg_params or None,
-        "attack_method": "MarginalRF",        # placeholder, overridden per attack
+        "attack_method": "CoBP-RA",        # placeholder, overridden per attack
         "memorization_test": {"enabled": False},
         "attack_params": {},
     }

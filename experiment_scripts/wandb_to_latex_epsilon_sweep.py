@@ -59,13 +59,13 @@ EPS_COL_ORDER = [
 # ── Label remapping (mirrors the other scripts) ───────────────────────────────
 
 LABEL_REMAP: dict[str, str] = {
-    "MarginalRF_global":         "MarginalRF_mst_global",
-    "MarginalRF_local_k50":      "MarginalRF_mst_local_50",
-    "MarginalRF_local_k100":     "MarginalRF_mst_local_100",
-    "MarginalRF_local_k200":     "MarginalRF_mst_local_200",
-    "MarginalRF_mst_local":      "MarginalRF_mst_local_100",
-    "MarginalRF_complete_local": "MarginalRF_complete_local_100",
-    "MarginalRF_topk_local":     "MarginalRF_topk_local_100",
+    "CoBP-RA_global":         "CoBP-RA_mst_global",
+    "CoBP-RA_local_k50":      "CoBP-RA_mst_local_50",
+    "CoBP-RA_local_k100":     "CoBP-RA_mst_local_100",
+    "CoBP-RA_local_k200":     "CoBP-RA_mst_local_200",
+    "CoBP-RA_mst_local":      "CoBP-RA_mst_local_100",
+    "CoBP-RA_complete_local": "CoBP-RA_complete_local_100",
+    "CoBP-RA_topk_local":     "CoBP-RA_topk_local_100",
 }
 
 # ── Data path helpers ─────────────────────────────────────────────────────────
@@ -323,7 +323,7 @@ def load_csv_long(csv_paths: list[str],
     if (dropped := before - len(df)):
         print(f"  Dropped {dropped} rows with missing ra_mean (failed runs).")
 
-    # label → attack substitution (for MarginalRF variant labels, etc.)
+    # label → attack substitution (for CoBP-RA variant labels, etc.)
     if "label" in df.columns:
         mask = df["label"].notna() & (df["label"].astype(str).str.strip() != "")
         df.loc[mask, "attack"] = df.loc[mask, "label"]

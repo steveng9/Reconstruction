@@ -49,7 +49,7 @@ DATASET_TYPE  = "categorical"
 QI_VARIANTS = ["QI1"]
 
 # Attacks included in the heatmap — all N*(N-1)/2 pairs are computed automatically.
-# Excludes: SVM (O(n²) at n=10k), AttentionAutoregressive (slow),
+# Excludes: SVM (O(n²) at n=10k), ARFFormerAutoregressive (slow),
 #           LinearReconstruction (Gurobi), diffusion attacks (too slow for exhaustive pairs).
 ATTACKS = [
     "Mode",
@@ -60,8 +60,8 @@ ATTACKS = [
     "RandomForest",
     "LightGBM",
     "MLP",
-    "TabDDPM",
-    "PartialMSTBounded",
+    "CondDDPM",
+    "CondMSTBounded",
 ]
 
 SDG_METHODS = [
