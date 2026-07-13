@@ -19,12 +19,17 @@ export MKL_NUM_THREADS=2
 export NUMEXPR_NUM_THREADS=2
 
 echo "=== STEP 1: generate MST/PrivBayes/PrivSyn synth, samples 0-4 x 9 epsilons @ cdc_diabetes size_1000 ==="
-python experiment_scripts/generate_new_dp_sweep.py \
+# CPU-affinity pinned (cores 0-15) -- learned the hard way that OMP/MKL/OPENBLAS
+# env caps alone do NOT bound PyTorch/jax/joblib thread+process pools (every
+# worker does `from sdg import get_sdg`, which imports the whole sdg package
+# incl. torch/jax regardless of which single method it actually runs). taskset
+# hard-caps real core usage no matter what any library does internally.
+taskset -c 0-15 python experiment_scripts/generate_new_dp_sweep.py \
   --data-root /home/golobs/data/reconstruction_data/cdc_diabetes/size_1000 \
   --meta-path /home/golobs/data/reconstruction_data/cdc_diabetes/meta.json \
   --methods MST PrivBayes PrivSyn \
   --samples 0 1 2 3 4 \
-  --workers 8
+  --workers 4
 
 echo ""
 echo "=== STEP 2: attack sweep - 3 attacks x 2 QIs x 5 samples x 9 epsilons x 3 generators, cdc_diabetes size_1000 ==="
@@ -34,10 +39,10 @@ SWEEP_DATA_ROOT=/home/golobs/data/reconstruction_data/cdc_diabetes/size_1000 \
 SWEEP_N_SAMPLES=5 \
 SWEEP_QI_VARIANTS="QI1,QI_large" \
 SWEEP_WANDB_GROUP="new-dp-epsilon-sweep-cdc-1k" \
-python experiment_scripts/run_new_dp_epsilon_sweep.py \
+taskset -c 0-15 python experiment_scripts/run_new_dp_epsilon_sweep.py \
   --sdg-methods MST PrivBayes PrivSyn \
   --samples 0 1 2 3 4 \
-  --workers 8
+  --workers 6
 
 echo ""
 echo "=== STEP 3: insert results into results.db ==="
