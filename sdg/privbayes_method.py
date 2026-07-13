@@ -8,12 +8,25 @@ distributions.
 
 import os
 import tempfile
+from multiprocessing.pool import Pool as _MPPool
 
 import numpy as np
 import pandas as pd
 
 from DataSynthesizer.DataDescriber import DataDescriber
 from DataSynthesizer.DataGenerator import DataGenerator
+
+# DataSynthesizer's PrivBayes.py does a bare `with Pool() as pool:` inside its
+# greedy Bayesian-network construction loop (once per remaining attribute),
+# which defaults to os.cpu_count() (e.g. 48) worker processes every time --
+# regardless of any outer parallelism already in flight. Under our own
+# ProcessPoolExecutor-based job sweeps this multiplies out (N outer workers x
+# 48 inner workers each) and can spawn hundreds of processes per host. Cap it
+# to a small fixed pool size; override via PRIVBAYES_INNER_POOL_SIZE if needed.
+import DataSynthesizer.lib.PrivBayes as _privbayes_lib
+
+_INNER_POOL_SIZE = int(os.environ.get("PRIVBAYES_INNER_POOL_SIZE", "2"))
+_privbayes_lib.Pool = lambda *a, **k: _MPPool(processes=_INNER_POOL_SIZE)
 
 
 def privbayes_generate(train_df, meta, **config):

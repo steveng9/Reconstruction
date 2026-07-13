@@ -24,15 +24,19 @@ export MKL_NUM_THREADS=2
 export NUMEXPR_NUM_THREADS=2
 
 echo "=== STEP 1: generate PrivateGSD synth, sample_00 x 9 epsilons @ size_10000 ==="
-# CPU-affinity pinned (cores 16-23) -- OMP/MKL/OPENBLAS env caps alone do NOT
-# bound jax's XLA thread pool or joblib process pools (both default to
-# os.cpu_count()=48 regardless). taskset hard-caps real core usage instead.
-timeout 6h taskset -c 16-23 python experiment_scripts/generate_new_dp_sweep.py \
+# CPU-affinity pinned (cores 24-35) -- OMP/MKL/OPENBLAS env caps alone do NOT
+# bound jax's XLA thread pool (defaults to os.cpu_count()=48 regardless).
+# taskset hard-caps real core usage instead. NOTE: this only bounds *which
+# cores* a process may run on -- it does NOT bound how many processes get
+# spawned. That distinction mattered a lot for PrivBayes (see cdc pipeline
+# comment below); PrivateGSD/jax does not spawn its own subprocess pools, so
+# taskset alone is sufficient here.
+timeout 6h taskset -c 24-35 python experiment_scripts/generate_new_dp_sweep.py \
   --data-root /home/golobs/data/reconstruction_data/adult/size_10000 \
   --meta-path /home/golobs/data/reconstruction_data/adult/meta.json \
   --methods PrivateGSD \
   --samples 0 \
-  --workers 1 || echo "  (generation step exited non-zero / timed out -- continuing to attack step with whatever synth.csv files exist)"
+  --workers 4 || echo "  (generation step exited non-zero / timed out -- continuing to attack step with whatever synth.csv files exist)"
 
 echo ""
 echo "=== STEP 2: attack sweep - 3 attacks x 3 QIs x 1 sample x 9 epsilons, PrivateGSD @ size_10000 ==="
@@ -42,10 +46,10 @@ SWEEP_DATA_ROOT=/home/golobs/data/reconstruction_data/adult/size_10000 \
 SWEEP_N_SAMPLES=5 \
 SWEEP_QI_VARIANTS="QI_large,QI_behavioral,QI1" \
 SWEEP_WANDB_GROUP="new-dp-epsilon-sweep-adult-10k-privategsd" \
-taskset -c 16-23 python experiment_scripts/run_new_dp_epsilon_sweep.py \
+taskset -c 24-35 python experiment_scripts/run_new_dp_epsilon_sweep.py \
   --sdg-methods PrivateGSD \
   --samples 0 \
-  --workers 2
+  --workers 4
 
 echo ""
 echo "=== STEP 3: insert results into results.db ==="
