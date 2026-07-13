@@ -287,6 +287,38 @@ tail -f outfiles/progress.log
 | Chaining analysis | `experiment_scripts/run_chaining_analysis.py` |
 | Synthetic data quality evaluation | `experiment_scripts/evaluate_synth_quality.py` |
 
+### Rebuttal: cross-mechanism / cross-dataset epsilon-plateau validation
+
+Added for a POPETS rebuttal to show the RA-plateaus-at-ε>1 finding isn't MST-specific. Same 9-point ε sweep (0.1, 0.3, 1, 3, 10, 30, 100, 300, 1000) and same 3 attacks (RandomForest, NaiveBayes, CoBP-RA) throughout, run against 4 additional, mechanistically-distinct DP generators (PrivBayes, MWEMPGM, PrivSyn, PrivateGSD — see SDG Methods table above) and, separately, a second dataset (cdc_diabetes) with the original 3 DP generators (MST, PrivBayes, PrivSyn).
+
+| Script | Purpose |
+|---|---|
+| `experiment_scripts/generate_new_dp_sweep.py` | Generate synth.csv for any SDG method(s)/epsilon(s)/sample(s) at a given `--data-root`/`--meta-path`. Runs a quick per-file quality check (TVD/JSD/pairwise-TVD/mean-err%) inline. |
+| `experiment_scripts/run_new_dp_epsilon_sweep.py` | RF + NaiveBayes + CoBP-RA attack sweep across SDG methods × epsilons × QIs × samples, with memorization test. Dataset/size/data-root/N_samples/QI-variants/wandb-group all overridable via `SWEEP_*` env vars (needed for `ProcessPoolExecutor(spawn)` workers, which inherit env but not post-import globals). Writes `new_dp_epsilon_sweep_{dataset}_sz{size}_{timestamp}.csv`. |
+| `experiment_scripts/insert_new_dp_sweep_to_db.py` | Insert that CSV into `results.db` (3 rows/job: split=standard/train/nontraining), same convention as the rest of the DB. `--dataset`/`--dataset-size`/`--wandb-group` flags. |
+| `experiment_scripts/run_private_gsd_full_pipeline.sh` | End-to-end: PrivateGSD, adult size_1000, 4 trials × 9 ε × 3 QIs × 3 attacks. |
+| `experiment_scripts/run_private_gsd_10k_pipeline.sh` | End-to-end: PrivateGSD, adult size_10000, 1 trial × 9 ε × 3 QIs × 3 attacks (PrivateGSD does not scale cleanly to n=10000 on CPU-only jax — this run may be slow or partially incomplete; the script degrades gracefully, running attacks on whatever synth.csv did finish). |
+| `experiment_scripts/run_cdc_dp_sweep_pipeline.sh` | End-to-end: MST + PrivBayes + PrivSyn, cdc_diabetes size_1000, 5 trials × 9 ε × 2 QIs (QI1, QI_large) × 3 attacks. |
+
+WandB groups: `new-dp-epsilon-sweep-adult-10k` (PrivBayes/MWEMPGM/PrivSyn @ adult 10k), `new-dp-epsilon-sweep-adult-1k-privategsd` (PrivateGSD @ adult 1k), `new-dp-epsilon-sweep-adult-10k-privategsd` (PrivateGSD @ adult 10k), `new-dp-epsilon-sweep-cdc-1k` (cdc_diabetes).
+
+To pull results back out of `results.db` (averaged across whatever trials have completed so far):
+```python
+import sqlite3, pandas as pd
+conn = sqlite3.connect('experiment_scripts/results.db')
+df = pd.read_sql_query("""
+    select sdg_method, dataset, dataset_size, qi, attack_label, sample, ra_mean
+    from runs where split='standard'
+    and (sdg_method like 'PrivBayes_%' or sdg_method like 'MWEMPGM_%'
+         or sdg_method like 'PrivateGSD_%' or sdg_method like 'PrivSyn_%'
+         or (dataset='cdc_diabetes' and sdg_method like 'MST_%'))
+""", conn)
+df['method'] = df['sdg_method'].str.extract(r'^([A-Za-z]+)_eps')
+df['eps'] = df['sdg_method'].str.extract(r'_eps([\d\.]+)$').astype(float)
+# pivot: rows=attack_label, cols=eps, averaged over sample, per (dataset, method, qi)
+df.groupby(['dataset','method','qi','attack_label','eps'])['ra_mean'].mean().unstack('eps')
+```
+
 ### Generating LaTeX tables from WandB results
 
 ```bash
@@ -472,8 +504,12 @@ Enhancements are composable: ensembling first, then chaining.
 
 | Method | Type | Key parameters | Notes |
 |---|---|---|---|
-| MST | DP (marginal) | ε ∈ {0.1, 1, 10, 100, 1000} | SmartNoise. Use `bin_continuous_as_ordinal=True` for wide datasets with skewed continuous cols |
-| AIM | DP (marginal) | ε ∈ {1, 10, 100} | SmartNoise. Infeasible for 50+ columns |
+| MST | DP (marginal + graphical model) | ε ∈ {0.1, 1, 10, 100, 1000} | SmartNoise. Use `bin_continuous_as_ordinal=True` for wide datasets with skewed continuous cols |
+| AIM | DP (marginal + graphical model) | ε ∈ {1, 10, 100} | SmartNoise. Infeasible for 50+ columns |
+| PrivBayes | DP (Bayesian network) | ε ∈ {0.1 ... 1000} (9-pt sweep) | `DataSynthesizer` package (correlated-attribute mode). `bin_continuous_as_ordinal=True` default — avoids severe skew inflation on zero-heavy continuous cols |
+| MWEMPGM | DP (marginal + graphical model) | ε ∈ {0.1 ... 1000} (9-pt sweep) | Custom MWEM+PGM impl on top of `mbi.FactoredInference` (older API) |
+| PrivSyn | DP (marginal, no graphical model) | ε ∈ {0.1 ... 1000} (9-pt sweep) | USENIX Security 2021. Vendored `View`/`Consistenter`/synthesizer core from SynMeter (`sdg/_privsyn_vendor.py`, Apache-2.0) + fresh DP marginal-selection/noise logic. Continuous cols decoded to true empirical bin mean (not midpoint) |
+| PrivateGSD | DP (genetic algorithm) | ε ∈ {0.1 ... 1000} (9-pt sweep) | `genetic_sd` (ICML 2023). CPU-only jax; does not scale cleanly past n≈1000 — validated at adult size_1000, spot-checked at size_10000 |
 | TVAE | Deep generative | — | SDV library, GPU recommended |
 | CTGAN | Deep generative | — | SDV library, GPU recommended |
 | ARF | Deep generative | — | SynthCity, GPU recommended |

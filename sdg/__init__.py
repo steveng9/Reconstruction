@@ -15,6 +15,30 @@ where:
 from .smartnoise_methods import mst_generate, aim_generate
 
 try:
+    from .privbayes_method import privbayes_generate
+except ImportError as _e:
+    def privbayes_generate(*a, **kw):
+        raise ImportError(f"PrivBayes unavailable: {_e}") from _e
+
+try:
+    from .mwem_pgm_method import mwem_pgm_generate
+except ImportError as _e:
+    def mwem_pgm_generate(*a, **kw):
+        raise ImportError(f"MWEM+PGM unavailable: {_e}") from _e
+
+try:
+    from .private_gsd_method import private_gsd_generate
+except ImportError as _e:
+    def private_gsd_generate(*a, **kw):
+        raise ImportError(f"Private-GSD unavailable: {_e}") from _e
+
+try:
+    from .privsyn_method import privsyn_generate
+except ImportError as _e:
+    def privsyn_generate(*a, **kw):
+        raise ImportError(f"PrivSyn unavailable: {_e}") from _e
+
+try:
     from .tvae_method import tvae_generate
 except ImportError as _e:
     def tvae_generate(*a, **kw):
@@ -35,6 +59,10 @@ SDG_REGISTRY = {
     # Differentially private methods (epsilon parameter)
     "MST": mst_generate,
     "AIM": aim_generate,
+    "PrivBayes": privbayes_generate,
+    "MWEMPGM": mwem_pgm_generate,
+    "PrivateGSD": private_gsd_generate,
+    "PrivSyn": privsyn_generate,
 
     # Deep generative models
     "TVAE": tvae_generate,

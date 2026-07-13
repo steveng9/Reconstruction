@@ -54,6 +54,10 @@ EPS_COL_ORDER = [
     "MST_eps0.1", "MST_eps0.3", "MST_eps1",  "MST_eps3",
     "MST_eps10",  "MST_eps30",  "MST_eps100", "MST_eps300", "MST_eps1000",
     "AIM_eps0.3", "AIM_eps1",   "AIM_eps3",   "AIM_eps10",  "AIM_eps100",
+    "PrivBayes_eps0.1", "PrivBayes_eps0.3", "PrivBayes_eps1",  "PrivBayes_eps3",
+    "PrivBayes_eps10",  "PrivBayes_eps30",  "PrivBayes_eps100", "PrivBayes_eps300", "PrivBayes_eps1000",
+    "MWEMPGM_eps0.1", "MWEMPGM_eps0.3", "MWEMPGM_eps1",  "MWEMPGM_eps3",
+    "MWEMPGM_eps10",  "MWEMPGM_eps30",  "MWEMPGM_eps100", "MWEMPGM_eps300", "MWEMPGM_eps1000",
 ]
 
 # ── Label remapping (mirrors the other scripts) ───────────────────────────────
@@ -216,7 +220,7 @@ def fetch_runs_long(groups: list[str],
     for group in groups:
         server_filters: dict = {
             "group":           group,
-            "config.sdg_method": {"$in": ["MST", "AIM"]},
+            "config.sdg_method": {"$in": ["MST", "AIM", "PrivBayes", "MWEMPGM"]},
         }
         if attack_filter:
             server_filters["config.attack_method"] = {"$in": attack_filter}
@@ -254,7 +258,7 @@ def fetch_runs_long(groups: list[str],
                 continue
 
             sdg = _sdg_label(sdg_method, sdg_params)
-            if not (sdg.startswith("MST_") or sdg.startswith("AIM_")):
+            if not (sdg.startswith("MST_") or sdg.startswith("AIM_") or sdg.startswith("PrivBayes_") or sdg.startswith("MWEMPGM_")):
                 continue
 
             feat_scores = {
@@ -351,7 +355,7 @@ def load_csv_long(csv_paths: list[str],
         df = df[df["attack"].isin(attack_filter)]
 
     # Keep only MST/AIM rows
-    df = df[df["sdg"].str.startswith("MST_") | df["sdg"].str.startswith("AIM_")]
+    df = df[df["sdg"].str.startswith("MST_") | df["sdg"].str.startswith("AIM_") | df["sdg"].str.startswith("PrivBayes_") | df["sdg"].str.startswith("MWEMPGM_")]
 
     # Find per-feature columns: RA_{feat} (exclude RA_mean, memorisation metrics)
     feat_cols = [
@@ -413,11 +417,12 @@ def to_latex(pivot: pd.DataFrame, df_raw: pd.DataFrame,
     cols     = _ordered_cols(pivot)
     features = _ordered_features(pivot, dataset, qi)
 
-    mst_cols = [c for c in cols if c.startswith("MST_")]
-    aim_cols = [c for c in cols if c.startswith("AIM_")]
-    n_mst, n_aim = len(mst_cols), len(aim_cols)
+    GENERATOR_GROUPS = [("MST_", "MST (DP)"), ("AIM_", "AIM (DP)"),
+                        ("PrivBayes_", "PrivBayes (DP)"), ("MWEMPGM_", "MWEM+PGM (DP)")]
+    group_cols = [(disp, [c for c in cols if c.startswith(pfx)]) for pfx, disp in GENERATOR_GROUPS]
+    group_cols = [(disp, cs) for disp, cs in group_cols if cs]
 
-    col_spec = "l" + "r" * (n_mst + n_aim)
+    col_spec = "l" + "r" * sum(len(cs) for _, cs in group_cols)
 
     def _eps_label(c: str) -> str:
         eps = c.split("_eps")[1]
@@ -471,22 +476,16 @@ def to_latex(pivot: pd.DataFrame, df_raw: pd.DataFrame,
     lines.append(r"  \begin{tabular}{" + col_spec + r"}")
     lines.append(r"    \toprule")
 
-    # Level-1 header: MST span | AIM span
-    lvl1 = [""]
-    if n_mst:
-        lvl1.append(f"\\multicolumn{{{n_mst}}}{{c}}{{MST (DP)}}")
-    if n_aim:
-        lvl1.append(f"\\multicolumn{{{n_aim}}}{{c}}{{AIM (DP)}}")
+    # Level-1 header: one span per generator family present in the data
+    lvl1 = [""] + [f"\\multicolumn{{{len(cs)}}}{{c}}{{{disp}}}" for disp, cs in group_cols]
     lines.append("    " + " & ".join(lvl1) + r" \\")
 
     # cmidrules under the group headers
     cmidrules = []
     col_idx = 2   # 1-indexed; column 1 is the feature label
-    if n_mst:
-        cmidrules.append(f"\\cmidrule(lr){{{col_idx}-{col_idx + n_mst - 1}}}")
-        col_idx += n_mst
-    if n_aim:
-        cmidrules.append(f"\\cmidrule(lr){{{col_idx}-{col_idx + n_aim - 1}}}")
+    for _, cs in group_cols:
+        cmidrules.append(f"\\cmidrule(lr){{{col_idx}-{col_idx + len(cs) - 1}}}")
+        col_idx += len(cs)
     if cmidrules:
         lines.append("    " + " ".join(cmidrules))
 
@@ -548,7 +547,7 @@ def _load_db_long(dataset: str, qi_filter: str,
         return df
 
     df["attack"] = df["attack"].map(lambda a: LABEL_REMAP.get(a, a))
-    df = df[df["sdg"].str.startswith("MST_") | df["sdg"].str.startswith("AIM_")]
+    df = df[df["sdg"].str.startswith("MST_") | df["sdg"].str.startswith("AIM_") | df["sdg"].str.startswith("PrivBayes_") | df["sdg"].str.startswith("MWEMPGM_")]
 
     feat_cols = [c for c in df.columns
                  if c.startswith("RA_") and c != "RA_mean"
