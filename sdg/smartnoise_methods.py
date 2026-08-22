@@ -70,6 +70,18 @@ def _smartnoise_generate(method_name, train_df, meta, epsilon=1.0,
             bin_idx = sample[col].clip(0, n_bins - 1).astype(int)
             sample[col] = midpoints[bin_idx]
 
+        # Bin midpoints are floats (e.g. 22.475). If the source column was
+        # integral, snap back to integers: an attack trained on real integer
+        # data can never exactly match a float midpoint, so leaving these as
+        # floats drives per-feature reconstruction scores to ~0 and silently
+        # depresses R_adv for every pre-binned generator. Columns that are
+        # genuinely float in the training data (e.g. California Housing) keep
+        # their midpoints. Must stay in sync with
+        # experiment_scripts/fix_binned_synth_encoding.py, which applies the
+        # identical np.rint to synth files generated before this fix.
+        if col in train_df.columns and train_df[col].dtype.kind in "iu":
+            sample[col] = np.rint(sample[col]).astype(np.int64)
+
     # Cast types to match training data dtypes (skip inverse-transformed cols)
     pre_binned = set(bin_edges.keys())
     for col in sample.columns:

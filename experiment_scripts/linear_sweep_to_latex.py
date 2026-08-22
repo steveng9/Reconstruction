@@ -482,9 +482,9 @@ def main():
     )
     parser.add_argument("--project",    default=WANDB_PROJECT,
                         help="WandB project name.")
-    parser.add_argument("--out-table1", default="linear_sweep_table1.tex",
+    parser.add_argument("--out-table1", default="analysis_outputs/tables/linear_sweep_table1.tex",
                         help="Output file for Table 1 (summary, averaged over SDG).")
-    parser.add_argument("--out-table2", default="linear_sweep_table2.tex",
+    parser.add_argument("--out-table2", default="analysis_outputs/tables/linear_sweep_table2.tex",
                         help="Output file for Table 2 (per SDG, longtable).")
     parser.add_argument("--decimals",   type=int, default=2,
                         help="Decimal places in cells (default 2).")
@@ -521,10 +521,12 @@ def main():
         print(f"  {dk:<14} {sz:>6}  {qi:<30}  {atk:<22}  {sdg:<16}  n={n}")
 
     t1 = build_table1(df, decimals=args.decimals)
+    Path(args.out_table1).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out_table1).write_text(t1)
     print(f"\nTable 1 → {args.out_table1}")
 
     t2 = build_table2(df, decimals=args.decimals)
+    Path(args.out_table2).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out_table2).write_text(t2)
     print(f"Table 2 → {args.out_table2}")
 

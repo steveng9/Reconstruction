@@ -29,3 +29,7 @@ NIST_code/
 # Claude Code instructions / working files (not artifact material)
 CLAUDE.md
 .claude/
+
+# Dated/working backups of DBs, CSVs and tex (not artifact material)
+*.bak
+*.bak_*
