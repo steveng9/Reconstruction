@@ -9,6 +9,17 @@ The framework systematically evaluates **reconstruction attacks** (attribute inf
 
 The same methodology placed **first among all red teams** in the 2025 NIST Privacy Collaborative Research Cycle (CRC).
 
+> **Artifact reviewers:** start with **[`ARTIFACT-APPENDIX.md`](ARTIFACT-APPENDIX.md)**.
+> It has the badge-by-badge requirements, the claim-to-experiment mapping, and the
+> exact commands. The short version:
+>
+> ```bash
+> git clone --recurse-submodules https://github.com/steveng9/Reconstruction.git
+> cd Reconstruction
+> docker build -f docker/Dockerfile -t recon-artifact:latest .
+> docker run --rm -it -v "${PWD}":/workspace -w /workspace recon-artifact:latest ./test.sh
+> ```
+
 ---
 
 ## Table of Contents
@@ -51,7 +62,7 @@ We use **rarity-weighted reconstruction advantage** ($R_{adv}$): a correct predi
 ### Step 1: Clone this repository
 
 ```bash
-git clone <repo-url>
+git clone --recurse-submodules https://github.com/steveng9/Reconstruction.git
 cd Reconstruction
 ```
 
@@ -91,22 +102,25 @@ Rscript -e "install.packages(c('synthpop', 'sdcMicro'))"
 
 For GPU-accelerated methods (TVAE, CTGAN, ARF, TabDDPM), a CUDA-enabled GPU is recommended but not required.
 
-### Step 4: Install external attack dependencies
+### Step 4: External attack dependencies (git submodules)
 
-Two sibling repositories are required for the **CondDDPM / CondRePaint** and **LinearReconstruction** attacks.
+Two external repositories are required for the **CondDDPM / CondRePaint / RePaint**
+and **LinearReconstruction** attacks. They ship as git submodules pinned to the exact
+commits used for the paper, so nothing needs to be cloned by hand:
 
-**TabDDPM / RePaint attacks** (must be a sibling directory of `Reconstruction/`):
 ```bash
-cd ..
-git clone <MIA_on_diffusion_repo_url>
-# Expected path: ../MIA_on_diffusion/midst_models/single_table_TabDDPM/
+# If you did not clone with --recurse-submodules:
+git submodule update --init --recursive
 ```
 
-**Linear Reconstruction attack** (LP + Gurobi, must be a sibling directory):
-```bash
-git clone https://github.com/steveng9/recon-synth
-# Expected path: ../recon-synth/
-```
+This populates:
+
+| Path | Repository | Used by |
+|---|---|---|
+| `external/MIA_on_diffusion/` | [steveng9/MIA_on_diffusion](https://github.com/steveng9/MIA_on_diffusion) | CondDDPM, CondRePaint, RePaint, TabDDPM (SDG) |
+| `external/recon-synth/` | [steveng9/recon-synth](https://github.com/steveng9/recon-synth) | LinearReconstruction |
+
+Both are located through `paths.py`; set `RECON_EXTERNAL_ROOT` to override.
 
 The LinearReconstruction attack also requires a [Gurobi](https://www.gurobi.com/) academic license (free for academics). Install via `pip install gurobipy` and activate with your license key.
 
@@ -204,7 +218,7 @@ We study three feature-subset variants:
 - **`nist_arizona_50feat`**: 50 columns
 - **`nist_arizona_data`**: all 98 columns
 
-See `NIST_code/README.md` for the full feature list and QI definitions.
+The full feature list and QI definitions for all three variants are in `get_data.py` (the `QIs` and `minus_QIs` dicts, keyed by dataset name then QI variant).
 
 ### Dataset 5: NIST Survey of Business Owners (SBO)
 
@@ -400,10 +414,30 @@ Reconstruction/
 │   ├── synth_quality_to_latex.py ← Synth quality LaTeX table
 │   ├── results_db.py             ← SQLite results database utilities
 │   ├── audit_and_verify.py       ← Audit WandB runs against DB for completeness
-│   └── plot_ensembling_heatmap.py ← Heatmap visualization
+│   ├── plot_ensembling_heatmap.py ← Heatmap visualization
+│   ├── regen_camera_tables.py    ← Regenerate every paper table from results.db
+│   ├── results.db                ← 49,126 scored runs behind the paper (68 MB)
+│   └── historical/               ← One-off repair/fill scripts kept for provenance
+│
+├── ARTIFACT-APPENDIX.md          ← PoPETs artifact appendix (start here to review)
+├── test.sh                       ← One-command smoke test (env + attack + tables)
+├── paths.py                      ← Central path resolution; every root is env-overridable
+│
+├── docker/
+│   ├── Dockerfile                ← Light image: attacks, scoring, table regeneration
+│   ├── Dockerfile.full           ← Adds GPU + R synthetic-data generators
+│   ├── requirements-attacks.txt  ← Pinned deps for the attack environment
+│   └── requirements-sdg.txt      ← Pinned deps for the SDG environment
+│
+├── data/
+│   └── dummy/                    ← Fully synthetic demo dataset + its generator
+│
+├── expected_output/tables/       ← Committed reference tables/figures for diffing
+├── LICENSES/                     ← Third-party licence notices
 │
 ├── configs/
-│   └── example_cfg.yaml          ← Fully annotated example configuration
+│   ├── example_cfg.yaml          ← Fully annotated example configuration
+│   └── demo_dummy.yaml           ← Minimal runnable config (used by test.sh)
 │
 ├── SOTA_attacks/                 ← Wrapper for LinearReconstruction (Annamalai et al. 2024)
 │
@@ -611,4 +645,10 @@ If you use this code or the CoBP-RA / CondMST / CondDDPM / CondRePaint / MultiHe
 
 This project is released under the MIT License. See [LICENSE](LICENSE) for details.
 
-The `SOTA_attacks/linear_reconstruction.py` is adapted from [synthetic-society/recon-synth](https://github.com/synthetic-society/recon-synth) (our fork: [steveng9/recon-synth](https://github.com/steveng9/recon-synth)); see that repository for its license.
+Third-party components, and two upstream repositories that carry no explicit
+licence of their own, are documented in
+[`LICENSES/THIRD-PARTY-NOTICES.md`](LICENSES/THIRD-PARTY-NOTICES.md). Please read
+it before reusing `SOTA_attacks/linear_reconstruction.py` or the PrivateGSD
+wrapper.
+
+The `SOTA_attacks/linear_reconstruction.py` is adapted from the reference implementation of the linear reconstruction attack of Annamalai et al. (2024), via [Filienko/recon-synth](https://github.com/Filienko/recon-synth) (our fork: [steveng9/recon-synth](https://github.com/steveng9/recon-synth)).
