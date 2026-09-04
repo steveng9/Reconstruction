@@ -42,6 +42,22 @@ ATT3_LABEL = {"RandomForest": "Random Forest", "NaiveBayes": "Naive Bayes",
 
 def g(e):  return f"{e:g}"
 
+def _require(path: Path) -> Path:
+    """Fail loudly if an input this script needs is missing.
+
+    Tables 2, 7 and 9 read result CSVs alongside results.db. If one is absent the
+    table would still be emitted, but with silently different contents -- so stop
+    instead, and say which file is missing.
+    """
+    if not Path(path).exists():
+        raise SystemExit(
+            f"error: required input not found: {path}\n"
+            "It should be committed alongside results.db. If you are working from a\n"
+            "partial checkout, run:  git checkout -- experiment_scripts/"
+        )
+    return Path(path)
+
+
 def load_runs() -> pd.DataFrame:
     con = sqlite3.connect(DB)
     df = pd.read_sql("SELECT dataset,dataset_size,sample,qi,sdg_method,attack_label,split,ra_mean,run_id,confidence FROM runs", con)
@@ -249,7 +265,7 @@ Q_ROWS = [("MST_eps0.1",r"MST $(\varepsilon{=}0.1)$"),("MST_eps1",r"MST $(\varep
           ("~train_baseline",r"\textit{Train--Train}")]
 
 def table2(df):
-    q = pd.read_csv(QUALITY_CSV)
+    q = pd.read_csv(_require(QUALITY_CSV))
     q = q[(q.dataset=="adult")&(q.size_dir=="size_10000")]
     d = df[(df.dataset=="adult")&(df.dataset_size==10000)&(df.qi=="QI1")&(df.split=="standard")
            &(df.attack_label=="RandomForest")]
@@ -320,13 +336,13 @@ def table7(df):
     On this batch exactly the three printed memorizers clear it, at p <= 0.0001;
     every other row, including ARF (+2.3) and PrivateGSD eps=1 (+2.1), does not.
     """
-    ds=pd.read_csv(ROOT/"experiment_scripts"/"ds_risk_scores.csv")
+    ds=pd.read_csv(_require(ROOT/"experiment_scripts"/"ds_risk_scores.csv"))
     # The printed d_S column reproduces from the Adult *10k* `_overall` rows (total
     # abs error 0.003 across 11 generators, vs 0.604 for 1k) -- the caption says 1k.
     ds=ds[(ds.dataset=="adult")&(ds["size"]==10000)&(ds.feature=="_overall")]
     ds_map=ds.groupby("sdg").ds.mean().to_dict()
 
-    d=pd.read_csv(MEMO_CSV)
+    d=pd.read_csv(_require(MEMO_CSV))
     if d.error.notna().any():
         raise RuntimeError(f"{int(d.error.notna().sum())} memorization jobs errored")
     per=d.groupby(["sdg","sample"])[["train_mean","nontrain_mean","delta_mean"]].mean().reset_index()
@@ -364,7 +380,7 @@ T9_ROWS=[("CellSuppression","Cell Supp."),("TabDDPM","TabDDPM"),("Synthpop","Syn
          ("AIM_eps1",r"AIM $(\varepsilon{=}1)$")]
 def table9():
     p=ROOT/"experiment_scripts"/"per_attack_disparity_postrepair.csv"
-    d=pd.read_csv(p); d=d[d.attack=="RandomForest"]
+    d=pd.read_csv(_require(p)); d=d[d.attack=="RandomForest"]
     cols=[c for c in d.columns]
     lines=[]
     for meth,lab in T9_ROWS:

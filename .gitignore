@@ -42,6 +42,13 @@ CLAUDE.md
 # The results database backing every paper table (see regen_camera_tables.py).
 !experiment_scripts/results.db
 
+# Result CSVs that regen_camera_tables.py reads alongside results.db. Tables 2,
+# 7 and 9 cannot be regenerated without them, so they are part of the artifact.
+!experiment_scripts/quality_results_merged.csv
+!experiment_scripts/linear_sweep_adult_1000_20260822_182357.csv
+!experiment_scripts/ds_risk_scores.csv
+!experiment_scripts/per_attack_disparity_postrepair.csv
+
 # The dummy dataset that lets reviewers exercise the pipeline with no downloads.
 !data/dummy/
 !data/dummy/**/*.csv
