@@ -2,7 +2,15 @@
 Master experiment script for tabular RePaint experiments.
 Usage: python run_experiment.py --config configs/experiment1.yaml --data_dir /path/to/data
 """
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 import argparse
+import os
 import sys
 
 N_RUNS_default = 1
@@ -16,26 +24,29 @@ args = parser.parse_args()
 
 # Set path BEFORE importing other modules
 if args.on_server:
-    sys.path.append('/home/golobs/MIA_on_diffusion/')
-    sys.path.append('/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM')
-    sys.path.append('/home/golobs/recon-synth')
-    sys.path.append('/home/golobs/recon-synth/attacks')
-    sys.path.append('/home/golobs/recon-synth/attacks/solvers')
+    sys.path.append(str(MIA_ON_DIFFUSION))
+    sys.path.append(str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'))
+    sys.path.append(str(RECON_SYNTH))
+    sys.path.append(str(RECON_SYNTH / 'attacks'))
+    sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
 else:
-    sys.path.append('/Users/stevengolob/PycharmProjects/MIA_on_diffusion/')
-    sys.path.append('/Users/stevengolob/PycharmProjects/MIA_on_diffusion/midst_models/single_table_TabDDPM')
-    sys.path.append('/Users/stevengolob/PycharmProjects/recon-synth')
-    sys.path.append('/Users/stevengolob/PycharmProjects/recon-synth/attacks')
-    sys.path.append('/Users/stevengolob/PycharmProjects/recon-synth/attacks/solvers')
+    # Paths now resolve through paths.py on every machine, so both branches agree.
+    # --on_server is retained only for backwards compatibility with older scripts.
+    sys.path.append(str(MIA_ON_DIFFUSION))
+    sys.path.append(str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'))
+    sys.path.append(str(RECON_SYNTH))
+    sys.path.append(str(RECON_SYNTH / 'attacks'))
+    sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
 
-CONFIG_PATH_default = "/home/golobs/data/NIST_CRC/dev_data/dev_config.yaml" if args.on_server else "/Users/stevengolob/Documents/school/PhD/reconstruction_project/configs/dev_config.yaml"
+# Override with the CONFIG_PATH environment variable, as documented in the README.
+CONFIG_PATH_default = os.environ.get(
+    "CONFIG_PATH_default", str(REPO_ROOT / "configs" / "example_cfg.yaml"))
 
 import yaml
 import numpy as np
 import pandas as pd
 import wandb
 
-import os
 from pathlib import Path
 
 from get_data import load_data, load_mia_data

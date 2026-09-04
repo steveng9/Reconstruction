@@ -41,6 +41,13 @@ CLI args:
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 
 import argparse
 import csv
@@ -68,12 +75,12 @@ from attack_defaults import ATTACK_PARAM_DEFAULTS
 # ── Per-dataset configuration ──────────────────────────────────────────────────
 #
 # sdg_methods lists exactly the SDG subdirs that exist on disk (verified against
-# /home/golobs/data/reconstruction_data/{dataset}/size_{N}/sample_0{0..4}/).
+# $RECON_DATA_ROOT/{dataset}/size_{N}/sample_0{0..4}/).
 # If the data layout ever changes, update these lists to match.
 
 DATASET_CONFIGS: dict[str, dict] = {
     "adult": {
-        "data_root":   "/home/golobs/data/reconstruction_data/adult/size_10000",
+        "data_root":   f"{DATA_ROOT}/adult/size_10000",
         "dataset_size": 10_000,
         "data_type":   "categorical",
         "sample_range": list(reversed(range(5))),   # sample_04 → sample_00
@@ -104,7 +111,7 @@ DATASET_CONFIGS: dict[str, dict] = {
         ],
     },
     "cdc_diabetes": {
-        "data_root":   "/home/golobs/data/reconstruction_data/cdc_diabetes/size_1000",
+        "data_root":   f"{DATA_ROOT}/cdc_diabetes/size_1000",
         "dataset_size": 1_000,
         "data_type":   "categorical",
         "sample_range": list(reversed(range(5))),   # sample_04 → sample_00
@@ -214,16 +221,16 @@ def _worker_setup_paths():
     force-insert Reconstruction at index 0 so its packages win on all imports.
     """
     for p in [
-        "/home/golobs/MIA_on_diffusion/",
-        "/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM",
-        "/home/golobs/recon-synth",
-        "/home/golobs/recon-synth/attacks",
-        "/home/golobs/recon-synth/attacks/solvers",
+        str(MIA_ON_DIFFUSION),
+        str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'),
+        str(RECON_SYNTH),
+        str(RECON_SYNTH / 'attacks'),
+        str(RECON_SYNTH / 'attacks' / 'solvers'),
     ]:
         if p not in sys.path:
             sys.path.append(p)
 
-    reconstruction = "/home/golobs/Reconstruction"
+    reconstruction = str(REPO_ROOT)
     if reconstruction in sys.path:
         sys.path.remove(reconstruction)
     sys.path.insert(0, reconstruction)

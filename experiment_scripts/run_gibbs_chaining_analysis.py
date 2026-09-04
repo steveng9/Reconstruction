@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 """
 experiment_scripts/run_gibbs_chaining_analysis.py
 
@@ -47,16 +54,16 @@ Output
 # ── Path setup ────────────────────────────────────────────────────────────────
 import sys, os
 
-RECON_ROOT = '/home/golobs/Reconstruction'
+RECON_ROOT = str(REPO_ROOT)
 if RECON_ROOT not in sys.path:
     sys.path.insert(0, RECON_ROOT)
 
 for _p in [
-    '/home/golobs/MIA_on_diffusion/',
-    '/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM',
-    '/home/golobs/recon-synth',
-    '/home/golobs/recon-synth/attacks',
-    '/home/golobs/recon-synth/attacks/solvers',
+    str(MIA_ON_DIFFUSION),
+    str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'),
+    str(RECON_SYNTH),
+    str(RECON_SYNTH / 'attacks'),
+    str(RECON_SYNTH / 'attacks' / 'solvers'),
 ]:
     if _p not in sys.path:
         sys.path.append(_p)
@@ -65,7 +72,7 @@ from unittest.mock import MagicMock
 sys.modules['wandb'] = MagicMock()
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-DATA_ROOT = '/home/golobs/data/reconstruction_data'
+DATA_ROOT = str(DATA_ROOT)
 
 DATASET = {
     "name":      "adult",

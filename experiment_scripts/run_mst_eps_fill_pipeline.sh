@@ -25,7 +25,19 @@
 
 set -e
 
-REPO="/home/golobs/Reconstruction"
+# Resolve the repository root (the directory containing paths.py) without
+# hard-coding an absolute path, and default the data root beneath it.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || {
+  echo "error: cannot resolve script directory" >&2; exit 1; }
+while [ ! -f "$REPO_ROOT/paths.py" ] && [ "$REPO_ROOT" != "/" ]; do
+  REPO_ROOT="$(dirname "$REPO_ROOT")"
+done
+[ -f "$REPO_ROOT/paths.py" ] || {
+  echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
+: "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
+
+
+REPO="$REPO_ROOT"
 SCRIPTS="$REPO/experiment_scripts"
 OUTFILES="$SCRIPTS/outfiles"
 

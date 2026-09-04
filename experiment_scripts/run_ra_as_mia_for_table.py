@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 """
 Compute RA-as-MIA AUC for CellSuppression and RankSwap
 to update the MIA comparison table.
 """
 import sys
-sys.path.insert(0, '/home/golobs/Reconstruction')
-sys.path.append('/home/golobs/MIA_on_diffusion/')
-sys.path.append('/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM')
-sys.path.append('/home/golobs/recon-synth')
-sys.path.append('/home/golobs/recon-synth/attacks')
-sys.path.append('/home/golobs/recon-synth/attacks/solvers')
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.append(str(MIA_ON_DIFFUSION))
+sys.path.append(str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'))
+sys.path.append(str(RECON_SYNTH))
+sys.path.append(str(RECON_SYNTH / 'attacks'))
+sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
 
 import json
 import numpy as np
@@ -20,7 +27,7 @@ from master_experiment_script import _prepare_config
 from attacks import get_attack
 
 DATASET = 'adult'
-DATA_ROOT = '/home/golobs/data/reconstruction_data/'
+DATA_ROOT = str(DATA_ROOT)
 SAMPLE_SIZE = 10_000
 SAMPLE_DIR = f'{DATA_ROOT}{DATASET}/size_{SAMPLE_SIZE}/sample_01'
 HOLDOUT_DIR = f'{DATA_ROOT}{DATASET}/size_{SAMPLE_SIZE}/sample_02'

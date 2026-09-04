@@ -7,11 +7,18 @@ Trace through exact data flow:
 3. Is the query matrix A built from the right data?
 4. Are synthetic results computed correctly?
 """
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import NIST_CRC_ROOT, RECON_SYNTH
+
 import sys
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, '/home/golobs/recon-synth')
+sys.path.insert(0, str(RECON_SYNTH))
 from attacks.simple_kway_queries import gen_all_simple_kway, simple_kway, get_result_simple_kway
 from load_data import process_data
 
@@ -20,8 +27,8 @@ print("VERIFYING QUERY GENERATION LOGIC")
 print("="*70)
 
 # Load data
-train = pd.read_csv('/home/golobs/data/NIST_CRC/dev_data/train.csv')
-synth = pd.read_csv('/home/golobs/data/NIST_CRC/dev_data/synth.csv')
+train = pd.read_csv(f'{NIST_CRC_ROOT}/dev_data/train.csv')
+synth = pd.read_csv(f'{NIST_CRC_ROOT}/dev_data/synth.csv')
 train = train.drop('ID', axis=1, errors='ignore')
 synth = synth.drop('ID', axis=1, errors='ignore')
 

@@ -4,6 +4,13 @@ TabDDPM synthetic data generation using the ClaVa/TabDDPM pipeline.
 Wraps the pipeline from MIA_on_diffusion to match the sdg/ interface.
 """
 
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import MIA_ON_DIFFUSION
+
 import sys
 import os
 import json
@@ -15,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 # Add the MIA_on_diffusion repo so we can import the pipeline
-_MIA_ROOT = "/home/golobs/MIA_on_diffusion"
+_MIA_ROOT = str(MIA_ON_DIFFUSION)
 if _MIA_ROOT not in sys.path:
     sys.path.insert(0, _MIA_ROOT)
 

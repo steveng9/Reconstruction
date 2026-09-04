@@ -3,6 +3,13 @@ Test Linear Reconstruction attack integration.
 
 Tests the wrapper with proper configuration (ALL non-secret features as QI).
 """
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import NIST_CRC_ROOT
+
 import sys
 import os
 import pandas as pd
@@ -26,8 +33,8 @@ def test_linear_attack():
 
     # Load NIST CRC data
     print("\n[1/4] Loading NIST CRC data...")
-    train = pd.read_csv('/home/golobs/data/NIST_CRC/dev_data/train.csv')
-    synth = pd.read_csv('/home/golobs/data/NIST_CRC/dev_data/synth.csv')
+    train = pd.read_csv(f'{NIST_CRC_ROOT}/dev_data/train.csv')
+    synth = pd.read_csv(f'{NIST_CRC_ROOT}/dev_data/synth.csv')
 
     # Drop ID column
     if 'ID' in train.columns:

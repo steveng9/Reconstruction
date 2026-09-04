@@ -22,6 +22,13 @@ Usage:
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, REPO_ROOT
+
 
 import argparse
 import csv
@@ -34,13 +41,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
+sys.path.insert(0, str(REPO_ROOT))
 from scoring import calculate_reconstruction_score
 from enhancements.ensembling_wrapper import _soft_voting
 
 
 PROBAS_DIR   = Path(__file__).parent.parent / "outfiles" / "probas"
-DATA_ROOT    = "/home/golobs/data/reconstruction_data/adult/size_10000"
+DATA_ROOT    = f"{DATA_ROOT}/adult/size_10000"
 ALL_ATTACKS  = ["CoBP-RA", "LightGBM", "NaiveBayes", "KNN", "MLP"]
 
 WEIGHT_CAPS = {

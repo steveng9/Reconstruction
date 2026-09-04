@@ -22,6 +22,13 @@ A summary CSV is written to the script's directory on completion.
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 
 import argparse
 import csv
@@ -37,7 +44,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
+sys.path.insert(0, str(REPO_ROOT))
 _EXPERIMENT_SCRIPTS_DIR = str(Path(__file__).parent)
 if _EXPERIMENT_SCRIPTS_DIR not in sys.path:
     sys.path.insert(1, _EXPERIMENT_SCRIPTS_DIR)
@@ -65,7 +72,7 @@ DATASET_SIZE  = 1_000
 #N_FEATURES    = 25                      # None | 25 | 50
 N_FEATURES    = None                      # None | 25 | 50
 DATA_ROOT     = (
-    f"/home/golobs/data/reconstruction_data/{DATASET_BASE}/size_{DATASET_SIZE}"
+    f"{DATA_ROOT}/{DATASET_BASE}/size_{DATASET_SIZE}"
     + (f"_{N_FEATURES}feat" if N_FEATURES is not None else "")
 )
 SAMPLE_RANGE  = list(reversed(range(5)))          # sample_00 through sample_04
@@ -250,17 +257,17 @@ def _worker_setup_paths():
     # recon-synth defines its own 'attacks' package that shadows Reconstruction's.
     # Append those paths so they're available but don't take precedence.
     for p in [
-        "/home/golobs/MIA_on_diffusion/",
-        "/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM",
-        "/home/golobs/recon-synth",
-        "/home/golobs/recon-synth/attacks",
-        "/home/golobs/recon-synth/attacks/solvers",
+        str(MIA_ON_DIFFUSION),
+        str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'),
+        str(RECON_SYNTH),
+        str(RECON_SYNTH / 'attacks'),
+        str(RECON_SYNTH / 'attacks' / 'solvers'),
     ]:
         if p not in sys.path:
             sys.path.append(p)
     # Reconstruction must be at index 0 so its 'attacks' package wins over recon-synth's.
     # Remove first in case the spawned worker already added it elsewhere on startup.
-    reconstruction = "/home/golobs/Reconstruction"
+    reconstruction = str(REPO_ROOT)
     if reconstruction in sys.path:
         sys.path.remove(reconstruction)
     sys.path.insert(0, reconstruction)

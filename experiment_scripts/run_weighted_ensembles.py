@@ -33,6 +33,13 @@ Usage (from repo root):
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 
 import argparse
 import csv
@@ -48,7 +55,7 @@ from pathlib import Path
 from typing import Any
 import multiprocessing as mp
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
+sys.path.insert(0, str(REPO_ROOT))
 from attack_defaults import ATTACK_PARAM_DEFAULTS
 
 
@@ -57,7 +64,7 @@ from attack_defaults import ATTACK_PARAM_DEFAULTS
 DATASET_NAME  = "adult"
 DATASET_SIZE  = 10_000
 DATASET_TYPE  = "categorical"
-DATA_ROOT     = f"/home/golobs/data/reconstruction_data/adult/size_{DATASET_SIZE}"
+DATA_ROOT     = f"{DATA_ROOT}/adult/size_{DATASET_SIZE}"
 QI_VARIANTS   = ["QI1"]
 SAMPLE_RANGE  = list(range(5))
 
@@ -196,15 +203,15 @@ def generate_jobs(
 
 def _worker_setup_paths():
     for p in [
-        "/home/golobs/MIA_on_diffusion/",
-        "/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM",
-        "/home/golobs/recon-synth",
-        "/home/golobs/recon-synth/attacks",
-        "/home/golobs/recon-synth/attacks/solvers",
+        str(MIA_ON_DIFFUSION),
+        str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'),
+        str(RECON_SYNTH),
+        str(RECON_SYNTH / 'attacks'),
+        str(RECON_SYNTH / 'attacks' / 'solvers'),
     ]:
         if p not in sys.path:
             sys.path.append(p)
-    reconstruction = "/home/golobs/Reconstruction"
+    reconstruction = str(REPO_ROOT)
     if reconstruction in sys.path:
         sys.path.remove(reconstruction)
     sys.path.insert(0, reconstruction)

@@ -8,6 +8,13 @@ If method_name is provided, only tests those methods. Otherwise tests all.
 Uses a tiny subset (50 rows, 8 columns) for fast end-to-end verification.
 """
 
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import NIST_CRC_ROOT
+
 import sys
 import time
 import signal
@@ -15,7 +22,7 @@ import pandas as pd
 from sdg import get_sdg, list_sdg
 
 
-TEST_DATA = "/home/golobs/data/NIST_CRC/25_PracticeProblem/25_Demo_25f_OriginalData.csv"
+TEST_DATA = f"{NIST_CRC_ROOT}/25_PracticeProblem/25_Demo_25f_OriginalData.csv"
 
 # Minimal test parameters
 N_ROWS = 50

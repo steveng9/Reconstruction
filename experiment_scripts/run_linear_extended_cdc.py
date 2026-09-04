@@ -15,6 +15,13 @@ Usage:
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 
 import argparse
 import csv
@@ -30,7 +37,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
+sys.path.insert(0, str(REPO_ROOT))
 from attack_defaults import ATTACK_PARAM_DEFAULTS
 
 
@@ -99,7 +106,7 @@ class Job:
 
 
 def _data_root(size: int) -> str:
-    return f"/home/golobs/data/reconstruction_data/{DATASET_BASE}/size_{size}"
+    return f"{DATA_ROOT}/{DATASET_BASE}/size_{size}"
 
 
 def generate_jobs(size: int, no_holdout: bool = False) -> list[Job]:
@@ -126,15 +133,15 @@ def generate_jobs(size: int, no_holdout: bool = False) -> list[Job]:
 
 def _worker_setup_paths():
     for p in [
-        "/home/golobs/MIA_on_diffusion/",
-        "/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM",
-        "/home/golobs/recon-synth",
-        "/home/golobs/recon-synth/attacks",
-        "/home/golobs/recon-synth/attacks/solvers",
+        str(MIA_ON_DIFFUSION),
+        str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'),
+        str(RECON_SYNTH),
+        str(RECON_SYNTH / 'attacks'),
+        str(RECON_SYNTH / 'attacks' / 'solvers'),
     ]:
         if p not in sys.path:
             sys.path.append(p)
-    reconstruction = "/home/golobs/Reconstruction"
+    reconstruction = str(REPO_ROOT)
     if reconstruction in sys.path:
         sys.path.remove(reconstruction)
     sys.path.insert(0, reconstruction)

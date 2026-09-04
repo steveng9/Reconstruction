@@ -34,6 +34,13 @@ Usage:
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT
+
 
 import argparse
 import csv
@@ -53,7 +60,7 @@ from pathlib import Path
 
 REPO_ROOT   = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = Path(__file__).resolve().parent
-DATA_ROOT   = Path("/home/golobs/data/reconstruction_data")
+DATA_ROOT   = Path(str(DATA_ROOT))
 GENERATE_PY = REPO_ROOT / "sdg" / "generate_synth.py"
 
 CHECKPOINT_PATH = SCRIPTS_DIR / "fill_in_checkpoint.json"

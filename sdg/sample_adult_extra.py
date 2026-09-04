@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT
+
 """
 One-off script: create a 5th 10k training sample for adult data.
 
@@ -17,7 +24,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-DATA_ROOT = Path("/home/golobs/data/reconstruction_data")
+DATA_ROOT = Path(str(DATA_ROOT))
 DATASET = "adult"
 SAMPLE_SIZE = 10000
 

@@ -34,6 +34,13 @@ Usage:
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 
 import argparse
 import csv
@@ -49,7 +56,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
+sys.path.insert(0, str(REPO_ROOT))
 from attack_defaults import ATTACK_PARAM_DEFAULTS
 
 
@@ -57,8 +64,8 @@ from attack_defaults import ATTACK_PARAM_DEFAULTS
 
 DATASET_NAME  = "cdc_diabetes"
 DATASET_TYPE  = "categorical"
-DATA_ROOT_1K  = "/home/golobs/data/reconstruction_data/cdc_diabetes/size_1000"
-DATA_ROOT_100K = "/home/golobs/data/reconstruction_data/cdc_diabetes/size_100000"
+DATA_ROOT_1K  = f"{DATA_ROOT}/cdc_diabetes/size_1000"
+DATA_ROOT_100K = f"{DATA_ROOT}/cdc_diabetes/size_100000"
 
 SAMPLE_RANGE  = list(range(5))   # sample_00 through sample_04
 
@@ -203,15 +210,15 @@ def generate_jobs() -> list[Job]:
 def _worker_setup_paths():
     """Called once per worker process to configure sys.path."""
     for p in [
-        "/home/golobs/MIA_on_diffusion/",
-        "/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM",
-        "/home/golobs/recon-synth",
-        "/home/golobs/recon-synth/attacks",
-        "/home/golobs/recon-synth/attacks/solvers",
+        str(MIA_ON_DIFFUSION),
+        str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'),
+        str(RECON_SYNTH),
+        str(RECON_SYNTH / 'attacks'),
+        str(RECON_SYNTH / 'attacks' / 'solvers'),
     ]:
         if p not in sys.path:
             sys.path.append(p)
-    reconstruction = "/home/golobs/Reconstruction"
+    reconstruction = str(REPO_ROOT)
     if reconstruction in sys.path:
         sys.path.remove(reconstruction)
     sys.path.insert(0, reconstruction)

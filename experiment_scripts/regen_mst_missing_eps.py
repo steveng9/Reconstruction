@@ -20,6 +20,13 @@ Called by: run_mst_eps_fill_pipeline.sh
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, REPO_ROOT
+
 
 import argparse
 import json
@@ -31,8 +38,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-DATA_ROOT  = Path("/home/golobs/data/reconstruction_data/adult/size_10000")
-META_PATH  = Path("/home/golobs/data/reconstruction_data/adult/meta.json")
+DATA_ROOT  = Path(f"{DATA_ROOT}/adult/size_10000")
+META_PATH  = Path(f"{DATA_ROOT}/adult/meta.json")
 N_SAMPLES  = 5
 EPSILONS   = [0.3, 3.0, 30.0, 300.0]   # the four previously-missing epsilons
 N_WORKERS  = 4
@@ -67,7 +74,7 @@ class RegenJob:
 def _run_regen(job: RegenJob) -> dict:
     sys.argv = sys.argv[:1]
     import pandas as pd
-    sys.path.insert(0, "/home/golobs/Reconstruction")
+    sys.path.insert(0, str(REPO_ROOT))
     from sdg import get_sdg
 
     with open(META_PATH) as f:

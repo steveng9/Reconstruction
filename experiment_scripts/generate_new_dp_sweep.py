@@ -23,6 +23,13 @@ Usage:
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, REPO_ROOT
+
 
 import argparse
 import json
@@ -33,10 +40,10 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 import multiprocessing as mp
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
+sys.path.insert(0, str(REPO_ROOT))
 
-DATA_ROOT = Path("/home/golobs/data/reconstruction_data/adult/size_10000")
-META_PATH = Path("/home/golobs/data/reconstruction_data/adult/meta.json")
+DATA_ROOT = Path(f"{DATA_ROOT}/adult/size_10000")
+META_PATH = Path(f"{DATA_ROOT}/adult/meta.json")
 
 EPSILONS = [0.1, 0.3, 1, 3, 10, 30, 100, 300, 1000]
 METHODS = ["PrivBayes", "MWEMPGM"]

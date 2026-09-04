@@ -12,8 +12,20 @@
 # is capped at 6h; if it's still stuck by then, the script moves on to attacks
 # using whatever synth.csv files did complete (missing ones just fail as
 # individual job errors in step 2, not fatal to the rest of the sweep).
-cd /home/golobs/Reconstruction
-source /home/golobs/miniconda3/etc/profile.d/conda.sh
+
+# Resolve the repository root (the directory containing paths.py) without
+# hard-coding an absolute path, and default the data root beneath it.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || {
+  echo "error: cannot resolve script directory" >&2; exit 1; }
+while [ ! -f "$REPO_ROOT/paths.py" ] && [ "$REPO_ROOT" != "/" ]; do
+  REPO_ROOT="$(dirname "$REPO_ROOT")"
+done
+[ -f "$REPO_ROOT/paths.py" ] || {
+  echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
+: "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
+
+cd "$REPO_ROOT"
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate recon_
 
 # Cap per-process thread usage so this doesn't monopolize all 48 cores and
@@ -32,8 +44,8 @@ echo "=== STEP 1: generate PrivateGSD synth, sample_00 x 9 epsilons @ size_10000
 # comment below); PrivateGSD/jax does not spawn its own subprocess pools, so
 # taskset alone is sufficient here.
 timeout 6h taskset -c 24-35 python experiment_scripts/generate_new_dp_sweep.py \
-  --data-root /home/golobs/data/reconstruction_data/adult/size_10000 \
-  --meta-path /home/golobs/data/reconstruction_data/adult/meta.json \
+  --data-root ${RECON_DATA_ROOT}/adult/size_10000 \
+  --meta-path ${RECON_DATA_ROOT}/adult/meta.json \
   --methods PrivateGSD \
   --samples 0 \
   --workers 4 || echo "  (generation step exited non-zero / timed out -- continuing to attack step with whatever synth.csv files exist)"
@@ -42,7 +54,7 @@ echo ""
 echo "=== STEP 2: attack sweep - 3 attacks x 3 QIs x 1 sample x 9 epsilons, PrivateGSD @ size_10000 ==="
 SWEEP_DATASET_NAME=adult \
 SWEEP_DATASET_SIZE=10000 \
-SWEEP_DATA_ROOT=/home/golobs/data/reconstruction_data/adult/size_10000 \
+SWEEP_DATA_ROOT=${RECON_DATA_ROOT}/adult/size_10000 \
 SWEEP_N_SAMPLES=5 \
 SWEEP_QI_VARIANTS="QI_large,QI_behavioral,QI1" \
 SWEEP_WANDB_GROUP="new-dp-epsilon-sweep-adult-10k-privategsd" \

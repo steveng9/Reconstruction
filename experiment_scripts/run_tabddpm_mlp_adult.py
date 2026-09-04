@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 """
 CondDDPMWithMLP (and CondDDPMEnsemble) reconstruction attacks on adult 10k data.
 
@@ -31,12 +38,12 @@ _parser.add_argument("--sdg", default=None,
 _args, _remaining = _parser.parse_known_args()
 sys.argv = [sys.argv[0]] + _remaining
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
-sys.path.append("/home/golobs/MIA_on_diffusion/")
-sys.path.append("/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM")
-sys.path.append("/home/golobs/recon-synth")
-sys.path.append("/home/golobs/recon-synth/attacks")
-sys.path.append("/home/golobs/recon-synth/attacks/solvers")
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.append(str(MIA_ON_DIFFUSION))
+sys.path.append(str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'))
+sys.path.append(str(RECON_SYNTH))
+sys.path.append(str(RECON_SYNTH / 'attacks'))
+sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
 
 from get_data import load_data
 from master_experiment_script import _run_attack, _score_reconstruction, _prepare_config
@@ -45,7 +52,7 @@ from master_experiment_script import _run_attack, _score_reconstruction, _prepar
 # ── Data ──────────────────────────────────────────────────────────────────────
 
 SAMPLE_SIZE = 10_000
-DATA_ROOT   = f"/home/golobs/data/reconstruction_data/adult/size_{SAMPLE_SIZE}"
+DATA_ROOT   = f"{DATA_ROOT}/adult/size_{SAMPLE_SIZE}"
 SAMPLE_DIR  = f"{DATA_ROOT}/sample_00"
 
 # ── SDG methods to sweep (run one at a time with --retrain) ───────────────────

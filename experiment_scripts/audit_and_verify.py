@@ -19,13 +19,13 @@ Nothing is written to results.db here — that is migrate_to_db.py's job.
 Usage (first run — fetches WandB live and saves cache, ~3 hours):
   conda activate recon_
   mkdir -p experiment_scripts/outfiles
-  nohup /home/golobs/miniconda3/envs/recon_/bin/python experiment_scripts/audit_and_verify.py \\
+  nohup python experiment_scripts/audit_and_verify.py \\
       > experiment_scripts/outfiles/audit.log 2>&1 &
   echo $! > experiment_scripts/outfiles/audit.pid
   tail -f experiment_scripts/outfiles/audit.log
 
 Usage (subsequent runs — load WandB from cache, ~3 minutes):
-  nohup /home/golobs/miniconda3/envs/recon_/bin/python experiment_scripts/audit_and_verify.py \\
+  nohup python experiment_scripts/audit_and_verify.py \\
       --use-wandb-cache \\
       > experiment_scripts/outfiles/audit.log 2>&1 &
   echo $! > experiment_scripts/outfiles/audit.pid

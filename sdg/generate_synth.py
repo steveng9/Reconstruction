@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, REPO_ROOT
+
 """
 Generate synthetic datasets for reconstruction attack experiments.
 
@@ -10,7 +17,7 @@ Two-step usage:
         python sdg/generate_synth.py sdg
 
     Runs in background by default, logging to sdg_log.txt in the dataset's size dir.
-    Tail progress with:  tail -f /home/golobs/data/reconstruction_data/adult/size_1000/sdg_log.txt
+    Tail progress with:  tail -f $RECON_DATA_ROOT/adult/size_1000/sdg_log.txt
 
 Single-job mode (called internally by sdg step):
     python sdg/generate_synth.py --job <method> <train_csv> <output_csv> <meta_json> <config_json>
@@ -32,15 +39,15 @@ from datetime import datetime
 #  CONFIGURATION — edit this section to control what's generated
 # ============================================================
 
-DATA_ROOT = Path("/home/golobs/data/reconstruction_data")
-DATASET = "adult"
-#DATASET = "nist_arizona_data"
-#DATASET = "nist_sbo"
-#DATASET = "cdc_diabetes"
-#DATASET = "california"
+DATA_ROOT = Path(str(DATA_ROOT))
+# Overridable from the environment so the artifact's documented commands work
+# without editing this file, e.g.:
+#     SDG_DATASET=cdc_diabetes SDG_SAMPLE_SIZE=1000 python sdg/generate_synth.py sdg
+# Known datasets: adult, cdc_diabetes, california, nist_arizona_data, nist_sbo, dummy
+DATASET = os.environ.get("SDG_DATASET", "adult")
 
-SAMPLE_SIZE = 1_000
-NUM_SAMPLES = 10       # total training samples to create
+SAMPLE_SIZE = int(os.environ.get("SDG_SAMPLE_SIZE", 1_000))
+NUM_SAMPLES = int(os.environ.get("SDG_NUM_SAMPLES", 10))   # total training samples to create
 
 # Whether samples must be disjoint (non-overlapping).
 # Set False when XxN exceeds total available data, or when samples won't be used as holdout sets.
@@ -294,7 +301,7 @@ def run_single_job(argv):
     meta = json.loads(meta_json)
     config = json.loads(config_json)
 
-    sys.path.insert(0, "/home/golobs/Reconstruction")
+    sys.path.insert(0, str(REPO_ROOT))
     from sdg import get_sdg
 
     train_df = pd.read_csv(train_csv)
@@ -432,7 +439,7 @@ def do_sdg():
 
 def launch_sdg_jobs(sample_idx):
     """Launch all SDG jobs for one sample in parallel, wait for completion."""
-    sys.path.insert(0, "/home/golobs/Reconstruction")
+    sys.path.insert(0, str(REPO_ROOT))
     from sdg import sdg_dirname
 
     base = _base_dir()

@@ -62,8 +62,9 @@ feature_order_default = ['F23', 'F13', 'F11', 'F43', 'F36', 'F25', 'F18', 'F30',
 
 PLOT = False
 
-CONFIG_PATH_default = "/Users/stevengolob/Documents/school/PhD/reconstruction_project/configs/dev_config.yaml"
-# model_save_dir = "/Users/stevengolob/PycharmProjects/Reconstruction/models/"
+# Developer-only default for _development() below (reachable only via __main__);
+# the registered attack entry points never read this.
+CONFIG_PATH_default = os.environ.get("CONFIG_PATH_default", "configs/example_cfg.yaml")
 
 
 def _development():

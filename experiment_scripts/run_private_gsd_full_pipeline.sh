@@ -11,14 +11,26 @@
 # then runs the full attack grid (all 4 samples x 3 QIs x 3 attacks), then
 # inserts into results.db.
 set -e
-cd /home/golobs/Reconstruction
-source /home/golobs/miniconda3/etc/profile.d/conda.sh
+
+# Resolve the repository root (the directory containing paths.py) without
+# hard-coding an absolute path, and default the data root beneath it.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || {
+  echo "error: cannot resolve script directory" >&2; exit 1; }
+while [ ! -f "$REPO_ROOT/paths.py" ] && [ "$REPO_ROOT" != "/" ]; do
+  REPO_ROOT="$(dirname "$REPO_ROOT")"
+done
+[ -f "$REPO_ROOT/paths.py" ] || {
+  echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
+: "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
+
+cd "$REPO_ROOT"
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate recon_
 
 echo "=== STEP 1: generate PrivateGSD synth, samples 1-3 x 9 epsilons @ size_1000 ==="
 python experiment_scripts/generate_new_dp_sweep.py \
-  --data-root /home/golobs/data/reconstruction_data/adult/size_1000 \
-  --meta-path /home/golobs/data/reconstruction_data/adult/meta.json \
+  --data-root ${RECON_DATA_ROOT}/adult/size_1000 \
+  --meta-path ${RECON_DATA_ROOT}/adult/meta.json \
   --methods PrivateGSD \
   --samples 1 2 3 \
   --workers 4
@@ -26,7 +38,7 @@ python experiment_scripts/generate_new_dp_sweep.py \
 echo ""
 echo "=== STEP 2: attack sweep - 3 attacks x 3 QIs x 4 samples x 9 epsilons, PrivateGSD @ size_1000 ==="
 SWEEP_DATASET_SIZE=1000 \
-SWEEP_DATA_ROOT=/home/golobs/data/reconstruction_data/adult/size_1000 \
+SWEEP_DATA_ROOT=${RECON_DATA_ROOT}/adult/size_1000 \
 SWEEP_N_SAMPLES=4 \
 SWEEP_QI_VARIANTS="QI_large,QI_behavioral,QI1" \
 SWEEP_WANDB_GROUP="new-dp-epsilon-sweep-adult-1k-privategsd" \

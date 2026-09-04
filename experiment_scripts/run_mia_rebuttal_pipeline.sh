@@ -29,8 +29,20 @@
 # released them). This pipeline uses 0-11. Cores 24-35 are in use by the
 # still-running private_gsd_10k_pipeline.sh. Cores 36-47 stay untouched for
 # other users (daniilf, sikha) per this machine's sharing convention.
-cd /home/golobs/Reconstruction
-source /home/golobs/miniconda3/etc/profile.d/conda.sh
+
+# Resolve the repository root (the directory containing paths.py) without
+# hard-coding an absolute path, and default the data root beneath it.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || {
+  echo "error: cannot resolve script directory" >&2; exit 1; }
+while [ ! -f "$REPO_ROOT/paths.py" ] && [ "$REPO_ROOT" != "/" ]; do
+  REPO_ROOT="$(dirname "$REPO_ROOT")"
+done
+[ -f "$REPO_ROOT/paths.py" ] || {
+  echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
+: "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
+
+cd "$REPO_ROOT"
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate recon_
 
 export OMP_NUM_THREADS=2
@@ -40,8 +52,8 @@ export NUMEXPR_NUM_THREADS=2
 
 echo "=== STEP 1: generate missing MWEMPGM synth for cdc_diabetes 1k (eps=1,1000, sample_01) ==="
 taskset -c 0-11 python experiment_scripts/generate_new_dp_sweep.py \
-  --data-root /home/golobs/data/reconstruction_data/cdc_diabetes/size_1000 \
-  --meta-path /home/golobs/data/reconstruction_data/cdc_diabetes/meta.json \
+  --data-root ${RECON_DATA_ROOT}/cdc_diabetes/size_1000 \
+  --meta-path ${RECON_DATA_ROOT}/cdc_diabetes/meta.json \
   --methods MWEMPGM \
   --epsilons 1 1000 \
   --samples 1 \
@@ -50,8 +62,8 @@ taskset -c 0-11 python experiment_scripts/generate_new_dp_sweep.py \
 echo ""
 echo "=== STEP 2: generate missing PrivBayes/PrivSyn/MWEMPGM synth for nist_arizona 10k (eps=1,1000, sample_01) ==="
 taskset -c 0-11 python experiment_scripts/generate_new_dp_sweep.py \
-  --data-root /home/golobs/data/reconstruction_data/nist_arizona_data/size_10000_25feat \
-  --meta-path /home/golobs/data/reconstruction_data/nist_arizona_data/meta.json \
+  --data-root ${RECON_DATA_ROOT}/nist_arizona_data/size_10000_25feat \
+  --meta-path ${RECON_DATA_ROOT}/nist_arizona_data/meta.json \
   --methods PrivBayes PrivSyn MWEMPGM \
   --epsilons 1 1000 \
   --samples 1 \

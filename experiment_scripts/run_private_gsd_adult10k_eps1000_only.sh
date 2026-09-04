@@ -15,8 +15,20 @@
 # Cores 24-35 are free (private_gsd_10k_pipeline.sh released them when it
 # finished). Cores 12-19 in use by the nist_arizona PrivateGSD job. Cores
 # 36-47 stay untouched for other users (daniilf, sikha).
-cd /home/golobs/Reconstruction
-source /home/golobs/miniconda3/etc/profile.d/conda.sh
+
+# Resolve the repository root (the directory containing paths.py) without
+# hard-coding an absolute path, and default the data root beneath it.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || {
+  echo "error: cannot resolve script directory" >&2; exit 1; }
+while [ ! -f "$REPO_ROOT/paths.py" ] && [ "$REPO_ROOT" != "/" ]; do
+  REPO_ROOT="$(dirname "$REPO_ROOT")"
+done
+[ -f "$REPO_ROOT/paths.py" ] || {
+  echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
+: "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
+
+cd "$REPO_ROOT"
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate recon_
 
 export OMP_NUM_THREADS=2
@@ -26,8 +38,8 @@ export NUMEXPR_NUM_THREADS=2
 
 echo "=== generate PrivateGSD synth for adult 10k (eps=1000 only, sample_00) ==="
 taskset -c 24-35 python experiment_scripts/generate_new_dp_sweep.py \
-  --data-root /home/golobs/data/reconstruction_data/adult/size_10000 \
-  --meta-path /home/golobs/data/reconstruction_data/adult/meta.json \
+  --data-root ${RECON_DATA_ROOT}/adult/size_10000 \
+  --meta-path ${RECON_DATA_ROOT}/adult/meta.json \
   --methods PrivateGSD \
   --epsilons 1000 \
   --samples 0 \

@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT
+
 """
 fix_binned_synth_encoding.py
 
@@ -55,7 +62,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-DATA_ROOT = Path("/home/golobs/data/reconstruction_data")
+DATA_ROOT = Path(str(DATA_ROOT))
 BACKUP_SUFFIX = ".floatbinned.bak"
 
 

@@ -7,8 +7,20 @@
 # sweep, but run on cdc_diabetes size_1000, 5 trials (samples 0-4), 2 QI
 # variants (QI1, QI_large -- mirrors the QI1/QI_large variants used
 # throughout the adult sweep).
-cd /home/golobs/Reconstruction
-source /home/golobs/miniconda3/etc/profile.d/conda.sh
+
+# Resolve the repository root (the directory containing paths.py) without
+# hard-coding an absolute path, and default the data root beneath it.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || {
+  echo "error: cannot resolve script directory" >&2; exit 1; }
+while [ ! -f "$REPO_ROOT/paths.py" ] && [ "$REPO_ROOT" != "/" ]; do
+  REPO_ROOT="$(dirname "$REPO_ROOT")"
+done
+[ -f "$REPO_ROOT/paths.py" ] || {
+  echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
+: "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
+
+cd "$REPO_ROOT"
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate recon_
 
 # Cap per-process thread usage so this doesn't monopolize all 48 cores and
@@ -37,8 +49,8 @@ echo "=== STEP 1: generate MST/PrivBayes/PrivSyn synth, samples 0-4 x 9 epsilons
 #     ever called. With that fixed, taskset's core-range pinning is now
 #     sufficient on its own to bound total resource usage.
 taskset -c 0-23 python experiment_scripts/generate_new_dp_sweep.py \
-  --data-root /home/golobs/data/reconstruction_data/cdc_diabetes/size_1000 \
-  --meta-path /home/golobs/data/reconstruction_data/cdc_diabetes/meta.json \
+  --data-root ${RECON_DATA_ROOT}/cdc_diabetes/size_1000 \
+  --meta-path ${RECON_DATA_ROOT}/cdc_diabetes/meta.json \
   --methods MST PrivBayes PrivSyn \
   --samples 0 1 2 3 4 \
   --workers 12
@@ -47,7 +59,7 @@ echo ""
 echo "=== STEP 2: attack sweep - 3 attacks x 2 QIs x 5 samples x 9 epsilons x 3 generators, cdc_diabetes size_1000 ==="
 SWEEP_DATASET_NAME=cdc_diabetes \
 SWEEP_DATASET_SIZE=1000 \
-SWEEP_DATA_ROOT=/home/golobs/data/reconstruction_data/cdc_diabetes/size_1000 \
+SWEEP_DATA_ROOT=${RECON_DATA_ROOT}/cdc_diabetes/size_1000 \
 SWEEP_N_SAMPLES=5 \
 SWEEP_QI_VARIANTS="QI1,QI_large" \
 SWEEP_WANDB_GROUP="new-dp-epsilon-sweep-cdc-1k" \

@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import NIST_CRC_ROOT
+
 """
 Debug script to inspect all intermediate variables in the linear reconstruction
 attack wrapper, comparing with what the paper's original code does.
@@ -25,8 +32,8 @@ print("=" * 70)
 print("LOADING DATA (same as master_experiment_script)")
 print("=" * 70)
 
-train = pd.read_csv('/home/golobs/data/NIST_CRC/dev_data/train.csv')
-synth = pd.read_csv('/home/golobs/data/NIST_CRC/dev_data/synth.csv')
+train = pd.read_csv(f'{NIST_CRC_ROOT}/dev_data/train.csv')
+synth = pd.read_csv(f'{NIST_CRC_ROOT}/dev_data/synth.csv')
 
 qi = QIs["nist_arizona_data"]["QI1"]
 hidden_features = minus_QIs["nist_arizona_data"]["QI1"]

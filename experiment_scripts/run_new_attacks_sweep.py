@@ -28,6 +28,13 @@ Usage (from repo root):
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 
 import argparse
 import csv
@@ -43,7 +50,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
+sys.path.insert(0, str(REPO_ROOT))
 from attack_defaults import ATTACK_PARAM_DEFAULTS
 
 
@@ -59,7 +66,7 @@ DATASET_CONFIGS = [
         "size":        10_000,
         "type":        "categorical",
         "qi_variants": ["QI1"],
-        "data_root":   "/home/golobs/data/reconstruction_data/adult/size_10000",
+        "data_root":   f"{DATA_ROOT}/adult/size_10000",
         "sdg_methods": [
             ("MST",             {"epsilon": 0.1}),
             ("MST",             {"epsilon": 0.3}),
@@ -89,7 +96,7 @@ DATASET_CONFIGS = [
         "size":        1_000,
         "type":        "categorical",
         "qi_variants": ["QI1"],
-        "data_root":   "/home/golobs/data/reconstruction_data/cdc_diabetes/size_1000",
+        "data_root":   f"{DATA_ROOT}/cdc_diabetes/size_1000",
         "sdg_methods": [
             ("MST",             {"epsilon": 0.1}),
             ("MST",             {"epsilon": 1.0}),
@@ -114,7 +121,7 @@ DATASET_CONFIGS = [
         "size":        100_000,
         "type":        "categorical",
         "qi_variants": ["QI1"],
-        "data_root":   "/home/golobs/data/reconstruction_data/cdc_diabetes/size_100000",
+        "data_root":   f"{DATA_ROOT}/cdc_diabetes/size_100000",
         "sdg_methods": [
             ("MST",             {"epsilon": 0.1}),
             ("MST",             {"epsilon": 1.0}),
@@ -138,7 +145,7 @@ DATASET_CONFIGS = [
         "size":        1_000,
         "type":        "categorical",
         "qi_variants": ["QI1"],
-        "data_root":   "/home/golobs/data/reconstruction_data/nist_sbo/size_1000",
+        "data_root":   f"{DATA_ROOT}/nist_sbo/size_1000",
         "sdg_methods": [
             ("MST",             {"epsilon": 0.1}),
             ("MST",             {"epsilon": 1.0}),
@@ -161,7 +168,7 @@ DATASET_CONFIGS = [
         "size":        10_000,
         "type":        "categorical",
         "qi_variants": ["QI1"],
-        "data_root":   "/home/golobs/data/reconstruction_data/nist_arizona_data/size_10000_25feat",
+        "data_root":   f"{DATA_ROOT}/nist_arizona_data/size_10000_25feat",
         "n_features":  25,
         "sdg_methods": [
             ("MST",             {"epsilon": 0.1}),
@@ -187,7 +194,7 @@ DATASET_CONFIGS = [
         "size":        20_000,
         "type":        "categorical",
         "qi_variants": ["QI1"],
-        "data_root":   "/home/golobs/data/reconstruction_data/adult/size_20000",
+        "data_root":   f"{DATA_ROOT}/adult/size_20000",
         "sdg_methods": [
             ("MST",             {"epsilon": 0.1}),
             ("MST",             {"epsilon": 0.3}),
@@ -321,15 +328,15 @@ def generate_jobs(
 def _worker_setup_paths():
     """Configure sys.path so that local attacks/ wins over recon-synth's."""
     for p in [
-        "/home/golobs/MIA_on_diffusion/",
-        "/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM",
-        "/home/golobs/recon-synth",
-        "/home/golobs/recon-synth/attacks",
-        "/home/golobs/recon-synth/attacks/solvers",
+        str(MIA_ON_DIFFUSION),
+        str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'),
+        str(RECON_SYNTH),
+        str(RECON_SYNTH / 'attacks'),
+        str(RECON_SYNTH / 'attacks' / 'solvers'),
     ]:
         if p not in sys.path:
             sys.path.append(p)
-    reconstruction = "/home/golobs/Reconstruction"
+    reconstruction = str(REPO_ROOT)
     if reconstruction in sys.path:
         sys.path.remove(reconstruction)
     sys.path.insert(0, reconstruction)

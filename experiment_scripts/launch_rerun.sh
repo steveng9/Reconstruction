@@ -17,7 +17,19 @@
 
 set -uo pipefail
 
-REPO="/home/golobs/Reconstruction"
+# Resolve the repository root (the directory containing paths.py) without
+# hard-coding an absolute path, and default the data root beneath it.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || {
+  echo "error: cannot resolve script directory" >&2; exit 1; }
+while [ ! -f "$REPO_ROOT/paths.py" ] && [ "$REPO_ROOT" != "/" ]; do
+  REPO_ROOT="$(dirname "$REPO_ROOT")"
+done
+[ -f "$REPO_ROOT/paths.py" ] || {
+  echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
+: "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
+
+
+REPO="$REPO_ROOT"
 SCRIPTS="$REPO/experiment_scripts"
 LOGDIR="$REPO/outfiles/rerun"
 PIDDIR="$LOGDIR/pids"
@@ -25,7 +37,7 @@ CONDA_ENV="recon_"
 # Invoke the env's interpreter directly rather than via `conda run`: conda run
 # forks a wrapper, so the pidfile would hold the wrapper's pid and a SIGTERM to
 # it would never reach the worker (the worker would keep running after `stop`).
-PYBIN="/home/golobs/miniconda3/envs/$CONDA_ENV/bin/python"
+PYBIN="$(conda info --base)/envs/$CONDA_ENV/bin/python"
 
 # Pin every numeric library to a single thread. sklearn/LightGBM/TabPFN inherit
 # the OpenMP default of one thread per core, so on this 48-core box each job

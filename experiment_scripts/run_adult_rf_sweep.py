@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 """
 Quick sweep: RandomForest reconstruction attack (plain + chained) on all
 adult size_10k/sample_00 SDG methods, with memorization test.
@@ -16,12 +23,12 @@ group "adult_RF_sweep".
 import sys
 import numpy as np
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
-sys.path.append("/home/golobs/MIA_on_diffusion/")
-sys.path.append("/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM")
-sys.path.append("/home/golobs/recon-synth")
-sys.path.append("/home/golobs/recon-synth/attacks")
-sys.path.append("/home/golobs/recon-synth/attacks/solvers")
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.append(str(MIA_ON_DIFFUSION))
+sys.path.append(str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'))
+sys.path.append(str(RECON_SYNTH))
+sys.path.append(str(RECON_SYNTH / 'attacks'))
+sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
 
 import wandb
 from get_data import load_data
@@ -39,7 +46,7 @@ def sdg_dirname(method, params=None):
 
 # ── Data paths ────────────────────────────────────────────────────────────────
 
-DATA_ROOT  = "/home/golobs/data/reconstruction_data/adult/size_10000"
+DATA_ROOT  = f"{DATA_ROOT}/adult/size_10000"
 SAMPLE_DIR = f"{DATA_ROOT}/sample_00"
 HOLDOUT_DIR = f"{DATA_ROOT}/sample_01"   # disjoint sample for memorization test
 

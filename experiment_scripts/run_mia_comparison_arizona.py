@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 """
 MIA vs RA-as-MIA Comparison — nist_arizona_25feat (10k, sample_01 / sample_02).
 
@@ -12,12 +19,12 @@ Run detached:
 import sys
 import os
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
-sys.path.append("/home/golobs/MIA_on_diffusion/")
-sys.path.append("/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM")
-sys.path.append("/home/golobs/recon-synth")
-sys.path.append("/home/golobs/recon-synth/attacks")
-sys.path.append("/home/golobs/recon-synth/attacks/solvers")
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.append(str(MIA_ON_DIFFUSION))
+sys.path.append(str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'))
+sys.path.append(str(RECON_SYNTH))
+sys.path.append(str(RECON_SYNTH / 'attacks'))
+sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
 
 import numpy as np
 import pandas as pd
@@ -35,7 +42,7 @@ from master_experiment_script import _prepare_config
 # "nist_arizona_25feat" is the dataset name key used for QI lookups in get_data.py.
 # The actual data lives under nist_arizona_data/size_10000_25feat/.
 DATASET       = "nist_arizona_25feat"
-DATA_ROOT     = "/home/golobs/data/reconstruction_data/"
+DATA_ROOT     = str(DATA_ROOT)
 _DATA_DIR     = f"{DATA_ROOT}nist_arizona_data/size_10000_25feat"
 SAMPLE_SIZE   = 10_000
 SAMPLE_DIR    = f"{_DATA_DIR}/sample_01"

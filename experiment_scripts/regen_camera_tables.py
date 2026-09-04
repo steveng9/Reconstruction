@@ -12,14 +12,24 @@ a named post-repair CSV. No number is carried over from the .tex.
     python experiment_scripts/regen_camera_tables.py
 """
 from __future__ import annotations
-import sqlite3, sys
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import REPO_ROOT
+
+import os, sqlite3, sys
 from pathlib import Path
 import numpy as np, pandas as pd
 from scipy import stats
 
-ROOT = Path("/home/golobs/Reconstruction")
-DB   = ROOT / "experiment_scripts" / "results.db"
-OUT  = ROOT / "manuscript" / "camera_ready" / "generated"
+ROOT = Path(str(REPO_ROOT))
+DB   = Path(os.environ.get("RECON_RESULTS_DB", ROOT / "experiment_scripts" / "results.db"))
+# Reviewers get the tables in a tracked directory alongside the committed
+# reference copies, so a run can be diffed against the numbers in the paper.
+# The author's manuscript build overrides this with RECON_TABLE_OUT.
+OUT  = Path(os.environ.get("RECON_TABLE_OUT", ROOT / "expected_output" / "tables"))
 OUT.mkdir(parents=True, exist_ok=True)
 
 EPS = [0.1, 0.3, 1, 3, 10, 30, 100, 300, 1000]

@@ -18,6 +18,14 @@ def _sdg_dirname(method, params=None):
 
 
 QIs = {
+    # dummy: fully synthetic demonstration dataset shipped with the artifact
+    # (data/dummy/). Lets reviewers exercise the whole pipeline with no
+    # downloads and no access-restricted data. See data/dummy/make_dummy_data.py.
+    "dummy": {
+        "QI1": ["age_band", "region", "sex", "education"],
+        "QI_tiny": ["age_band", "sex"],
+        "QI_large": ["age_band", "region", "sex", "education", "employment", "insured"],
+    },
     # Adult (census income): demographic background knowledge as QI
     # Story: given public demographic info, reconstruct employment & income
     "adult": {
@@ -202,6 +210,13 @@ QIs = {
     },
 }
 minus_QIs = {
+    "dummy": {
+        "QI1":       ["employment", "income_band", "insured", "smoker",
+                      "chronic_cond", "visits_band"],
+        "QI_tiny":   ["region", "education", "employment", "income_band",
+                      "insured", "smoker", "chronic_cond", "visits_band"],
+        "QI_large":  ["income_band", "smoker", "chronic_cond", "visits_band"],
+    },
     "adult": {
         "QI1":                   ["workclass", "fnlwgt", "education-num", "occupation",
                                   "relationship", "capital-gain", "capital-loss",
@@ -347,8 +362,27 @@ def _normalize_sbo_strings(df: "pd.DataFrame") -> "pd.DataFrame":
     return df
 
 
+def _resolve_data_dir(raw):
+    """Resolve a config's dataset.dir.
+
+    Absolute paths are used as-is. Relative paths resolve against $RECON_DATA_ROOT
+    (see paths.py), so configs stay portable across machines and inside Docker.
+    """
+    path = Path(raw).expanduser()
+    if path.is_absolute():
+        return path
+    import sys as _sys, pathlib as _pathlib
+    for _anc in _pathlib.Path(__file__).resolve().parents:
+        if (_anc / "paths.py").exists():
+            if str(_anc) not in _sys.path:
+                _sys.path.insert(0, str(_anc))
+            break
+    from paths import DATA_ROOT
+    return DATA_ROOT / path
+
+
 def load_data(config):
-    data_dir = Path(config["dataset"]["dir"])
+    data_dir = _resolve_data_dir(config["dataset"]["dir"])
     train = pd.read_csv(data_dir / 'train.csv')
 
     # synth.csv lives in a subdirectory derived from sdg_method + sdg_params
@@ -376,7 +410,7 @@ def load_data(config):
                 f"Train dir {data_dir} is marked NO_HOLDOUT — this training sample was "
                 f"drawn non-disjointly and may overlap any holdout set."
             )
-        holdout_dir = Path(mem_cfg["holdout_dir"])
+        holdout_dir = _resolve_data_dir(mem_cfg["holdout_dir"])
         if (holdout_dir / "NO_HOLDOUT").exists():
             raise ValueError(
                 f"Holdout dir {holdout_dir} is marked NO_HOLDOUT — this sample "
@@ -391,7 +425,7 @@ def load_data(config):
 def load_mia_data(config):
     """Load all data needed for MIA: train, synth, holdout, and meta.json."""
     import json
-    data_dir = Path(config["dataset"]["dir"])
+    data_dir = _resolve_data_dir(config["dataset"]["dir"])
 
     train = pd.read_csv(data_dir / "train.csv")
 
@@ -433,7 +467,21 @@ def load_mia_data(config):
 
 
 def get_meta_data_for_diffusion(cfg):
-    if cfg["dataset"]["name"] == "adult":
+    if cfg["dataset"]["name"] == "dummy":
+        meta = {"relation_order": [[None, "dummy_data"]], "tables": {"dummy_data": {"children": [], "parents": []}}}
+        domain = {
+            "age_band":     {"size": 5, "type": "discrete"},
+            "region":       {"size": 4, "type": "discrete"},
+            "sex":          {"size": 2, "type": "discrete"},
+            "education":    {"size": 4, "type": "discrete"},
+            "employment":   {"size": 4, "type": "discrete"},
+            "income_band":  {"size": 5, "type": "discrete"},
+            "insured":      {"size": 2, "type": "discrete"},
+            "smoker":       {"size": 2, "type": "discrete"},
+            "chronic_cond": {"size": 3, "type": "discrete"},
+            "visits_band":  {"size": 4, "type": "discrete"},
+        }
+    elif cfg["dataset"]["name"] == "adult":
         meta = {"relation_order": [[None, "adult_data"]], "tables": {"adult_data": {"children": [], "parents": []}}}
         domain = {
             "age":             {"size": 70,   "type": "continuous"},

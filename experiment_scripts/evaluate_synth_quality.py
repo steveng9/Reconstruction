@@ -42,6 +42,13 @@ Progress log:        outfiles/eval_quality_progress.log   (tail -f to watch)
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT
+
 
 import argparse
 import json
@@ -62,7 +69,7 @@ warnings.filterwarnings("ignore")
 
 # ── Dataset configuration ──────────────────────────────────────────────────────
 
-DATA_ROOT = Path("/home/golobs/data/reconstruction_data")
+DATA_ROOT = Path(str(DATA_ROOT))
 
 # Each entry: directory paths + ML utility target info.
 # "size_dir" is relative to the dataset directory.

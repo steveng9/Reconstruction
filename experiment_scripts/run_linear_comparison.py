@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 """
 Comparison sweep: LinearReconstruction (SOTA) vs MLP, RandomForest, Random baseline.
 
@@ -29,12 +36,12 @@ _args, _remaining = _parser.parse_known_args()
 sys.argv = [sys.argv[0]] + _remaining   # strip our arg before master import
 
 # Set server paths before importing master_experiment_script (which runs argparse on import)
-sys.path.insert(0, "/home/golobs/Reconstruction")
-sys.path.append("/home/golobs/MIA_on_diffusion/")
-sys.path.append("/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM")
-sys.path.append("/home/golobs/recon-synth")
-sys.path.append("/home/golobs/recon-synth/attacks")
-sys.path.append("/home/golobs/recon-synth/attacks/solvers")
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.append(str(MIA_ON_DIFFUSION))
+sys.path.append(str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'))
+sys.path.append(str(RECON_SYNTH))
+sys.path.append(str(RECON_SYNTH / 'attacks'))
+sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
 
 import pandas as pd
 import wandb
@@ -125,7 +132,7 @@ def fit_adult_discretizer(train_df):
 
 # ── Dataset configs ───────────────────────────────────────────────────────────
 
-DATA_ROOT = "/home/golobs/data/reconstruction_data"
+DATA_ROOT = str(DATA_ROOT)
 
 DATASET_CONFIGS = [
     {

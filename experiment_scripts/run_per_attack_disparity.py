@@ -22,13 +22,20 @@ Usage:
     python experiment_scripts/run_per_attack_disparity.py --attack KNN --sdg TabDDPM
 """
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import REPO_ROOT
+
 
 import argparse
 import sys
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
+sys.path.insert(0, str(REPO_ROOT))
 
 # Parse our args BEFORE importing analyze_ra_subgroups, because that module
 # imports master_experiment_script, which calls parse_args() at import time and
@@ -52,7 +59,7 @@ ars.OUTLIER_PERCENTILE = 90
 # Save per-record row-score CSVs (QI values + per-feature RA_row_* + is_outlier)
 # so feature-type disparity can be analysed downstream.
 ars.SAVE_CSV = True
-ars.OUTPUT_DIR = "/home/golobs/Reconstruction/experiment_scripts/disparity_rowscores"
+ars.OUTPUT_DIR = f"{REPO_ROOT}/experiment_scripts/disparity_rowscores"
 # Smaller floor so minority race groups (AI/AN ~110, API ~310) still report.
 ars.MIN_GROUP_SIZE = 20
 

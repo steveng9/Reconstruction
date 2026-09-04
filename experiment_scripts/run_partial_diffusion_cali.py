@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 """
 Sweep: partialDiffusion (TabDDPM + RePaint) reconstruction attacks on california data.
 
@@ -40,12 +47,12 @@ _parser.add_argument(
 _args, _remaining = _parser.parse_known_args()
 sys.argv = [sys.argv[0]] + _remaining   # strip our arg before master import
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
-sys.path.append("/home/golobs/MIA_on_diffusion/")
-sys.path.append("/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM")
-sys.path.append("/home/golobs/recon-synth")
-sys.path.append("/home/golobs/recon-synth/attacks")
-sys.path.append("/home/golobs/recon-synth/attacks/solvers")
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.append(str(MIA_ON_DIFFUSION))
+sys.path.append(str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'))
+sys.path.append(str(RECON_SYNTH))
+sys.path.append(str(RECON_SYNTH / 'attacks'))
+sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
 
 import wandb
 from get_data import load_data
@@ -61,7 +68,7 @@ def sdg_dirname(method, params=None):
 # ── Data paths ────────────────────────────────────────────────────────────────
 
 SAMPLE_SIZE      = 1_000
-DATA_ROOT        = f"/home/golobs/data/reconstruction_data/california/size_{SAMPLE_SIZE}"
+DATA_ROOT        = f"{DATA_ROOT}/california/size_{SAMPLE_SIZE}"
 SAMPLE_DIR       = f"{DATA_ROOT}/sample_00"
 HOLDOUT_DIR      = f"{DATA_ROOT}/sample_01"   # disjoint sample for memorization test
 MEMORIZATION_TEST = True   # set True to also reconstruct holdout targets

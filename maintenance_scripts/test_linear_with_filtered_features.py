@@ -6,6 +6,13 @@ Compares performance with:
 2. Excluding high-cardinality F21, F22
 3. Only low-cardinality features (<10 unique values)
 """
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import NIST_CRC_ROOT
+
 import sys
 import os
 import pandas as pd
@@ -87,8 +94,8 @@ def main():
 
     # Load data
     print("\nLoading data...")
-    train = pd.read_csv('/home/golobs/data/NIST_CRC/dev_data/train.csv')
-    synth = pd.read_csv('/home/golobs/data/NIST_CRC/dev_data/synth.csv')
+    train = pd.read_csv(f'{NIST_CRC_ROOT}/dev_data/train.csv')
+    synth = pd.read_csv(f'{NIST_CRC_ROOT}/dev_data/synth.csv')
 
     if 'ID' in train.columns:
         train = train.drop('ID', axis=1)

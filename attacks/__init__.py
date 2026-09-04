@@ -55,14 +55,43 @@ from .baselines_continuous import (
     simply_measure_deid_itself_baseline_cont
 )
 
-# Data-type agnostic attacks (work on both)
-from .partialDiffusion import (
-    repaint_reconstruction,
-    partial_tabddpm_reconstruction,
-    conditioned_repaint_reconstruction,
-    tabddpm_ensemble_reconstruction,
-    tabddpm_mlp_reconstruction,
-)
+# Data-type agnostic attacks (work on both).
+#
+# The diffusion attacks pull in the external MIA_on_diffusion tree (submodule
+# external/MIA_on_diffusion) and its heavier dependency stack. Import them
+# optionally so that a missing optional dependency disables only these attacks
+# rather than making the whole registry — and therefore every other attack —
+# unimportable. Requesting a disabled attack raises a clear error via
+# get_attack() instead of an import traceback at module load.
+_DIFFUSION_IMPORT_ERROR = None
+try:
+    from .partialDiffusion import (
+        repaint_reconstruction,
+        partial_tabddpm_reconstruction,
+        conditioned_repaint_reconstruction,
+        tabddpm_ensemble_reconstruction,
+        tabddpm_mlp_reconstruction,
+    )
+    _DIFFUSION_AVAILABLE = True
+except ImportError as _exc:  # pragma: no cover - depends on optional deps
+    _DIFFUSION_AVAILABLE = False
+    _DIFFUSION_IMPORT_ERROR = _exc
+
+    def _diffusion_unavailable(*_args, **_kwargs):
+        raise ImportError(
+            "The diffusion-based attacks (CondDDPM, CondRePaint, RePaint) require the "
+            "external/MIA_on_diffusion submodule and its dependencies, which are not "
+            "installed in this environment.\n"
+            "  * initialise the submodule:  git submodule update --init --recursive\n"
+            "  * or use the full image:     docker/Dockerfile.full\n"
+            f"Original import error: {_DIFFUSION_IMPORT_ERROR}"
+        )
+
+    repaint_reconstruction = _diffusion_unavailable
+    partial_tabddpm_reconstruction = _diffusion_unavailable
+    conditioned_repaint_reconstruction = _diffusion_unavailable
+    tabddpm_ensemble_reconstruction = _diffusion_unavailable
+    tabddpm_mlp_reconstruction = _diffusion_unavailable
 from .partialMST import (
     partial_mst_reconstruction,
     partial_mst_independent_reconstruction,
@@ -79,11 +108,34 @@ import os
 sota_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'SOTA_attacks')
 if sota_path not in sys.path:
     sys.path.insert(0, sota_path)
-from linear_reconstruction import (
-    linear_reconstruction_attack,
-    linear_reconstruction_attack_categorical,
-    linear_reconstruction_attack_joint,
-)
+# LinearReconstruction needs the external/recon-synth submodule on sys.path and a
+# licensed Gurobi installation. Both are optional, so import it the same way as
+# the diffusion attacks: a missing dependency disables only this attack.
+_LINEAR_IMPORT_ERROR = None
+try:
+    from linear_reconstruction import (
+        linear_reconstruction_attack,
+        linear_reconstruction_attack_categorical,
+        linear_reconstruction_attack_joint,
+    )
+    _LINEAR_AVAILABLE = True
+except ImportError as _exc:  # pragma: no cover - depends on optional deps
+    _LINEAR_AVAILABLE = False
+    _LINEAR_IMPORT_ERROR = _exc
+
+    def _linear_unavailable(*_args, **_kwargs):
+        raise ImportError(
+            "The LinearReconstruction attack requires the external/recon-synth "
+            "submodule and a licensed Gurobi (gurobipy) installation, which are not "
+            "available in this environment.\n"
+            "  * initialise the submodule:  git submodule update --init --recursive\n"
+            "  * install Gurobi:            pip install gurobipy  (free academic licence)\n"
+            f"Original import error: {_LINEAR_IMPORT_ERROR}"
+        )
+
+    linear_reconstruction_attack = _linear_unavailable
+    linear_reconstruction_attack_categorical = _linear_unavailable
+    linear_reconstruction_attack_joint = _linear_unavailable
 
 
 # =============================================================================

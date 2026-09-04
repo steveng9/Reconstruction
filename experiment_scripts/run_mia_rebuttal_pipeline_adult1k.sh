@@ -18,8 +18,20 @@
 # released them). Cores 12-19 and 24-35 are in use by the still-running
 # PrivateGSD generation jobs (nist_arizona and adult-10k respectively).
 # Cores 36-47 stay untouched for other users.
-cd /home/golobs/Reconstruction
-source /home/golobs/miniconda3/etc/profile.d/conda.sh
+
+# Resolve the repository root (the directory containing paths.py) without
+# hard-coding an absolute path, and default the data root beneath it.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || {
+  echo "error: cannot resolve script directory" >&2; exit 1; }
+while [ ! -f "$REPO_ROOT/paths.py" ] && [ "$REPO_ROOT" != "/" ]; do
+  REPO_ROOT="$(dirname "$REPO_ROOT")"
+done
+[ -f "$REPO_ROOT/paths.py" ] || {
+  echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
+: "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
+
+cd "$REPO_ROOT"
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate recon_
 
 export OMP_NUM_THREADS=2
@@ -29,8 +41,8 @@ export NUMEXPR_NUM_THREADS=2
 
 echo "=== STEP 1: generate missing PrivBayes/PrivSyn/MWEMPGM synth for adult 1k (eps=1,1000, sample_00) ==="
 taskset -c 0-11 python experiment_scripts/generate_new_dp_sweep.py \
-  --data-root /home/golobs/data/reconstruction_data/adult/size_1000 \
-  --meta-path /home/golobs/data/reconstruction_data/adult/meta.json \
+  --data-root ${RECON_DATA_ROOT}/adult/size_1000 \
+  --meta-path ${RECON_DATA_ROOT}/adult/meta.json \
   --methods PrivBayes PrivSyn MWEMPGM \
   --epsilons 1 1000 \
   --samples 0 \

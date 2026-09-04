@@ -3,6 +3,13 @@ Test Linear Reconstruction attack with different dataset sizes.
 
 The paper tests with 1K, 10K, 100K rows. Maybe 1K is too small for the attack to work?
 """
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import NIST_CRC_ROOT
+
 import sys
 import os
 import pandas as pd
@@ -75,8 +82,8 @@ def main():
 
     # Load FULL datasets
     print("\nLoading full datasets...")
-    train_full = pd.read_csv('/home/golobs/data/NIST_CRC/dev_data/train.csv')
-    synth_full = pd.read_csv('/home/golobs/data/NIST_CRC/dev_data/synth.csv')
+    train_full = pd.read_csv(f'{NIST_CRC_ROOT}/dev_data/train.csv')
+    synth_full = pd.read_csv(f'{NIST_CRC_ROOT}/dev_data/synth.csv')
 
     if 'ID' in train_full.columns:
         train_full = train_full.drop('ID', axis=1)

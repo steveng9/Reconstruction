@@ -27,6 +27,13 @@ Usage (from repo root):
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 
 import argparse
 import csv
@@ -42,7 +49,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
+sys.path.insert(0, str(REPO_ROOT))
 from attack_defaults import ATTACK_PARAM_DEFAULTS
 
 
@@ -55,7 +62,7 @@ DATASET_CONFIGS = [
         "size":        1_000,
         "type":        "categorical",
         "qi_variants": ["QI1"],
-        "data_root":   "/home/golobs/data/reconstruction_data/adult/size_1000",
+        "data_root":   f"{DATA_ROOT}/adult/size_1000",
     },
     {
         "base":        "adult",
@@ -63,7 +70,7 @@ DATASET_CONFIGS = [
         "size":        10_000,
         "type":        "categorical",
         "qi_variants": ["QI1"],
-        "data_root":   "/home/golobs/data/reconstruction_data/adult/size_10000",
+        "data_root":   f"{DATA_ROOT}/adult/size_10000",
     },
 ]
 
@@ -211,15 +218,15 @@ def generate_jobs(
 
 def _worker_setup_paths():
     for p in [
-        "/home/golobs/MIA_on_diffusion/",
-        "/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM",
-        "/home/golobs/recon-synth",
-        "/home/golobs/recon-synth/attacks",
-        "/home/golobs/recon-synth/attacks/solvers",
+        str(MIA_ON_DIFFUSION),
+        str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'),
+        str(RECON_SYNTH),
+        str(RECON_SYNTH / 'attacks'),
+        str(RECON_SYNTH / 'attacks' / 'solvers'),
     ]:
         if p not in sys.path:
             sys.path.append(p)
-    reconstruction = "/home/golobs/Reconstruction"
+    reconstruction = str(REPO_ROOT)
     if reconstruction in sys.path:
         sys.path.remove(reconstruction)
     sys.path.insert(0, reconstruction)

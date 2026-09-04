@@ -8,10 +8,12 @@ wandb:
     - "development"
 
 # Dataset settings
+# `dir` may be absolute, or relative to $RECON_DATA_ROOT (default: <repo>/data).
+# `name` selects the QI definitions in get_data.py and must match the directory.
 dataset:
-  name: "nist_arizona_data"
-  size: 10_000
-  dir: "/home/golobs/data/reconstruction_data/adult/size_1k/sample_00"
+  name: "adult"
+  size: 1000
+  dir: "adult/size_1000/sample_00"
 QI: "QI1"
 
 # Synthetic data generation
@@ -25,7 +27,7 @@ sdg_params:
 # Point holdout_dir at a different disjoint sample (its train.csv is used as holdout)
 memorization_test:
   enabled: false
-  # holdout_dir: "/home/golobs/data/reconstruction_data/adult/size_1k/sample_01"
+  # holdout_dir: "adult/size_1000/sample_01"
 
 # Row-level RA scores: save per-record reconstruction accuracy to CSV
 # Enables subgroup / outlier / demographic analysis downstream.

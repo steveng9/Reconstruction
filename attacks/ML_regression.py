@@ -1,3 +1,4 @@
+import os
 import pickle
 
 from lightgbm import LGBMRegressor
@@ -94,7 +95,12 @@ def _development():
         all_scores = pd.DataFrame(columns=['mean_abs_error','normalized_mae','mse','rmse','normalized_rmse','max_error','eps'])
         for eps in epss:
             for synth_id in range(N_RUNS):
-                data_path = "/Users/stevengolob/Documents/school/Thesis/experiment_artifacts/shadowsets_cali/"
+                # Developer-only helper (reachable only via __main__). Point
+                # RECON_CALI_SHADOWSETS at the California shadow-set pickles; these
+                # are author working files and are not part of the artifact.
+                data_path = os.environ.get("RECON_CALI_SHADOWSETS", "")
+                if not data_path:
+                    raise SystemExit("set RECON_CALI_SHADOWSETS to run _development()")
                 sdg_method = f"expD/e{eps}/gsd/"
 
                 # load data

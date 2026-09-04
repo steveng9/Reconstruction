@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-PYTHON="/home/golobs/miniconda3/envs/recon_/bin/python"
+PYTHON="$(conda info --base)/envs/recon_/bin/python"
 LOG_FILE="$REPO_ROOT/outfiles/qi_adult_QI_large.log"
 
 mkdir -p "$REPO_ROOT/outfiles"

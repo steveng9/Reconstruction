@@ -16,6 +16,13 @@ Usage (from repo root, conda activate recon_):
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 
 import argparse
 import csv
@@ -30,13 +37,13 @@ from pathlib import Path
 
 # ── Path setup ────────────────────────────────────────────────────────────────
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
+sys.path.insert(0, str(REPO_ROOT))
 for p in [
-    "/home/golobs/MIA_on_diffusion/",
-    "/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM",
-    "/home/golobs/recon-synth",
-    "/home/golobs/recon-synth/attacks",
-    "/home/golobs/recon-synth/attacks/solvers",
+    str(MIA_ON_DIFFUSION),
+    str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'),
+    str(RECON_SYNTH),
+    str(RECON_SYNTH / 'attacks'),
+    str(RECON_SYNTH / 'attacks' / 'solvers'),
 ]:
     if p not in sys.path:
         sys.path.append(p)
@@ -48,7 +55,7 @@ DATASET_NAME  = "nist_arizona_25feat"
 DATASET_SIZE  = 10_000
 N_FEATURES    = 25
 DATA_ROOT     = (
-    f"/home/golobs/data/reconstruction_data/{DATASET_BASE}"
+    f"{DATA_ROOT}/{DATASET_BASE}"
     f"/size_{DATASET_SIZE}_{N_FEATURES}feat"
 )
 DATASET_TYPE  = "categorical"

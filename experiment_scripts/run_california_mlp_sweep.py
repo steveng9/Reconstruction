@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 """
 Quick sweep: MLP reconstruction attack + random baseline on all
 california size_1k SDG methods, averaged over 5 training samples.
@@ -21,12 +28,12 @@ import sys
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
-sys.path.append("/home/golobs/MIA_on_diffusion/")
-sys.path.append("/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM")
-sys.path.append("/home/golobs/recon-synth")
-sys.path.append("/home/golobs/recon-synth/attacks")
-sys.path.append("/home/golobs/recon-synth/attacks/solvers")
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.append(str(MIA_ON_DIFFUSION))
+sys.path.append(str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'))
+sys.path.append(str(RECON_SYNTH))
+sys.path.append(str(RECON_SYNTH / 'attacks'))
+sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
 
 import wandb
 from get_data import load_data
@@ -44,8 +51,8 @@ def sdg_dirname(method, params=None):
 
 # ── Data paths ────────────────────────────────────────────────────────────────
 
-DATA_ROOT    = "/home/golobs/data/reconstruction_data/california/size_1000"
-FULL_DATA_PATH = "/home/golobs/data/reconstruction_data/california/full_data.csv"
+DATA_ROOT    = f"{DATA_ROOT}/california/size_1000"
+FULL_DATA_PATH = f"{DATA_ROOT}/california/full_data.csv"
 
 # 5 training samples paired with 5 non-overlapping holdout samples
 TRAIN_SAMPLES   = [0, 1, 2, 3, 4]

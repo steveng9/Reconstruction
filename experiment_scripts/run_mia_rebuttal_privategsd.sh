@@ -16,8 +16,20 @@
 # Once this finishes, rerun run_mia_rebuttal_sweep.py alone (no need to
 # rerun this script) to fill in the nist_arizona/PrivateGSD cells into
 # mia_rebuttal_sweep_results.csv and wandb.
-cd /home/golobs/Reconstruction
-source /home/golobs/miniconda3/etc/profile.d/conda.sh
+
+# Resolve the repository root (the directory containing paths.py) without
+# hard-coding an absolute path, and default the data root beneath it.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || {
+  echo "error: cannot resolve script directory" >&2; exit 1; }
+while [ ! -f "$REPO_ROOT/paths.py" ] && [ "$REPO_ROOT" != "/" ]; do
+  REPO_ROOT="$(dirname "$REPO_ROOT")"
+done
+[ -f "$REPO_ROOT/paths.py" ] || {
+  echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
+: "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
+
+cd "$REPO_ROOT"
+source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate recon_
 
 export OMP_NUM_THREADS=2
@@ -27,8 +39,8 @@ export NUMEXPR_NUM_THREADS=2
 
 echo "=== generate PrivateGSD synth for nist_arizona 10k (eps=1,1000, sample_01) ==="
 taskset -c 12-19 python experiment_scripts/generate_new_dp_sweep.py \
-  --data-root /home/golobs/data/reconstruction_data/nist_arizona_data/size_10000_25feat \
-  --meta-path /home/golobs/data/reconstruction_data/nist_arizona_data/meta.json \
+  --data-root ${RECON_DATA_ROOT}/nist_arizona_data/size_10000_25feat \
+  --meta-path ${RECON_DATA_ROOT}/nist_arizona_data/meta.json \
   --methods PrivateGSD \
   --epsilons 1 1000 \
   --samples 1 \

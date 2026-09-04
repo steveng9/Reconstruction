@@ -18,6 +18,13 @@ Usage (from repo root):
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 
 import argparse
 import csv
@@ -33,7 +40,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
+sys.path.insert(0, str(REPO_ROOT))
 _EXPERIMENT_SCRIPTS_DIR = str(Path(__file__).parent)
 if _EXPERIMENT_SCRIPTS_DIR not in sys.path:
     sys.path.insert(1, _EXPERIMENT_SCRIPTS_DIR)
@@ -47,7 +54,7 @@ DATASETS = [
     {"base": "adult", "name": "adult", "size": 10_000},
 ]
 
-DATA_ROOT_TPL = "/home/golobs/data/reconstruction_data/{base}/size_{size}"
+DATA_ROOT_TPL = str(DATA_ROOT) + "/{base}/size_{size}"
 
 SAMPLE_RANGE  = [0]   # sample_00 only for trial #1
 DATASET_TYPE  = "categorical"
@@ -137,15 +144,15 @@ def generate_jobs(size_filter=None, attack_filter=None) -> list[Job]:
 
 def _worker_setup_paths():
     for p in [
-        "/home/golobs/MIA_on_diffusion/",
-        "/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM",
-        "/home/golobs/recon-synth",
-        "/home/golobs/recon-synth/attacks",
-        "/home/golobs/recon-synth/attacks/solvers",
+        str(MIA_ON_DIFFUSION),
+        str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'),
+        str(RECON_SYNTH),
+        str(RECON_SYNTH / 'attacks'),
+        str(RECON_SYNTH / 'attacks' / 'solvers'),
     ]:
         if p not in sys.path:
             sys.path.append(p)
-    reconstruction = "/home/golobs/Reconstruction"
+    reconstruction = str(REPO_ROOT)
     if reconstruction in sys.path:
         sys.path.remove(reconstruction)
     sys.path.insert(0, reconstruction)

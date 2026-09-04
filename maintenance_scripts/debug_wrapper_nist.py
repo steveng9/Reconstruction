@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import NIST_CRC_ROOT
+
 """
 1. Verify ACS NonPrivate results match paper's reported ~0.99 AUC (using scores, not just accuracy)
 2. Test NIST CRC data through the wrapper (dropping F21, F22)
@@ -85,8 +92,8 @@ print(f"\n{'=' * 70}")
 print("PART 2: NIST CRC through wrapper (F21, F22 dropped)")
 print("=" * 70)
 
-train = pd.read_csv('/home/golobs/data/NIST_CRC/dev_data/train.csv')
-synth = pd.read_csv('/home/golobs/data/NIST_CRC/dev_data/synth.csv')
+train = pd.read_csv(f'{NIST_CRC_ROOT}/dev_data/train.csv')
+synth = pd.read_csv(f'{NIST_CRC_ROOT}/dev_data/synth.csv')
 
 if 'ID' in train.columns:
     train = train.drop(columns=['ID'])

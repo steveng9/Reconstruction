@@ -26,6 +26,13 @@ USAGE
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import MIA_ON_DIFFUSION, RECON_SYNTH, REPO_ROOT
+
 
 import argparse
 import json
@@ -41,7 +48,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import rerun_queue as q
 
-REPO = "/home/golobs/Reconstruction"
+REPO = str(REPO_ROOT)
 _STOP = False
 
 
@@ -53,11 +60,11 @@ def _on_signal(signum, frame):
 
 
 def _setup_paths():
-    for p in ["/home/golobs/MIA_on_diffusion/",
-              "/home/golobs/MIA_on_diffusion/midst_models/single_table_TabDDPM",
-              "/home/golobs/recon-synth",
-              "/home/golobs/recon-synth/attacks",
-              "/home/golobs/recon-synth/attacks/solvers"]:
+    for p in [str(MIA_ON_DIFFUSION),
+              str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'),
+              str(RECON_SYNTH),
+              str(RECON_SYNTH / 'attacks'),
+              str(RECON_SYNTH / 'attacks' / 'solvers')]:
         if p not in sys.path:
             sys.path.append(p)
     if REPO in sys.path:

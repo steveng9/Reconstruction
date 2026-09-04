@@ -62,7 +62,7 @@ See `configs/test_linear_attack.yaml` for a complete example.
 
 Run the integration test:
 ```bash
-cd /home/golobs/Reconstruction
+cd /path/to/Reconstruction
 python maintenance_scripts/test_linear_integration.py
 ```
 

@@ -18,6 +18,13 @@ plus an "_overall" feature row aggregating across all hidden features.
 """
 
 from __future__ import annotations
+import sys as _sys, pathlib as _pathlib
+for _anc in _pathlib.Path(__file__).resolve().parents:
+    if (_anc / "paths.py").exists():
+        _sys.path.insert(0, str(_anc))
+        break
+from paths import DATA_ROOT, REPO_ROOT
+
 
 import argparse
 import csv
@@ -28,7 +35,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, "/home/golobs/Reconstruction")
+sys.path.insert(0, str(REPO_ROOT))
 
 from get_data import QIs, minus_QIs  # QI and hidden-feature definitions
 
@@ -40,7 +47,7 @@ DATASETS = [
     {"base": "adult", "name": "adult", "size": 10_000},
 ]
 
-DATA_ROOT_TPL = "/home/golobs/data/reconstruction_data/{base}/size_{size}"
+DATA_ROOT_TPL = str(DATA_ROOT) + "/{base}/size_{size}"
 
 SAMPLE_RANGE = range(5)  # sample_00 through sample_04
 

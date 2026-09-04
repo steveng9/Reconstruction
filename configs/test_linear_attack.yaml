@@ -15,7 +15,7 @@ dataset:
   name: "nist_crc"
   size: 1000  # Keep small for linear attack (memory constraints)
   type: "categorical"
-  dir: "/home/golobs/data/NIST_CRC/dev_data"
+  dir: "NIST_CRC/dev_data"   # relative to $RECON_DATA_ROOT
 
 QI: "QI1"  # Use predefined QI from your dataset
 

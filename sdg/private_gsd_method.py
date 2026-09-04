@@ -5,7 +5,7 @@ Paper: "Generating Private Synthetic Data with Genetic Algorithms" (ICML 2023),
 https://arxiv.org/abs/2306.03257
 
 Library: https://github.com/giusevtr/private_gsd (installed separately, NOT
-vendored into this repo — see /home/golobs/private_gsd). Built on jax + the
+vendored into this repo). Built on jax + the
 snsynth `Synthesizer` base class (same base class MST/AIM use), so the
 fit/sample conventions mirror sdg/smartnoise_methods.py closely: pass
 categorical/continuous/ordinal column lists directly, and the library's

@@ -27,7 +27,19 @@
 
 set -e   # abort on any error
 
-REPO="/home/golobs/Reconstruction"
+# Resolve the repository root (the directory containing paths.py) without
+# hard-coding an absolute path, and default the data root beneath it.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || {
+  echo "error: cannot resolve script directory" >&2; exit 1; }
+while [ ! -f "$REPO_ROOT/paths.py" ] && [ "$REPO_ROOT" != "/" ]; do
+  REPO_ROOT="$(dirname "$REPO_ROOT")"
+done
+[ -f "$REPO_ROOT/paths.py" ] || {
+  echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
+: "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
+
+
+REPO="$REPO_ROOT"
 SCRIPTS="$REPO/experiment_scripts"
 OUTFILES="$SCRIPTS/outfiles"
 DATE=$(date +%Y%m%d)
@@ -64,7 +76,7 @@ conda run -n recon_ python - <<'PYEOF'
 import pandas as pd, glob, sys
 
 # Use the most recent regen file
-files = sorted(glob.glob("/home/golobs/Reconstruction/experiment_scripts/wasserstein_ohe_regen_*.csv"))
+files = sorted(glob.glob("$REPO_ROOT/experiment_scripts/wasserstein_ohe_regen_*.csv"))
 if not files:
     print("  No regen wasserstein file found yet.")
     sys.exit(0)
