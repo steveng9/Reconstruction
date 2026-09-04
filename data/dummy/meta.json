@@ -1,0 +1,17 @@
+{
+    "categorical": [
+        "region",
+        "sex",
+        "education",
+        "employment",
+        "insured",
+        "smoker",
+        "chronic_cond"
+    ],
+    "continuous": [],
+    "ordinal": [
+        "age_band",
+        "income_band",
+        "visits_band"
+    ]
+}

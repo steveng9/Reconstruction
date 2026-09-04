@@ -11,7 +11,8 @@ outfiles/
 # Generated figures
 *.pdf
 
-# SQLite results database (too large, regenerate with results_db.py)
+# SQLite results databases. results.db is shipped as part of the artifact
+# (it backs experiment_scripts/regen_camera_tables.py), so it is un-ignored below.
 *.db
 
 # Manuscript (not part of the artifact)
@@ -33,3 +34,33 @@ CLAUDE.md
 # Dated/working backups of DBs, CSVs and tex (not artifact material)
 *.bak
 *.bak_*
+
+
+# ---------------------------------------------------------------------------
+# Artifact assets: these are deliberately tracked despite the broad rules above.
+# ---------------------------------------------------------------------------
+# The results database backing every paper table (see regen_camera_tables.py).
+!experiment_scripts/results.db
+
+# The dummy dataset that lets reviewers exercise the pipeline with no downloads.
+!data/dummy/
+!data/dummy/**/*.csv
+!data/dummy/**/*.json
+!data/dummy/*.json
+
+# Expected outputs committed for comparison during artifact evaluation.
+!expected_output/
+!expected_output/**/*.tex
+!expected_output/**/*.csv
+!expected_output/**/*.md
+!expected_output/**/*.pdf
+!expected_output/**/*.png
+
+# Everything else under data/ is the author's local tree (symlinks to large
+# datasets that are not redistributable) and must stay out of git.
+/data/*
+!/data/dummy/
+!/data/README.md
+
+# external/ holds the two dependency repos as pinned git submodules; they are
+# tracked via .gitmodules, so nothing here is ignored.

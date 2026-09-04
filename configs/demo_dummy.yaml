@@ -1,0 +1,48 @@
+# Minimal, self-contained demonstration configuration.
+#
+# Runs the CoBP-RA attack against MST (epsilon=10) synthetic data derived from the
+# dummy dataset shipped in data/dummy/. Requires no downloads, no GPU, no W&B
+# account and no access-restricted data, and finishes in well under a minute.
+#
+#     python master_experiment_script.py --n_runs 1
+#
+# This is the configuration exercised by ./test.sh.
+
+wandb:
+  project: "reconstruction-artifact-demo"
+  name: "dummy-demo"
+  group: "demo"
+  tags: ["demo"]
+
+dataset:
+  name: "dummy"
+  size: 1000
+  dir: "dummy/size_1000/sample_00"   # relative to $RECON_DATA_ROOT
+
+QI: "QI1"                            # known: age_band, region, sex, education
+
+sdg_method: "MST"
+sdg_params:
+  epsilon: 10
+
+memorization_test:
+  enabled: false
+row_level_analysis:
+  enabled: false
+
+attack_method: "CoBP-RA"
+data_type: "categorical"
+
+attack_params:
+  ensembling:
+    enabled: false
+  chaining:
+    enabled: false
+  CoBP-RA:
+    num_estimators: 25
+    max_depth: 25
+    knn_k: 100
+    graph_type: "mst"
+    col_correction_alpha: 0.5
+
+random_seed: 42
