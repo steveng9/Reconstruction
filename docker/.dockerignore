@@ -1,0 +1,6 @@
+# Only the requirements files are needed at build time; the repository itself is
+# mounted as a volume at run time. This keeps the build context tiny (the repo
+# contains a 70MB results database and symlinks to multi-GB dataset trees).
+*
+!docker/requirements-attacks.txt
+!docker/requirements-sdg.txt

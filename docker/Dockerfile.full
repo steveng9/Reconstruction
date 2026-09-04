@@ -1,0 +1,67 @@
+# =============================================================================
+# Full image: everything in the light image, plus the GPU-oriented and R-based
+# synthetic data generators.
+#
+# Use this only if you need to regenerate synthetic data with TVAE, CTGAN, ARF,
+# TabDDPM (all GPU-oriented; they run on CPU but slowly), or with the R methods
+# Synthpop, RankSwap and CellSuppression. For everything else — including all
+# 13 attacks and all paper tables — prefer the smaller docker/Dockerfile.
+#
+# Two conda environments are created because the SDG libraries (SDV, SynthCity,
+# SmartNoise) require numpy/torch versions that conflict with the attack stack:
+#   recon_  (Python 3.9)  — attacks, scoring, table regeneration
+#   sdg     (Python 3.10) — synthetic data generation
+#
+# Build (from the repository root; this takes a while and produces a multi-GB
+# image):
+#     docker build -f docker/Dockerfile.full -t recon-artifact:full .
+#
+# Run:
+#     docker run --rm -it -v "${PWD}":/workspace -w /workspace recon-artifact:full bash
+#     conda run -n recon_ python master_experiment_script.py --n_runs 1
+#     conda run -n sdg    python sdg/generate_synth.py sdg
+# =============================================================================
+
+FROM continuumio/miniconda3:25.1.1-2@sha256:0c1494093f919a36ba4cf543abf5e2e426deb3e8aa61c9d4074bcc267d264fe5
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    NUMEXPR_NUM_THREADS=1 \
+    WANDB_MODE=offline
+
+# git for the pinned VCS dependencies; R for Synthpop / sdcMicro.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      git build-essential \
+      r-base r-base-dev \
+      libcurl4-openssl-dev libssl-dev libxml2-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+# --- attack environment -------------------------------------------------------
+COPY docker/requirements-attacks.txt /tmp/requirements-attacks.txt
+RUN conda create -y -n recon_ python=3.9.23 \
+ && conda run -n recon_ pip install --no-cache-dir -r /tmp/requirements-attacks.txt \
+ && conda clean -afy
+
+# --- synthetic data generation environment -----------------------------------
+COPY docker/requirements-sdg.txt /tmp/requirements-sdg.txt
+RUN conda create -y -n sdg python=3.10.19 \
+ && conda run -n sdg pip install --no-cache-dir -r /tmp/requirements-sdg.txt \
+ && conda clean -afy
+
+# --- R packages for Synthpop / RankSwap / CellSuppression ---------------------
+# Pinned to a dated CRAN snapshot so the versions cannot drift.
+RUN Rscript -e "options(repos = c(CRAN = 'https://packagemanager.posit.co/cran/2026-08-01')); \
+                install.packages(c('synthpop', 'sdcMicro'))"
+
+ARG UID=1000
+ARG GID=1000
+RUN groupadd --gid $GID recon 2>/dev/null || true \
+ && useradd --uid $UID --gid $GID --create-home --shell /bin/bash recon 2>/dev/null || true
+USER $UID:$GID
+
+WORKDIR /workspace
+CMD ["bash"]

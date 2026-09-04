@@ -1,0 +1,21 @@
+# Pinned dependencies for the synthetic-data-generation environment (the `sdg`
+# conda env in the paper's setup, Python 3.10). Kept separate from
+# requirements-attacks.txt because SDV / SynthCity / SmartNoise pull in
+# numpy and torch versions that conflict with the attack environment.
+#
+# Installed by docker/Dockerfile.full.
+
+numpy==1.26.4
+pandas==2.3.3
+scipy==1.15.3
+scikit-learn==1.7.2
+torch==2.2.2
+
+smartnoise-synth==1.0.5      # MST, AIM
+opendp==0.12.1
+sdv==1.34.0                  # TVAE, CTGAN
+synthcity==0.2.12            # ARF
+rpy2==3.6.4                  # bridge to R: Synthpop, RankSwap, CellSuppression
+
+tqdm==4.66.4
+PyYAML==6.0.1
