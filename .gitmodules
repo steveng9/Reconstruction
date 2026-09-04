@@ -1,0 +1,6 @@
+[submodule "external/recon-synth"]
+	path = external/recon-synth
+	url = https://github.com/steveng9/recon-synth.git
+[submodule "external/MIA_on_diffusion"]
+	path = external/MIA_on_diffusion
+	url = https://github.com/steveng9/MIA_on_diffusion.git
