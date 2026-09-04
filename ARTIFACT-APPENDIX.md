@@ -36,6 +36,74 @@ The artifact contains everything used to produce the paper's results:
   `experiment_scripts/regen_camera_tables.py`, which regenerates the paper's
   tables and figures from it.
 
+### What `results.db` does and does not contain
+
+`results.db` is the system of record for the paper's *reconstruction* results.
+One row per (dataset, size, sample, QI, SDG method, attack, split), holding the
+mean $R_{adv}$ plus the attack and SDG parameters; per-feature scores live in a
+companion table.
+
+| | |
+|---|---|
+| `runs` | 49,126 scored runs |
+| `feature_scores` | 413,318 per-feature scores |
+| `runs_superseded` | 17,108 runs invalidated by the 2026-08 encoding repair, retained for audit |
+| Datasets | Adult (29,822), CDC Diabetes (14,378), California (2,267), NIST Arizona (1,428), NIST SBO (1,231) |
+| SDG methods | 59 distinct configurations — the nine evaluated methods plus MST, AIM, PrivBayes, PrivSyn, MWEM-PGM and PrivateGSD across nine ε values |
+| Attacks | 184 labels — every attack in the taxonomy, plus its ablation variants and the pairwise ensembles/chains |
+| Splits | `standard`, and `train` / `nontraining` for the memorization test |
+
+**Three things are deliberately outside it:**
+
+1. **Membership-inference results.** The MIA comparison
+   (`tab:mia_comparison`) is a different measurement with a different output
+   shape, and was never migrated into the schema. It lives in the CSVs emitted
+   by `experiment_scripts/compare_mia_ra.py` and the `run_mia_*` drivers.
+2. **Synthetic-data quality metrics.** TVD, JSD, Wasserstein, propensity and
+   TSTR/TRTR scores describe *datasets*, not attack runs. They are in
+   `experiment_scripts/quality_results_merged.csv`, which is committed.
+3. **The NIST CRC scoreboard** (`tab:nist_results`) is transcribed from NIST's
+   official published results, not computed here.
+
+Everything needed by Experiment 1 — the database plus four committed CSVs — is
+in the repository. `experiment_scripts/README.md` maps every script to the paper
+object it produces and states what each one needs to run.
+
+### How experiments find their data
+
+Nothing in the repository hardcodes a path. All roots resolve through
+`paths.py`, and each is overridable by an environment variable:
+
+| Variable | Default | Holds |
+|---|---|---|
+| `RECON_DATA_ROOT` | `<repo>/data` | datasets and generated synthetic data |
+| `RECON_EXTERNAL_ROOT` | `<repo>/external` | the two submodules |
+| `RECON_RESULTS_DB` | `<repo>/experiment_scripts/results.db` | scored results |
+| `RECON_TABLE_OUT` | `<repo>/expected_output/tables` | regenerated tables |
+
+Under `RECON_DATA_ROOT`, each dataset follows one layout:
+
+```
+<dataset>/
+  full_data.csv                     # the source dataset
+  meta.json                         # column types
+  size_<N>/sample_<KK>/
+      train.csv                     # disjoint training sample
+      holdout.csv                   # non-training targets (memorization test)
+      <SDG>_eps<E>/synth.csv        # one synthetic release per generator
+```
+
+`data/dummy/` is a complete, committed instance of this layout, so the pipeline
+runs on a fresh clone with no downloads and no environment variables. To add a
+real dataset, create `<dataset>/full_data.csv` and run `sdg/generate_synth.py`;
+Experiment 3 walks through this for Adult.
+
+On the authors' machine `RECON_DATA_ROOT` points at a separate ~200 GB tree
+outside the repository (`data/` is a gitignored symlink to it), which is why the
+generated synthetic data is not shipped: it is far past what a repository can
+carry. Nothing about that arrangement is required — it is only what the
+environment variable is for.
+
 ### Security/Privacy Issues and Ethical Concerns
 
 **No risk to the reviewer's machine.** Nothing here disables a security
@@ -138,7 +206,7 @@ repositories are wired in as git submodules pinned to exact commits:
 
 | Submodule path | Repository | Pinned commit |
 |---|---|---|
-| `external/recon-synth` | <https://github.com/steveng9/recon-synth> | `6880dfd` |
+| `external/recon-synth` | <https://github.com/steveng9/recon-synth> | `2ec60ec` |
 | `external/MIA_on_diffusion` | <https://github.com/steveng9/MIA_on_diffusion> | `1c4a21a` |
 
 Licence: MIT (`LICENSE`), with third-party components and two upstream
@@ -368,8 +436,9 @@ depend on how many trials complete; the *shape* is the claim.
 
 ## Limitations
 
-Everything in the paper is reproducible from `results.db` (Experiment 1). The
-limitations below concern regenerating results **from raw data**.
+Experiment 1 regenerates Tables 1, 2, 4, 7 and 9 and the ε-curve figures — the
+tables carrying all five main claims — exactly, from the shipped database. The
+limitations below concern everything beyond that.
 
 1. **Two datasets cannot be redistributed.** NIST Arizona requires a free IPUMS
    registration; NIST SBO is available from NIST on request as part of the
@@ -398,7 +467,13 @@ limitations below concern regenerating results **from raw data**.
    the paper's tables average five disjoint samples. Table *regeneration*
    (Experiment 1) is deterministic and exact.
 
-6. **`environment.yaml` is superseded.** The historical conda file in the
+6. **The MIA comparison is not regenerated by Experiment 1.** As noted above,
+   `results.db` holds no membership-inference rows, so `tab:mia_comparison` is
+   not among the tables rebuilt from the database. Its drivers are documented in
+   `experiment_scripts/README.md`, but reproducing it requires the raw data path.
+   No main claim of the paper rests on that table.
+
+7. **`environment.yaml` is superseded.** The historical conda file in the
    repository root does not reflect the versions actually used. The authoritative,
    pinned dependency sets are `docker/requirements-attacks.txt` and
    `docker/requirements-sdg.txt`.

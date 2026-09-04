@@ -31,15 +31,18 @@ carries a header identifying its origin and the modifications made.
 
 This file adapts the linear reconstruction attack of:
 
-> Annamalai, Ganev, De Cristofaro. *"What You See Is What You Get":
-> Reconstruction Attacks on Synthetic Data.* 2024.
+> Annamalai, Gadotti, Rocher. *A Linear Reconstruction Approach for Attribute
+> Inference Attacks against Synthetic Data.* USENIX Security 2024,
+> pp. 2351-2368. <https://arxiv.org/abs/2301.10053>
 
-by way of <https://github.com/Filienko/recon-synth>, which we forked to
-<https://github.com/steveng9/recon-synth> (pinned in this repository as the
-submodule `external/recon-synth`).
+The upstream chain is <https://github.com/synthetic-society/recon-synth> (the
+authors' own release) -> <https://github.com/Filienko/recon-synth> ->
+<https://github.com/steveng9/recon-synth>, the last of which is pinned in this
+repository as the submodule `external/recon-synth`.
 
-**Neither the upstream repository nor our fork carries an explicit licence
-file.** We record this plainly rather than assert terms we cannot substantiate:
+**No repository in that chain -- including the authors' original -- carries a
+licence file.** We record this plainly rather than assert terms we cannot
+substantiate:
 
 - The MIT licence in this repository's `LICENSE` covers **our own** code only.
   It does not, and cannot, grant rights over the upstream material.

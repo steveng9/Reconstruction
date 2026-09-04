@@ -615,7 +615,7 @@ def _load_db_long(dataset: str, qi_filter: str,
     db_path = _SCRIPT_DIR / "results.db"
     if not db_path.exists():
         print(f"ERROR: results.db not found at {db_path}\n"
-              "Run audit_and_verify.py then migrate_to_db.py first, "
+              "Run historical/audit_and_verify.py then historical/migrate_to_db.py first, "
               "or use --from-csv / --from-wandb.")
         return pd.DataFrame()
 

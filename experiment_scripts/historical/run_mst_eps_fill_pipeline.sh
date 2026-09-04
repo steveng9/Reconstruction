@@ -39,6 +39,7 @@ done
 
 REPO="$REPO_ROOT"
 SCRIPTS="$REPO/experiment_scripts"
+HIST="$SCRIPTS/historical"   # this script and its one-off helpers now live here
 OUTFILES="$SCRIPTS/outfiles"
 
 mkdir -p "$OUTFILES"
@@ -51,7 +52,7 @@ echo ""
 # ── Phase 1: Regenerate missing MST epsilons ──────────────────────────────────
 echo "=== Phase 1: Regenerate MST synth for eps={0.3, 3, 30, 300} ==="
 echo "    4 epsilons × 5 samples = 20 jobs  (4 workers)"
-conda run -n recon_ python "$SCRIPTS/regen_mst_missing_eps.py" --workers 4
+conda run -n recon_ python "$HIST/regen_mst_missing_eps.py" --workers 4
 echo ""
 echo "Phase 1 complete at $(date)"
 echo ""

@@ -8,7 +8,7 @@ provenance of the paper's numbers.
 
 **None of them is needed to build, run, or reproduce anything.** The scripts that
 back the paper's experiments all live one directory up and are indexed in the
-main `README.md` under "Reproducing Paper Results".
+directory above and are indexed in [`../README.md`](../README.md).
 
 Most of these assume state that no longer exists (a partially-filled sweep, a
 pre-repair database). Treat them as a record, not as tooling.
@@ -24,3 +24,12 @@ pre-repair database). Treat them as a record, not as tooling.
 | `run_camera_fill_20260822.sh` | Fill the remaining camera-ready table cells. |
 | `run_disparity_full_rerun_20260821.sh`, `run_disparity_mst_rerun_20260821.sh` | Re-run the disparate-impact analysis on post-repair synthetic data. |
 | `run_mia_rerun_20260821.sh` | Re-run the MIA comparison on post-repair synthetic data. |
+| `migrate_to_db.py` | The 2026 WandB/CSV → `results.db` migration (Phase 4). Run once; the DB is now the source of truth. |
+| `audit_and_verify.py` | Phases 1–2 of that migration: audit the result CSVs, then verify them against WandB. |
+| `fix_binned_synth_encoding.py` | The float-binned encoding repair. Rewrote 327 `synth.csv` files whose binned columns had been written as floats. |
+| `fill_in_quality.py` | Compute quality metrics for the synth files that the main evaluation had missed. |
+| `regen_mst_adult10k.py`, `regen_mst_missing_eps.py` | Regenerate MST synthetic data for Adult 10k after the encoding fix. |
+| `run_adult10k_mst_eps01_attacks.py` | Re-run attacks against the regenerated MST ε=0.1 data. |
+| `run_marginalrf_qi_graph_eps01.py` | One CoBP-RA (QI-graph) variant at ε=0.1, to fill a single missing cell. |
+| `run_mst_regen_pipeline.sh`, `run_mst_eps_fill_pipeline.sh` | The end-to-end drivers for the two MST regeneration passes above. |
+| `run_private_gsd_adult10k_eps1000_only.sh` | Re-run only the PrivateGSD Adult-10k ε=1000 point after it failed to finish. |

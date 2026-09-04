@@ -41,6 +41,7 @@ done
 
 REPO="$REPO_ROOT"
 SCRIPTS="$REPO/experiment_scripts"
+HIST="$SCRIPTS/historical"   # this script and its one-off helpers now live here
 OUTFILES="$SCRIPTS/outfiles"
 DATE=$(date +%Y%m%d)
 
@@ -54,7 +55,7 @@ echo ""
 # ── Phase 1: Regenerate MST synth ─────────────────────────────────────────────
 echo "=== Phase 1: Regenerate MST synth (bin_continuous_as_ordinal=True) ==="
 echo "    Epsilons: 0.1, 1, 10, 100, 1000  ×  5 samples = 25 jobs"
-conda run -n recon_ python "$SCRIPTS/regen_mst_adult10k.py" --workers 5
+conda run -n recon_ python "$HIST/regen_mst_adult10k.py" --workers 5
 echo ""
 echo "Phase 1 complete at $(date)"
 echo ""
@@ -90,7 +91,7 @@ echo ""
 echo "=== Phase 3: Rerun all Table 1 attacks on MST eps=0.1 ==="
 echo "    19 attacks × 5 samples = 95 jobs  (SVM excluded)"
 echo "    Diffusion attacks will retrain from scratch (~1-2 hrs/sample)"
-conda run -n recon_ python "$SCRIPTS/run_adult10k_mst_eps01_attacks.py" --workers 8
+conda run -n recon_ python "$HIST/run_adult10k_mst_eps01_attacks.py" --workers 8
 echo ""
 echo "Phase 3 complete at $(date)"
 echo ""

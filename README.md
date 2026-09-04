@@ -413,10 +413,10 @@ Reconstruction/
 │   ├── linear_sweep_to_latex.py  ← LinearReconstruction LaTeX tables
 │   ├── synth_quality_to_latex.py ← Synth quality LaTeX table
 │   ├── results_db.py             ← SQLite results database utilities
-│   ├── audit_and_verify.py       ← Audit WandB runs against DB for completeness
 │   ├── plot_ensembling_heatmap.py ← Heatmap visualization
 │   ├── regen_camera_tables.py    ← Regenerate every paper table from results.db
 │   ├── results.db                ← 49,126 scored runs behind the paper (68 MB)
+│   ├── README.md                 ← Index of every script: tier, paper object, inputs
 │   └── historical/               ← One-off repair/fill scripts kept for provenance
 │
 ├── ARTIFACT-APPENDIX.md          ← PoPETs artifact appendix (start here to review)
