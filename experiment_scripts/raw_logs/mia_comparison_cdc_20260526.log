@@ -1,0 +1,341 @@
+
+MIA vs RA-as-MIA Comparison — cdc_diabetes
+  Sample  : /home/golobs/data/reconstruction_data/cdc_diabetes/size_1000/sample_01
+  Holdout : /home/golobs/data/reconstruction_data/cdc_diabetes/size_1000/sample_02
+  SDG     : ['CellSuppression', 'RankSwap', 'TabDDPM', 'Synthpop', 'MST_eps1', 'MST_eps1000']
+  RA      : RandomForest
+  RA hidden override: ['Diabetes_binary', 'Stroke', 'HeartDiseaseorAttack', 'CholCheck', 'Fruits', 'Veggies', 'HvyAlcoholConsump', 'AnyHealthcare', 'NoDocbcCost', 'DiffWalk']
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — cdc_diabetes / CellSuppression
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1011  non-members: -0.1347
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 292489899.5156  non-members: 0.8605
+
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.7617  non-members: 0.6650
+
+  [RA-as-MIA / wide QI (12 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.7627  non-members: 0.6614
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — cdc_diabetes / CellSuppression
+════════════════════════════════════════════════════════════
+  Method                                AUC  Advantage   TPR@FPR1%
+  -----------------------------------------------------------------
+  SynthDistance                       0.618      0.365        0.369
+  NNDR                                0.641      0.369        0.369
+  RA-as-MIA (RandomForest, QI1)       0.604      0.232        0.000
+  RA-as-MIA (RandomForest, wide QI)   0.606      0.216        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=503  MIA-only=54  RA-only=119  Both-low=324
+      Spearman r=0.797  (p=0.0000)
+    vs NNDR:
+      Both-high=452  MIA-only=102  RA-only=170  Both-low=276
+      Spearman r=0.555  (p=0.0000)
+
+  Outlier Intersection  (top 10% of scores, baseline: 10.0%)
+  SynthDistance                      overall=2.0%↓-8.0pp  TP=2.0%  FP=0.0%
+  NNDR                               overall=3.0%↓-7.0pp  TP=3.0%  FP=nan%
+  RA-as-MIA (RandomForest, QI1)      overall=3.5%↓-6.5pp  TP=3.1%  FP=4.9%
+  RA-as-MIA (RandomForest, wide QI)  overall=2.0%↓-8.0pp  TP=1.9%  FP=2.3%
+
+  Subgroup AUC (outliers n=200, non-outliers n=1800)
+  SynthDistance                      outlier=0.529  non-outlier=0.636  diff=-0.107
+  NNDR                               outlier=0.523  non-outlier=0.658  diff=-0.134
+  RA-as-MIA (RandomForest, QI1)      outlier=0.546  non-outlier=0.613  diff=-0.068
+  RA-as-MIA (RandomForest, wide QI)  outlier=0.543  non-outlier=0.614  diff=-0.071
+════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — cdc_diabetes / RankSwap
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0034  non-members: -0.1113
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 282974791.7807  non-members: 0.9997
+
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.9118  non-members: 0.6677
+
+  [RA-as-MIA / wide QI (12 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.8913  non-members: 0.6608
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — cdc_diabetes / RankSwap
+════════════════════════════════════════════════════════════
+  Method                                AUC  Advantage   TPR@FPR1%
+  -----------------------------------------------------------------
+  SynthDistance                       0.989      0.948        0.740
+  NNDR                                0.998      0.992        0.995
+  RA-as-MIA (RandomForest, QI1)       0.767      0.533        0.000
+  RA-as-MIA (RandomForest, wide QI)   0.742      0.469        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=725  MIA-only=226  RA-only=25  Both-low=24
+      Spearman r=0.333  (p=0.0000)
+    vs NNDR:
+      Both-high=745  MIA-only=250  RA-only=5  Both-low=0
+      Spearman r=0.248  (p=0.0000)
+
+  Outlier Intersection  (top 10% of scores, baseline: 10.0%)
+  SynthDistance                      overall=8.0%↓-2.0pp  TP=8.1%  FP=0.0%
+  NNDR                               overall=10.0% +0.0pp  TP=10.0%  FP=nan%
+  RA-as-MIA (RandomForest, QI1)      overall=9.5% -0.5pp  TP=9.5%  FP=0.0%
+  RA-as-MIA (RandomForest, wide QI)  overall=10.5% +0.5pp  TP=10.6%  FP=0.0%
+
+  Subgroup AUC (outliers n=200, non-outliers n=1800)
+  SynthDistance                      outlier=1.000  non-outlier=0.988  diff=+0.012
+  NNDR                               outlier=1.000  non-outlier=0.997  diff=+0.003
+  RA-as-MIA (RandomForest, QI1)      outlier=0.842  non-outlier=0.758  diff=+0.084
+  RA-as-MIA (RandomForest, wide QI)  outlier=0.817  non-outlier=0.735  diff=+0.081
+════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — cdc_diabetes / TabDDPM
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0475  non-members: -0.1208
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 669227273.2954  non-members: 0.9296
+
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.8568  non-members: 0.6646
+
+  [RA-as-MIA / wide QI (12 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.8584  non-members: 0.6632
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — cdc_diabetes / TabDDPM
+════════════════════════════════════════════════════════════
+  Method                                AUC  Advantage   TPR@FPR1%
+  -----------------------------------------------------------------
+  SynthDistance                       0.802      0.615        0.622
+  NNDR                                0.808      0.616        0.622
+  RA-as-MIA (RandomForest, QI1)       0.706      0.417        0.000
+  RA-as-MIA (RandomForest, wide QI)   0.707      0.415        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=672  MIA-only=63  RA-only=31  Both-low=234
+      Spearman r=0.828  (p=0.0000)
+    vs NNDR:
+      Both-high=673  MIA-only=186  RA-only=30  Both-low=111
+      Spearman r=0.645  (p=0.0000)
+
+  Outlier Intersection  (top 10% of scores, baseline: 10.0%)
+  SynthDistance                      overall=13.0%▲+3.0pp  TP=13.0%  FP=nan%
+  NNDR                               overall=27.0%▲+17.0pp  TP=27.0%  FP=nan%
+  RA-as-MIA (RandomForest, QI1)      overall=12.0%▲+2.0pp  TP=12.2%  FP=0.0%
+  RA-as-MIA (RandomForest, wide QI)  overall=11.5%▲+1.5pp  TP=11.8%  FP=0.0%
+
+  Subgroup AUC (outliers n=200, non-outliers n=1800)
+  SynthDistance                      outlier=0.802  non-outlier=0.800  diff=+0.002
+  NNDR                               outlier=0.785  non-outlier=0.811  diff=-0.026
+  RA-as-MIA (RandomForest, QI1)      outlier=0.800  non-outlier=0.694  diff=+0.106
+  RA-as-MIA (RandomForest, wide QI)  outlier=0.787  non-outlier=0.697  diff=+0.090
+════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — cdc_diabetes / Synthpop
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1036  non-members: -0.1148
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 3449496.6586  non-members: 1.2427
+
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6822  non-members: 0.6656
+
+  [RA-as-MIA / wide QI (12 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.6899  non-members: 0.6626
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — cdc_diabetes / Synthpop
+════════════════════════════════════════════════════════════
+  Method                                AUC  Advantage   TPR@FPR1%
+  -----------------------------------------------------------------
+  SynthDistance                       0.566      0.111        0.015
+  NNDR                                0.596      0.171        0.028
+  RA-as-MIA (RandomForest, QI1)       0.517      0.043        0.000
+  RA-as-MIA (RandomForest, wide QI)   0.527      0.049        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=417  MIA-only=136  RA-only=112  Both-low=335
+      Spearman r=0.643  (p=0.0000)
+    vs NNDR:
+      Both-high=334  MIA-only=294  RA-only=195  Both-low=177
+      Spearman r=0.043  (p=0.1775)
+
+  Outlier Intersection  (top 10% of scores, baseline: 10.0%)
+  SynthDistance                      overall=0.0%↓-10.0pp  TP=0.0%  FP=0.0%
+  NNDR                               overall=2.5%↓-7.5pp  TP=2.9%  FP=1.6%
+  RA-as-MIA (RandomForest, QI1)      overall=1.5%↓-8.5pp  TP=2.7%  FP=0.8%
+  RA-as-MIA (RandomForest, wide QI)  overall=2.5%↓-7.5pp  TP=4.5%  FP=0.9%
+
+  Subgroup AUC (outliers n=200, non-outliers n=1800)
+  SynthDistance                      outlier=0.563  non-outlier=0.572  diff=-0.009
+  NNDR                               outlier=0.537  non-outlier=0.602  diff=-0.065
+  RA-as-MIA (RandomForest, QI1)      outlier=0.545  non-outlier=0.514  diff=+0.031
+  RA-as-MIA (RandomForest, wide QI)  outlier=0.561  non-outlier=0.524  diff=+0.037
+════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — cdc_diabetes / MST_eps1
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1321  non-members: -0.1330
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.9499  non-members: 0.9038
+
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6411  non-members: 0.6338
+
+  [RA-as-MIA / wide QI (12 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.6408  non-members: 0.6360
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — cdc_diabetes / MST_eps1
+════════════════════════════════════════════════════════════
+  Method                                AUC  Advantage   TPR@FPR1%
+  -----------------------------------------------------------------
+  SynthDistance                       0.507      0.033        0.010
+  NNDR                                0.510      0.032        0.009
+  RA-as-MIA (RandomForest, QI1)       0.506      0.030        0.000
+  RA-as-MIA (RandomForest, wide QI)   0.505      0.024        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=414  MIA-only=86  RA-only=95  Both-low=405
+      Spearman r=0.715  (p=0.0000)
+    vs NNDR:
+      Both-high=264  MIA-only=241  RA-only=245  Both-low=250
+      Spearman r=-0.070  (p=0.0269)
+
+  Outlier Intersection  (top 10% of scores, baseline: 10.0%)
+  SynthDistance                      overall=0.0%↓-10.0pp  TP=0.0%  FP=0.0%
+  NNDR                               overall=9.0%↓-1.0pp  TP=7.5%  FP=10.6%
+  RA-as-MIA (RandomForest, QI1)      overall=3.0%↓-7.0pp  TP=3.2%  FP=2.8%
+  RA-as-MIA (RandomForest, wide QI)  overall=1.5%↓-8.5pp  TP=1.1%  FP=1.8%
+
+  Subgroup AUC (outliers n=200, non-outliers n=1800)
+  SynthDistance                      outlier=0.514  non-outlier=0.505  diff=+0.008
+  NNDR                               outlier=0.481  non-outlier=0.513  diff=-0.032
+  RA-as-MIA (RandomForest, QI1)      outlier=0.504  non-outlier=0.506  diff=-0.002
+  RA-as-MIA (RandomForest, wide QI)  outlier=0.510  non-outlier=0.504  diff=+0.006
+════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — cdc_diabetes / MST_eps1000
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1159  non-members: -0.1204
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 1.0626  non-members: 1.0290
+
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6540  non-members: 0.6492
+
+  [RA-as-MIA / wide QI (12 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.6624  non-members: 0.6506
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — cdc_diabetes / MST_eps1000
+════════════════════════════════════════════════════════════
+  Method                                AUC  Advantage   TPR@FPR1%
+  -----------------------------------------------------------------
+  SynthDistance                       0.522      0.047        0.009
+  NNDR                                0.530      0.065        0.010
+  RA-as-MIA (RandomForest, QI1)       0.506      0.034        0.000
+  RA-as-MIA (RandomForest, wide QI)   0.513      0.040        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=399  MIA-only=112  RA-only=107  Both-low=382
+      Spearman r=0.667  (p=0.0000)
+    vs NNDR:
+      Both-high=216  MIA-only=305  RA-only=290  Both-low=189
+      Spearman r=-0.111  (p=0.0005)
+
+  Outlier Intersection  (top 10% of scores, baseline: 10.0%)
+  SynthDistance                      overall=0.0%↓-10.0pp  TP=0.0%  FP=0.0%
+  NNDR                               overall=6.0%↓-4.0pp  TP=6.5%  FP=5.4%
+  RA-as-MIA (RandomForest, QI1)      overall=1.0%↓-9.0pp  TP=1.4%  FP=0.8%
+  RA-as-MIA (RandomForest, wide QI)  overall=2.5%↓-7.5pp  TP=4.4%  FP=1.5%
+
+  Subgroup AUC (outliers n=200, non-outliers n=1800)
+  SynthDistance                      outlier=0.545  non-outlier=0.521  diff=+0.024
+  NNDR                               outlier=0.538  non-outlier=0.530  diff=+0.008
+  RA-as-MIA (RandomForest, QI1)      outlier=0.515  non-outlier=0.506  diff=+0.009
+  RA-as-MIA (RandomForest, wide QI)  outlier=0.507  non-outlier=0.514  diff=-0.006
+════════════════════════════════════════════════════════════
+
+
+All comparisons complete.
+wandb: WARNING The anonymous setting has no effect and will be removed in a future version.
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/golobs/.netrc.
+wandb: Currently logged in as: golobs (golobs-university-of-washington) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run crxwsmnt
+wandb: Tracking run with wandb version 0.24.2
+wandb: Run data is saved locally in /home/golobs/Reconstruction/wandb/run-20260526_231628-crxwsmnt
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run compare_mia_ra_cdc_diabetes
+wandb: ⭐️ View project at https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks
+wandb: 🚀 View run at https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks/runs/crxwsmnt
+wandb: updating run metadata
+wandb: 
+wandb: Run history:
+wandb:                 CellSuppression/NNDR_MIA_advantage ▁
+wandb:                       CellSuppression/NNDR_MIA_auc ▁
+wandb:              CellSuppression/NNDR_MIA_balanced_acc ▁
+wandb:             CellSuppression/NNDR_MIA_tpr_at_fpr001 ▁
+wandb:      CellSuppression/NNDR_auc_non_outlier_subgroup ▁
+wandb:          CellSuppression/NNDR_auc_outlier_subgroup ▁
+wandb: CellSuppression/NNDR_outlier_rate_top10pct_overall ▁
+wandb:      CellSuppression/NNDR_outlier_rate_top10pct_tp ▁
+wandb:               CellSuppression/NNDR_vs_RA_both_high ▁
+wandb:                CellSuppression/NNDR_vs_RA_both_low ▁
+wandb:                                               +266 ...
+wandb: 
+wandb: Run summary:
+wandb:                 CellSuppression/NNDR_MIA_advantage 0.369
+wandb:                       CellSuppression/NNDR_MIA_auc 0.6411
+wandb:              CellSuppression/NNDR_MIA_balanced_acc 0.6845
+wandb:             CellSuppression/NNDR_MIA_tpr_at_fpr001 0.369
+wandb:      CellSuppression/NNDR_auc_non_outlier_subgroup 0.6575
+wandb:          CellSuppression/NNDR_auc_outlier_subgroup 0.5234
+wandb:      CellSuppression/NNDR_outlier_rate_top10pct_fp nan
+wandb: CellSuppression/NNDR_outlier_rate_top10pct_overall 0.03
+wandb:      CellSuppression/NNDR_outlier_rate_top10pct_tp 0.03
+wandb:               CellSuppression/NNDR_vs_RA_both_high 452
+wandb:                                               +266 ...
+wandb: 
+wandb: 🚀 View run compare_mia_ra_cdc_diabetes at: https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks/runs/crxwsmnt
+wandb: ⭐️ View project at: https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260526_231628-crxwsmnt/logs
+
+

@@ -70,8 +70,8 @@ else
   TMPOUT=$(mktemp -d)
   RECON_TABLE_OUT="$TMPOUT" "$PY" experiment_scripts/regen_camera_tables.py >/dev/null 2>&1
   for t in table1_ra_mean_adult.tex table2_quality_overview.tex \
-           table4_eps_sweep_full.tex table7_memorization.tex \
-           table9_disparate_impact.tex; do
+           table4_eps_sweep_full.tex table6_mia_comparison.tex \
+           table7_memorization.tex table9_disparate_impact.tex; do
     if diff -q "expected_output/tables/$t" "$TMPOUT/$t" >/dev/null 2>&1; then
       ok "$t matches the committed reference"
     else

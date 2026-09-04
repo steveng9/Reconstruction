@@ -372,6 +372,50 @@ def table7(df):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Table 6 — MIA vs RA-as-MIA, from the extracted comparison CSV (not the DB).
+# The MIA drivers print rather than write; historical/parse_mia_log_to_csv.py
+# recovers their console output into mia_comparison_results.csv, which carries
+# both the May 2026 (pre-repair) and the 2026-08-21 (post-repair) runs. Only the
+# post-repair run is used here.
+# ─────────────────────────────────────────────────────────────────────────────
+MIA_CSV = ROOT/"experiment_scripts"/"mia_comparison_results.csv"
+T6_COLS = [("CellSuppression","Cell Supp."),("RankSwap","RankSwap"),("TabDDPM","TabDDPM"),
+           ("Synthpop","Synthpop"),("MST_eps1",r"MST $(\varepsilon{=}1)$"),
+           ("MST_eps1000",r"MST $(\varepsilon{=}1000)$")]
+T6_BLOCKS = [("adult",       r"\textbf{Adult} ($n=10{,}000$, 15 features, $\text{QI}_{\text{demo}}$)"),
+             ("cdc_diabetes",r"\textbf{CDC Diabetes} ($n=1{,}000$, 22 features, $\text{QI}_{\text{demo}}$)"),
+             ("nist_arizona_25feat", r"\textbf{NIST Arizona} ($n=10{,}000$, 25 features, $\text{QI}_{\text{medium}}$)")]
+T6_METRICS = [("SynthDistance_auc","SynthDistance"),("NNDR_auc","NNDR"),
+              ("RA_as_MIA_auc","RA-as-MIA")]
+
+def table6():
+    d = pd.read_csv(_require(MIA_CSV))
+    d = d[d.run.str.contains("postrepair")]
+    lines = []
+    for bi,(ds,label) in enumerate(T6_BLOCKS):
+        if bi: lines.append(r"\midrule")
+        lines.append(r"\multicolumn{7}{l}{" + label + r"} \\[2pt]")
+        sub = d[d.dataset==ds]
+        # bold the better of the two distance baselines, per column, as printed
+        best = {}
+        for meth,_ in T6_COLS:
+            r = sub[sub.sdg_method==meth]
+            if r.empty: continue
+            sd, nn = r.iloc[0]["SynthDistance_auc"], r.iloc[0]["NNDR_auc"]
+            best[meth] = "NNDR_auc" if nn >= sd else "SynthDistance_auc"
+        for mi,(col,mlabel) in enumerate(T6_METRICS):
+            if mlabel == "RA-as-MIA": lines.append(r"\cmidrule(l){1-7}")
+            cells = []
+            for meth,_ in T6_COLS:
+                r = sub[sub.sdg_method==meth]
+                if r.empty or pd.isna(r.iloc[0][col]): cells.append("---"); continue
+                v = f"{r.iloc[0][col]:.2f}"
+                cells.append(rf"\textbf{{{v}}}" if best.get(meth)==col else v)
+            lines.append(f"{mlabel:15s} & " + " & ".join(cells) + r" \\")
+    (OUT/"table6_mia_comparison.tex").write_text("\n".join(lines)+"\n")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Table 9 — disparate impact, from the 2026-08-21 post-repair sweep (not the DB;
 # row-level subgroup means are computed by run_per_attack_disparity.py).
 # ─────────────────────────────────────────────────────────────────────────────
@@ -433,7 +477,7 @@ if __name__ == "__main__":
     runs = load_runs()
     runs = runs[runs.confidence=="certain"]     # never build a table from flagged rows
     grid, cov = table1(runs)
-    table4(runs); table2(runs); miss=table7(runs); table9(); figure_eps(runs); stats_report(runs)
+    table4(runs); table2(runs); miss=table7(runs); table6(); table9(); figure_eps(runs); stats_report(runs)
     print("wrote:")
     for f in sorted(OUT.iterdir()): print(f"  {f.name:<40}{f.stat().st_size:>8} B")
     if miss:

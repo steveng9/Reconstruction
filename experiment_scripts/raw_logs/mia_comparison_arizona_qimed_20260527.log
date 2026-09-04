@@ -1,0 +1,341 @@
+
+MIA vs RA-as-MIA Comparison — nist_arizona_25feat
+  Sample  : /home/golobs/data/reconstruction_data/nist_arizona_data/size_10000_25feat/sample_01
+  Holdout : /home/golobs/data/reconstruction_data/nist_arizona_data/size_10000_25feat/sample_02
+  SDG     : ['CellSuppression', 'RankSwap', 'TabDDPM', 'Synthpop', 'MST_eps1', 'MST_eps1000']
+  RA      : RandomForest
+  RA hidden override: ['CITIZEN', 'EDUC', 'FARM', 'GQ', 'MARST', 'MIGRATE5', 'NATIVITY', 'OWNERSHP', 'URBAN']
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — nist_arizona_25feat / CellSuppression
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0042  non-members: -0.0466
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 425604218.3027  non-members: 0.9219
+
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.6762  non-members: 0.5549
+
+  [RA-as-MIA / wide QI (16 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.7566  non-members: 0.5622
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — nist_arizona_25feat / CellSuppression
+════════════════════════════════════════════════════════════
+  Method                                  AUC  Advantage   TPR@FPR1%
+  -------------------------------------------------------------------
+  SynthDistance                         0.931      0.879        0.000
+  NNDR                                  0.963      0.944        0.944
+  RA-as-MIA (RandomForest, QI_medium)   0.622      0.187        0.000
+  RA-as-MIA (RandomForest, wide QI)     0.698      0.317        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=6294  MIA-only=3149  RA-only=197  Both-low=360
+      Spearman r=0.171  (p=0.0000)
+    vs NNDR:
+      Both-high=6383  MIA-only=3353  RA-only=108  Both-low=156
+      Spearman r=0.117  (p=0.0000)
+
+  Outlier Intersection  (top 10% of scores, baseline: 10.0%)
+  SynthDistance                        overall=8.2%↓-1.9pp  TP=8.2%  FP=nan%
+  NNDR                                 overall=19.8%▲+9.8pp  TP=19.8%  FP=nan%
+  RA-as-MIA (RandomForest, QI_medium)  overall=20.0%▲+10.0pp  TP=22.8%  FP=10.9%
+  RA-as-MIA (RandomForest, wide QI)    overall=16.2%▲+6.2pp  TP=17.2%  FP=12.6%
+
+  Subgroup AUC (outliers n=2004, non-outliers n=17996)
+  SynthDistance                        outlier=0.874  non-outlier=0.942  diff=-0.068
+  NNDR                                 outlier=0.843  non-outlier=0.977  diff=-0.133
+  RA-as-MIA (RandomForest, QI_medium)  outlier=0.783  non-outlier=0.605  diff=+0.179
+  RA-as-MIA (RandomForest, wide QI)    outlier=0.795  non-outlier=0.688  diff=+0.106
+════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — nist_arizona_25feat / RankSwap
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0038  non-members: -0.0464
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 11559761.3280  non-members: 127771.0276
+
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.5905  non-members: 0.5356
+
+  [RA-as-MIA / wide QI (16 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.6159  non-members: 0.5415
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — nist_arizona_25feat / RankSwap
+════════════════════════════════════════════════════════════
+  Method                                  AUC  Advantage   TPR@FPR1%
+  -------------------------------------------------------------------
+  SynthDistance                         0.840      0.636        0.000
+  NNDR                                  0.908      0.791        0.044
+  RA-as-MIA (RandomForest, QI_medium)   0.554      0.087        0.000
+  RA-as-MIA (RandomForest, wide QI)     0.574      0.115        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=4541  MIA-only=3285  RA-only=970  Both-low=1204
+      Spearman r=0.219  (p=0.0000)
+    vs NNDR:
+      Both-high=4641  MIA-only=4171  RA-only=870  Both-low=318
+      Spearman r=-0.030  (p=0.0025)
+
+  Outlier Intersection  (top 10% of scores, baseline: 10.0%)
+  SynthDistance                        overall=5.1%↓-5.0pp  TP=6.4%  FP=2.7%
+  NNDR                                 overall=11.2%▲+1.2pp  TP=12.1%  FP=1.8%
+  RA-as-MIA (RandomForest, QI_medium)  overall=20.2%▲+10.2pp  TP=25.3%  FP=11.2%
+  RA-as-MIA (RandomForest, wide QI)    overall=16.9%▲+6.8pp  TP=19.1%  FP=12.3%
+
+  Subgroup AUC (outliers n=2004, non-outliers n=17996)
+  SynthDistance                        outlier=0.936  non-outlier=0.831  diff=+0.105
+  NNDR                                 outlier=0.969  non-outlier=0.901  diff=+0.067
+  RA-as-MIA (RandomForest, QI_medium)  outlier=0.677  non-outlier=0.540  diff=+0.137
+  RA-as-MIA (RandomForest, wide QI)    outlier=0.660  non-outlier=0.564  diff=+0.097
+════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — nist_arizona_25feat / TabDDPM
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0269  non-members: -0.0498
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 97517549.9036  non-members: 73645.0771
+
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.6216  non-members: 0.5490
+
+  [RA-as-MIA / wide QI (16 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.6566  non-members: 0.5563
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — nist_arizona_25feat / TabDDPM
+════════════════════════════════════════════════════════════
+  Method                                  AUC  Advantage   TPR@FPR1%
+  -------------------------------------------------------------------
+  SynthDistance                         0.719      0.386        0.000
+  NNDR                                  0.799      0.524        0.469
+  RA-as-MIA (RandomForest, QI_medium)   0.573      0.118        0.000
+  RA-as-MIA (RandomForest, wide QI)     0.602      0.172        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=4656  MIA-only=2037  RA-only=1031  Both-low=2276
+      Spearman r=0.436  (p=0.0000)
+    vs NNDR:
+      Both-high=4933  MIA-only=3121  RA-only=754  Both-low=1192
+      Spearman r=0.321  (p=0.0000)
+
+  Outlier Intersection  (top 10% of scores, baseline: 10.0%)
+  SynthDistance                        overall=6.0%↓-4.0pp  TP=6.3%  FP=2.3%
+  NNDR                                 overall=9.0% -1.0pp  TP=9.1%  FP=0.0%
+  RA-as-MIA (RandomForest, QI_medium)  overall=17.2%▲+7.2pp  TP=20.1%  FP=9.6%
+  RA-as-MIA (RandomForest, wide QI)    overall=14.4%▲+4.4pp  TP=15.3%  FP=11.7%
+
+  Subgroup AUC (outliers n=2004, non-outliers n=17996)
+  SynthDistance                        outlier=0.698  non-outlier=0.724  diff=-0.027
+  NNDR                                 outlier=0.726  non-outlier=0.807  diff=-0.081
+  RA-as-MIA (RandomForest, QI_medium)  outlier=0.668  non-outlier=0.563  diff=+0.105
+  RA-as-MIA (RandomForest, wide QI)    outlier=0.642  non-outlier=0.598  diff=+0.044
+════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — nist_arizona_25feat / Synthpop
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0564  non-members: -0.0579
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 1127569.1597  non-members: 380467.4063
+
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.5178  non-members: 0.5124
+
+  [RA-as-MIA / wide QI (16 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.5327  non-members: 0.5228
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — nist_arizona_25feat / Synthpop
+════════════════════════════════════════════════════════════
+  Method                                  AUC  Advantage   TPR@FPR1%
+  -------------------------------------------------------------------
+  SynthDistance                         0.514      0.030        0.000
+  NNDR                                  0.561      0.081        0.040
+  RA-as-MIA (RandomForest, QI_medium)   0.505      0.016        0.000
+  RA-as-MIA (RandomForest, wide QI)     0.509      0.022        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=3516  MIA-only=1569  RA-only=1586  Both-low=3329
+      Spearman r=0.521  (p=0.0000)
+    vs NNDR:
+      Both-high=2592  MIA-only=2720  RA-only=2510  Both-low=2178
+      Spearman r=-0.022  (p=0.0281)
+
+  Outlier Intersection  (top 10% of scores, baseline: 10.0%)
+  SynthDistance                        overall=3.0%↓-7.0pp  TP=3.4%  FP=2.5%
+  NNDR                                 overall=5.3%↓-4.7pp  TP=5.3%  FP=5.5%
+  RA-as-MIA (RandomForest, QI_medium)  overall=14.1%▲+4.1pp  TP=14.6%  FP=13.5%
+  RA-as-MIA (RandomForest, wide QI)    overall=13.8%▲+3.8pp  TP=14.9%  FP=12.6%
+
+  Subgroup AUC (outliers n=2004, non-outliers n=17996)
+  SynthDistance                        outlier=0.522  non-outlier=0.513  diff=+0.009
+  NNDR                                 outlier=0.531  non-outlier=0.565  diff=-0.034
+  RA-as-MIA (RandomForest, QI_medium)  outlier=0.532  non-outlier=0.502  diff=+0.030
+  RA-as-MIA (RandomForest, wide QI)    outlier=0.530  non-outlier=0.507  diff=+0.023
+════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — nist_arizona_25feat / MST_eps1
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0638  non-members: -0.0641
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.7028  non-members: 0.6923
+
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.3793  non-members: 0.3810
+
+  [RA-as-MIA / wide QI (16 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.3799  non-members: 0.3808
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — nist_arizona_25feat / MST_eps1
+════════════════════════════════════════════════════════════
+  Method                                  AUC  Advantage   TPR@FPR1%
+  -------------------------------------------------------------------
+  SynthDistance                         0.502      0.010        0.007
+  NNDR                                  0.516      0.069        0.009
+  RA-as-MIA (RandomForest, QI_medium)   0.499      0.007        0.000
+  RA-as-MIA (RandomForest, wide QI)     0.500      0.009        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=3456  MIA-only=1530  RA-only=1582  Both-low=3432
+      Spearman r=0.569  (p=0.0000)
+    vs NNDR:
+      Both-high=1804  MIA-only=3244  RA-only=3234  Both-low=1718
+      Spearman r=-0.383  (p=0.0000)
+
+  Outlier Intersection  (top 10% of scores, baseline: 10.0%)
+  SynthDistance                        overall=2.6%↓-7.4pp  TP=3.1%  FP=2.3%
+  NNDR                                 overall=9.7% -0.3pp  TP=9.5%  FP=9.9%
+  RA-as-MIA (RandomForest, QI_medium)  overall=6.9%↓-3.1pp  TP=7.5%  FP=6.4%
+  RA-as-MIA (RandomForest, wide QI)    overall=8.6%↓-1.4pp  TP=9.1%  FP=8.2%
+
+  Subgroup AUC (outliers n=2004, non-outliers n=17996)
+  SynthDistance                        outlier=0.505  non-outlier=0.502  diff=+0.003
+  NNDR                                 outlier=0.489  non-outlier=0.519  diff=-0.030
+  RA-as-MIA (RandomForest, QI_medium)  outlier=0.504  non-outlier=0.499  diff=+0.005
+  RA-as-MIA (RandomForest, wide QI)    outlier=0.507  non-outlier=0.499  diff=+0.008
+════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — nist_arizona_25feat / MST_eps1000
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0601  non-members: -0.0602
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.7828  non-members: 0.7585
+
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.3848  non-members: 0.3880
+
+  [RA-as-MIA / wide QI (16 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.3804  non-members: 0.3835
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — nist_arizona_25feat / MST_eps1000
+════════════════════════════════════════════════════════════
+  Method                                  AUC  Advantage   TPR@FPR1%
+  -------------------------------------------------------------------
+  SynthDistance                         0.501      0.008        0.006
+  NNDR                                  0.515      0.069        0.012
+  RA-as-MIA (RandomForest, QI_medium)   0.497      0.004        0.000
+  RA-as-MIA (RandomForest, wide QI)     0.497      0.002        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=3335  MIA-only=1670  RA-only=1663  Both-low=3332
+      Spearman r=0.496  (p=0.0000)
+    vs NNDR:
+      Both-high=1845  MIA-only=3176  RA-only=3153  Both-low=1826
+      Spearman r=-0.329  (p=0.0000)
+
+  Outlier Intersection  (top 10% of scores, baseline: 10.0%)
+  SynthDistance                        overall=2.5%↓-7.5pp  TP=2.9%  FP=2.1%
+  NNDR                                 overall=8.6%↓-1.4pp  TP=8.8%  FP=8.4%
+  RA-as-MIA (RandomForest, QI_medium)  overall=9.4% -0.6pp  TP=10.0%  FP=9.0%
+  RA-as-MIA (RandomForest, wide QI)    overall=12.5%▲+2.5pp  TP=13.0%  FP=12.0%
+
+  Subgroup AUC (outliers n=2004, non-outliers n=17996)
+  SynthDistance                        outlier=0.508  non-outlier=0.501  diff=+0.008
+  NNDR                                 outlier=0.496  non-outlier=0.518  diff=-0.022
+  RA-as-MIA (RandomForest, QI_medium)  outlier=0.501  non-outlier=0.497  diff=+0.005
+  RA-as-MIA (RandomForest, wide QI)    outlier=0.499  non-outlier=0.497  diff=+0.002
+════════════════════════════════════════════════════════════
+
+
+All comparisons complete.
+wandb: WARNING The anonymous setting has no effect and will be removed in a future version.
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/golobs/.netrc.
+wandb: Currently logged in as: golobs (golobs-university-of-washington) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.24.2
+wandb: Run data is saved locally in /home/golobs/Reconstruction/wandb/run-20260527_031712-cbzagp65
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run compare_mia_ra_nist_arizona_25feat_qi_medium
+wandb: ⭐️ View project at https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks
+wandb: 🚀 View run at https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks/runs/cbzagp65
+wandb: updating run metadata
+wandb: uploading wandb-summary.json; uploading config.yaml; uploading output.log
+wandb: 
+wandb: Run history:
+wandb:                 CellSuppression/NNDR_MIA_advantage ▁
+wandb:                       CellSuppression/NNDR_MIA_auc ▁
+wandb:              CellSuppression/NNDR_MIA_balanced_acc ▁
+wandb:             CellSuppression/NNDR_MIA_tpr_at_fpr001 ▁
+wandb:      CellSuppression/NNDR_auc_non_outlier_subgroup ▁
+wandb:          CellSuppression/NNDR_auc_outlier_subgroup ▁
+wandb: CellSuppression/NNDR_outlier_rate_top10pct_overall ▁
+wandb:      CellSuppression/NNDR_outlier_rate_top10pct_tp ▁
+wandb:               CellSuppression/NNDR_vs_RA_both_high ▁
+wandb:                CellSuppression/NNDR_vs_RA_both_low ▁
+wandb:                                               +266 ...
+wandb: 
+wandb: Run summary:
+wandb:                 CellSuppression/NNDR_MIA_advantage 0.9443
+wandb:                       CellSuppression/NNDR_MIA_auc 0.9627
+wandb:              CellSuppression/NNDR_MIA_balanced_acc 0.9722
+wandb:             CellSuppression/NNDR_MIA_tpr_at_fpr001 0.9443
+wandb:      CellSuppression/NNDR_auc_non_outlier_subgroup 0.9766
+wandb:          CellSuppression/NNDR_auc_outlier_subgroup 0.8434
+wandb:      CellSuppression/NNDR_outlier_rate_top10pct_fp nan
+wandb: CellSuppression/NNDR_outlier_rate_top10pct_overall 0.198
+wandb:      CellSuppression/NNDR_outlier_rate_top10pct_tp 0.198
+wandb:               CellSuppression/NNDR_vs_RA_both_high 6383
+wandb:                                               +266 ...
+wandb: 
+wandb: 🚀 View run compare_mia_ra_nist_arizona_25feat_qi_medium at: https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks/runs/cbzagp65
+wandb: ⭐️ View project at: https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260527_031712-cbzagp65/logs
+
+

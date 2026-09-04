@@ -1,0 +1,602 @@
+=== MIA rebuttal sweep re-run (post-repair) started Fri Aug 21 05:11:20 PM UTC 2026 ===
+wandb: WARNING The anonymous setting has no effect and will be removed in a future version.
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/golobs/.netrc.
+wandb: Currently logged in as: golobs (golobs-university-of-washington) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run y2jz55qn
+wandb: Tracking run with wandb version 0.24.2
+wandb: Run data is saved locally in /home/golobs/Reconstruction/wandb/run-20260821_171122-y2jz55qn
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run mia_rebuttal_sweep
+wandb: ⭐️ View project at https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks
+wandb: 🚀 View run at https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks/runs/y2jz55qn
+
+============================================================
+  adult / MST_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0502  non-members: -0.0516
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.8059  non-members: 0.7838
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.3240  non-members: 0.3223
+  SynthDistance AUC=0.507  NNDR AUC=0.501  RA-as-MIA AUC=0.502
+
+============================================================
+  adult / MST_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0448  non-members: -0.0457
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.8850  non-members: 0.8963
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.3263  non-members: 0.3250
+  SynthDistance AUC=0.503  NNDR AUC=0.498  RA-as-MIA AUC=0.503
+
+============================================================
+  adult / PrivBayes_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0800  non-members: -0.0810
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.4335  non-members: 0.4395
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.2844  non-members: 0.2847
+  SynthDistance AUC=0.504  NNDR AUC=0.497  RA-as-MIA AUC=0.500
+
+============================================================
+  adult / PrivBayes_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0507  non-members: -0.0528
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.7387  non-members: 0.7130
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.2515  non-members: 0.2482
+  SynthDistance AUC=0.510  NNDR AUC=0.504  RA-as-MIA AUC=0.507
+
+============================================================
+  adult / PrivSyn_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0832  non-members: -0.0843
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.4768  non-members: 0.4626
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.2718  non-members: 0.2748
+  SynthDistance AUC=0.505  NNDR AUC=0.502  RA-as-MIA AUC=0.496
+
+============================================================
+  adult / PrivSyn_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0613  non-members: -0.0622
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.7592  non-members: 0.7164
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.3008  non-members: 0.2970
+  SynthDistance AUC=0.504  NNDR AUC=0.497  RA-as-MIA AUC=0.503
+
+============================================================
+  adult / MWEMPGM_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0510  non-members: -0.0521
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.7852  non-members: 0.7815
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.3290  non-members: 0.3272
+  SynthDistance AUC=0.506  NNDR AUC=0.501  RA-as-MIA AUC=0.502
+
+============================================================
+  adult / MWEMPGM_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0473  non-members: -0.0484
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.8518  non-members: 0.8314
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.3353  non-members: 0.3317
+  SynthDistance AUC=0.508  NNDR AUC=0.503  RA-as-MIA AUC=0.504
+
+============================================================
+  adult / PrivateGSD_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0664  non-members: -0.0676
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.5840  non-members: 0.5758
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.2782  non-members: 0.2724
+  SynthDistance AUC=0.505  NNDR AUC=0.498  RA-as-MIA AUC=0.506
+
+============================================================
+  adult / PrivateGSD_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0394  non-members: -0.0416
+  [NNDR]
+  [NNDR] score (↑=member)  members: 1.0070  non-members: 0.9465
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.3189  non-members: 0.3175
+  SynthDistance AUC=0.514  NNDR AUC=0.510  RA-as-MIA AUC=0.501
+
+============================================================
+  adult / CellSuppression
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0048  non-members: -0.0380
+  [NNDR]
+  [NNDR] score (↑=member)  members: 320401194.1354  non-members: 0.9935
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.5660  non-members: 0.3779
+  SynthDistance AUC=0.963  NNDR AUC=0.973  RA-as-MIA AUC=0.647
+
+============================================================
+  adult / RankSwap
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0059  non-members: -0.0387
+  [NNDR]
+  [NNDR] score (↑=member)  members: 14.5392  non-members: 1.5953
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.4649  non-members: 0.3718
+  SynthDistance AUC=0.820  NNDR AUC=0.870  RA-as-MIA AUC=0.574
+
+============================================================
+  adult / TabDDPM
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0184  non-members: -0.0424
+  [NNDR]
+  [NNDR] score (↑=member)  members: 7281029.6037  non-members: 0.9509
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.5187  non-members: 0.3694
+  SynthDistance AUC=0.771  NNDR AUC=0.789  RA-as-MIA AUC=0.615
+
+============================================================
+  adult / Synthpop
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0345  non-members: -0.0397
+  [NNDR]
+  [NNDR] score (↑=member)  members: 764795.6022  non-members: 1.5942
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.3916  non-members: 0.3739
+  SynthDistance AUC=0.549  NNDR AUC=0.580  RA-as-MIA AUC=0.514
+
+============================================================
+  cdc_diabetes / MST_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1321  non-members: -0.1330
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.9499  non-members: 0.9038
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6431  non-members: 0.6363
+  SynthDistance AUC=0.507  NNDR AUC=0.510  RA-as-MIA AUC=0.508
+
+============================================================
+  cdc_diabetes / MST_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1159  non-members: -0.1204
+  [NNDR]
+  [NNDR] score (↑=member)  members: 1.0626  non-members: 1.0290
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6540  non-members: 0.6473
+  SynthDistance AUC=0.522  NNDR AUC=0.530  RA-as-MIA AUC=0.507
+
+============================================================
+  cdc_diabetes / PrivBayes_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1467  non-members: -0.1505
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.7690  non-members: 0.7538
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6454  non-members: 0.6433
+  SynthDistance AUC=0.518  NNDR AUC=0.527  RA-as-MIA AUC=0.502
+
+============================================================
+  cdc_diabetes / PrivBayes_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1129  non-members: -0.1215
+  [NNDR]
+  [NNDR] score (↑=member)  members: 1.3072  non-members: 1.0212
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6587  non-members: 0.6415
+  SynthDistance AUC=0.550  NNDR AUC=0.557  RA-as-MIA AUC=0.517
+
+============================================================
+  cdc_diabetes / PrivSyn_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1991  non-members: -0.1971
+  [NNDR]
+  [NNDR] score (↑=member)  members: 464647.0133  non-members: 0.5574
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6333  non-members: 0.6256
+  SynthDistance AUC=0.487  NNDR AUC=0.492  RA-as-MIA AUC=0.509
+
+============================================================
+  cdc_diabetes / PrivSyn_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1591  non-members: -0.1622
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.7347  non-members: 0.7637
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6588  non-members: 0.6516
+  SynthDistance AUC=0.518  NNDR AUC=0.527  RA-as-MIA AUC=0.507
+
+============================================================
+  cdc_diabetes / MWEMPGM_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1294  non-members: -0.1307
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.8947  non-members: 0.8965
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6456  non-members: 0.6417
+  SynthDistance AUC=0.511  NNDR AUC=0.505  RA-as-MIA AUC=0.502
+
+============================================================
+  cdc_diabetes / MWEMPGM_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1165  non-members: -0.1185
+  [NNDR]
+  [NNDR] score (↑=member)  members: 1.1270  non-members: 1.0218
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6557  non-members: 0.6482
+  SynthDistance AUC=0.513  NNDR AUC=0.518  RA-as-MIA AUC=0.508
+
+============================================================
+  cdc_diabetes / PrivateGSD_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1446  non-members: -0.1462
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.7907  non-members: 0.8588
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6441  non-members: 0.6454
+  SynthDistance AUC=0.515  NNDR AUC=0.509  RA-as-MIA AUC=0.501
+
+============================================================
+  cdc_diabetes / PrivateGSD_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1072  non-members: -0.1146
+  [NNDR]
+  [NNDR] score (↑=member)  members: 1.3280  non-members: 1.1605
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6742  non-members: 0.6628
+  SynthDistance AUC=0.539  NNDR AUC=0.550  RA-as-MIA AUC=0.512
+
+============================================================
+  cdc_diabetes / CellSuppression
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1011  non-members: -0.1347
+  [NNDR]
+  [NNDR] score (↑=member)  members: 292489899.5156  non-members: 0.8605
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.7597  non-members: 0.6628
+  SynthDistance AUC=0.618  NNDR AUC=0.641  RA-as-MIA AUC=0.607
+
+============================================================
+  cdc_diabetes / RankSwap
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0034  non-members: -0.1113
+  [NNDR]
+  [NNDR] score (↑=member)  members: 282974791.7807  non-members: 0.9997
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.9141  non-members: 0.6644
+  SynthDistance AUC=0.989  NNDR AUC=0.998  RA-as-MIA AUC=0.769
+
+============================================================
+  cdc_diabetes / TabDDPM
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0475  non-members: -0.1208
+  [NNDR]
+  [NNDR] score (↑=member)  members: 669227273.2954  non-members: 0.9296
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.8561  non-members: 0.6712
+  SynthDistance AUC=0.802  NNDR AUC=0.808  RA-as-MIA AUC=0.696
+
+============================================================
+  cdc_diabetes / Synthpop
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1036  non-members: -0.1148
+  [NNDR]
+  [NNDR] score (↑=member)  members: 3449496.6586  non-members: 1.2427
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.6841  non-members: 0.6620
+  SynthDistance AUC=0.566  NNDR AUC=0.596  RA-as-MIA AUC=0.524
+
+============================================================
+  nist_arizona_25feat / MST_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0637  non-members: -0.0639
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.7108  non-members: 0.6987
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.3897  non-members: 0.3928
+  SynthDistance AUC=0.502  NNDR AUC=0.516  RA-as-MIA AUC=0.498
+
+============================================================
+  nist_arizona_25feat / MST_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0599  non-members: -0.0601
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.7925  non-members: 0.7669
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.4063  non-members: 0.4090
+  SynthDistance AUC=0.501  NNDR AUC=0.516  RA-as-MIA AUC=0.498
+
+============================================================
+  nist_arizona_25feat / PrivBayes_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1215  non-members: -0.1218
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.3401  non-members: 0.3316
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.3823  non-members: 0.3802
+  SynthDistance AUC=0.502  NNDR AUC=0.511  RA-as-MIA AUC=0.503
+
+============================================================
+  nist_arizona_25feat / PrivBayes_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0736  non-members: -0.0748
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.5663  non-members: 0.5556
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.4347  non-members: 0.4343
+  SynthDistance AUC=0.507  NNDR AUC=0.518  RA-as-MIA AUC=0.500
+
+============================================================
+  nist_arizona_25feat / PrivSyn_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0933  non-members: -0.0935
+  [NNDR]
+  [NNDR] score (↑=member)  members: 22719.9852  non-members: 16255.6042
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.3950  non-members: 0.3953
+  SynthDistance AUC=0.501  NNDR AUC=0.523  RA-as-MIA AUC=0.500
+
+============================================================
+  nist_arizona_25feat / PrivSyn_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0729  non-members: -0.0736
+  [NNDR]
+  [NNDR] score (↑=member)  members: 59923.6314  non-members: 77125.9260
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.4173  non-members: 0.4146
+  SynthDistance AUC=0.503  NNDR AUC=0.532  RA-as-MIA AUC=0.504
+
+============================================================
+  nist_arizona_25feat / MWEMPGM_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1034  non-members: -0.1032
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.4172  non-members: 0.4127
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.3989  non-members: 0.3992
+  SynthDistance AUC=0.499  NNDR AUC=0.508  RA-as-MIA AUC=0.500
+
+============================================================
+  nist_arizona_25feat / MWEMPGM_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.1044  non-members: -0.1041
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.4133  non-members: 0.4092
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.3869  non-members: 0.3882
+  SynthDistance AUC=0.498  NNDR AUC=0.507  RA-as-MIA AUC=0.499
+
+============================================================
+  nist_arizona_25feat / PrivateGSD_eps1
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0659  non-members: -0.0665
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.6778  non-members: 0.6522
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.4147  non-members: 0.4162
+  SynthDistance AUC=0.504  NNDR AUC=0.517  RA-as-MIA AUC=0.498
+
+============================================================
+  nist_arizona_25feat / PrivateGSD_eps1000
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0504  non-members: -0.0516
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.9531  non-members: 0.9194
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.4566  non-members: 0.4544
+  SynthDistance AUC=0.508  NNDR AUC=0.521  RA-as-MIA AUC=0.503
+
+============================================================
+  nist_arizona_25feat / CellSuppression
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0042  non-members: -0.0466
+  [NNDR]
+  [NNDR] score (↑=member)  members: 425604218.3027  non-members: 0.9219
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.6708  non-members: 0.5547
+  SynthDistance AUC=0.931  NNDR AUC=0.963  RA-as-MIA AUC=0.617
+
+============================================================
+  nist_arizona_25feat / RankSwap
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0038  non-members: -0.0464
+  [NNDR]
+  [NNDR] score (↑=member)  members: 11559761.3280  non-members: 127771.0276
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.5880  non-members: 0.5341
+  SynthDistance AUC=0.840  NNDR AUC=0.908  RA-as-MIA AUC=0.553
+
+============================================================
+  nist_arizona_25feat / TabDDPM
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0269  non-members: -0.0498
+  [NNDR]
+  [NNDR] score (↑=member)  members: 97517549.9036  non-members: 73645.0771
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.6200  non-members: 0.5489
+  SynthDistance AUC=0.719  NNDR AUC=0.799  RA-as-MIA AUC=0.572
+
+============================================================
+  nist_arizona_25feat / Synthpop
+============================================================
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0564  non-members: -0.0579
+  [NNDR]
+  [NNDR] score (↑=member)  members: 1127569.1597  non-members: 380467.4063
+  [RA-as-MIA / QI=QI_medium]
+  [RA-as-MIA] score (↑=member)  members: 0.5188  non-members: 0.5124
+  SynthDistance AUC=0.514  NNDR AUC=0.561  RA-as-MIA AUC=0.506
+wandb: updating run metadata
+wandb: uploading output.log; uploading wandb-summary.json; uploading config.yaml
+wandb: 
+wandb: Run history:
+wandb:              adult/CellSuppression/NNDR_advantage ▁
+wandb:                    adult/CellSuppression/NNDR_auc ▁
+wandb:          adult/CellSuppression/NNDR_tpr_at_fpr001 ▁
+wandb:         adult/CellSuppression/RA_as_MIA_advantage ▁
+wandb:               adult/CellSuppression/RA_as_MIA_auc ▁
+wandb:     adult/CellSuppression/RA_as_MIA_tpr_at_fpr001 ▁
+wandb:     adult/CellSuppression/SynthDistance_advantage ▁
+wandb:           adult/CellSuppression/SynthDistance_auc ▁
+wandb: adult/CellSuppression/SynthDistance_tpr_at_fpr001 ▁
+wandb:                     adult/MST_eps1/NNDR_advantage ▁
+wandb:                                              +368 ...
+wandb: 
+wandb: Run summary:
+wandb:              adult/CellSuppression/NNDR_advantage 0.9575
+wandb:                    adult/CellSuppression/NNDR_auc 0.973
+wandb:          adult/CellSuppression/NNDR_tpr_at_fpr001 0.9575
+wandb:         adult/CellSuppression/RA_as_MIA_advantage 0.2371
+wandb:               adult/CellSuppression/RA_as_MIA_auc 0.6475
+wandb:     adult/CellSuppression/RA_as_MIA_tpr_at_fpr001 0
+wandb:     adult/CellSuppression/SynthDistance_advantage 0.9571
+wandb:           adult/CellSuppression/SynthDistance_auc 0.9629
+wandb: adult/CellSuppression/SynthDistance_tpr_at_fpr001 0.9575
+wandb:                     adult/MST_eps1/NNDR_advantage 0.0095
+wandb:                                              +368 ...
+wandb: 
+wandb: 🚀 View run mia_rebuttal_sweep at: https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks/runs/y2jz55qn
+wandb: ⭐️ View project at: https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260821_171122-y2jz55qn/logs
+
+Wrote 42 rows to experiment_scripts/mia_rebuttal_sweep_results.csv
+
+======================================================================
+  SUMMARY (AUC)
+======================================================================
+
+--- adult ---
+
+  SynthDistance_auc:
+epsilon     1.0     1000.0
+sdg_method                
+MST          0.507   0.503
+MWEMPGM      0.506   0.508
+PrivBayes    0.504   0.510
+PrivSyn      0.505   0.504
+PrivateGSD   0.505   0.514
+
+  NNDR_auc:
+epsilon     1.0     1000.0
+sdg_method                
+MST          0.501   0.498
+MWEMPGM      0.501   0.503
+PrivBayes    0.497   0.504
+PrivSyn      0.502   0.498
+PrivateGSD   0.498   0.510
+
+  RA_as_MIA_auc:
+epsilon     1.0     1000.0
+sdg_method                
+MST          0.502   0.503
+MWEMPGM      0.502   0.504
+PrivBayes    0.500   0.507
+PrivSyn      0.496   0.503
+PrivateGSD   0.506   0.501
+
+--- cdc_diabetes ---
+
+  SynthDistance_auc:
+epsilon     1.0     1000.0
+sdg_method                
+MST          0.507   0.522
+MWEMPGM      0.511   0.513
+PrivBayes    0.518   0.550
+PrivSyn      0.487   0.518
+PrivateGSD   0.515   0.539
+
+  NNDR_auc:
+epsilon     1.0     1000.0
+sdg_method                
+MST          0.510   0.530
+MWEMPGM      0.505   0.518
+PrivBayes    0.527   0.557
+PrivSyn      0.492   0.527
+PrivateGSD   0.509   0.550
+
+  RA_as_MIA_auc:
+epsilon     1.0     1000.0
+sdg_method                
+MST          0.508   0.507
+MWEMPGM      0.502   0.508
+PrivBayes    0.502   0.517
+PrivSyn      0.509   0.507
+PrivateGSD   0.501   0.512
+
+--- nist_arizona_25feat ---
+
+  SynthDistance_auc:
+epsilon     1.0     1000.0
+sdg_method                
+MST          0.502   0.501
+MWEMPGM      0.499   0.498
+PrivBayes    0.502   0.507
+PrivSyn      0.501   0.503
+PrivateGSD   0.504   0.508
+
+  NNDR_auc:
+epsilon     1.0     1000.0
+sdg_method                
+MST          0.516   0.516
+MWEMPGM      0.508   0.507
+PrivBayes    0.511   0.518
+PrivSyn      0.523   0.532
+PrivateGSD   0.517   0.521
+
+  RA_as_MIA_auc:
+epsilon     1.0     1000.0
+sdg_method                
+MST          0.498   0.498
+MWEMPGM      0.500   0.499
+PrivBayes    0.503   0.500
+PrivSyn      0.500   0.504
+PrivateGSD   0.498   0.503
+
+All comparisons complete.
+=== DONE Fri Aug 21 06:07:37 PM UTC 2026 rc=0 ===

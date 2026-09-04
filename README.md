@@ -416,10 +416,13 @@ Reconstruction/
 │   ├── plot_ensembling_heatmap.py ← Heatmap visualization
 │   ├── regen_camera_tables.py    ← Regenerate every paper table from results.db
 │   ├── results.db                ← 49,126 scored runs behind the paper (68 MB)
+│   ├── mia_comparison_results.csv ← MIA results (these live outside the DB)
+│   ├── raw_logs/                 ← Console logs that are the primary source for MIA
 │   ├── README.md                 ← Index of every script: tier, paper object, inputs
 │   └── historical/               ← One-off repair/fill scripts kept for provenance
 │
 ├── ARTIFACT-APPENDIX.md          ← PoPETs artifact appendix (start here to review)
+├── TODO-TABLE-COVERAGE.md        ← Which of the 33 paper tables/figures regenerate, and what is left
 ├── test.sh                       ← One-command smoke test (env + attack + tables)
 ├── paths.py                      ← Central path resolution; every root is env-overridable
 │

@@ -1,0 +1,228 @@
+
+MIA vs RA-as-MIA Comparison
+  Dataset   : adult  /  size_10000
+  Sample    : /home/golobs/data/reconstruction_data/adult/size_10000/sample_01
+  Holdout   : /home/golobs/data/reconstruction_data/adult/size_10000/sample_02
+  SDG methods: ['TabDDPM', 'MST_eps1000', 'Synthpop']
+  RA method : RandomForest
+  N targets : None
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — adult / TabDDPM
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0188  non-members: -0.0419
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 7959684.6571  non-members: 1.0271
+
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.5194  non-members: 0.3675
+
+  [RA-as-MIA / wide QI (11 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.5618  non-members: 0.3870
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — adult / TabDDPM
+════════════════════════════════════════════════════════════
+  Method                                AUC  Advantage   TPR@FPR1%
+  -----------------------------------------------------------------
+  SynthDistance                       0.769      0.510        0.485
+  NNDR                                0.796      0.556        0.543
+  RA-as-MIA (RandomForest, QI1)       0.616      0.196        0.000
+  RA-as-MIA (RandomForest, wide QI)   0.633      0.234        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=4699  MIA-only=2067  RA-only=1202  Both-low=2032
+      Spearman r=0.410  (p=0.0000)
+    vs NNDR:
+      Both-high=4763  MIA-only=2356  RA-only=1138  Both-low=1743
+      Spearman r=0.374  (p=0.0000)
+
+  Outlier Intersection  (top 10% of scores = 'predicted member',  baseline outlier rate: 10.0%)
+  TP outlier rate = attack accurate AND targets unusual records  ← concerning if high
+  FP outlier rate = attack prefers outliers but is wrong         ← less concerning
+
+  Method                               Overall    TPs [concerning]    FPs [less concern]
+  ---------------------------------------------------------------------------------------
+  SynthDistance                         11.1%▲ +1.1pp     11.1%  ▲ +1.1pp  (n=1995)      0.0%  ↓-10.0pp  (n=5)
+  NNDR                                  18.1%▲ +8.1pp     18.1%  ▲ +8.1pp  (n=2000)       N/A       
+  RA-as-MIA (RandomForest, QI1)         15.8%▲ +5.8pp     19.3%  ▲ +9.3pp  (n=1331)      8.7%  ↓ -1.3pp  (n=669)
+  RA-as-MIA (RandomForest, wide QI)     13.4%▲ +3.4pp     15.1%  ▲ +5.1pp  (n=1382)      9.5%    -0.5pp  (n=618)
+
+  Subgroup AUC  (outliers: n=2000,  non-outliers: n=18000)
+  Outlier AUC >> Non-outlier AUC → attack disproportionately effective on unusual records
+
+  Method                               Outlier AUC    Non-outlier AUC    Difference
+  ---------------------------------------------------------------------------------
+  SynthDistance                              0.785              0.772        +0.013
+  NNDR                                       0.804              0.796        +0.008
+  RA-as-MIA (RandomForest, QI1)              0.742              0.600  ▲     +0.141
+  RA-as-MIA (RandomForest, wide QI)          0.706              0.624  ▲     +0.082
+════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — adult / MST_eps1000
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0552  non-members: -0.0549
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 0.6029  non-members: 0.6083
+
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.3310  non-members: 0.3318
+
+  [RA-as-MIA / wide QI (11 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.2825  non-members: 0.2853
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — adult / MST_eps1000
+════════════════════════════════════════════════════════════
+  Method                                AUC  Advantage   TPR@FPR1%
+  -----------------------------------------------------------------
+  SynthDistance                       0.499      0.004        0.009
+  NNDR                                0.502      0.015        0.009
+  RA-as-MIA (RandomForest, QI1)       0.497      0.009        0.000
+  RA-as-MIA (RandomForest, wide QI)   0.496      0.004        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=2976  MIA-only=2006  RA-only=2017  Both-low=3001
+      Spearman r=0.241  (p=0.0000)
+    vs NNDR:
+      Both-high=2127  MIA-only=2924  RA-only=2866  Both-low=2083
+      Spearman r=-0.176  (p=0.0000)
+
+  Outlier Intersection  (top 10% of scores = 'predicted member',  baseline outlier rate: 10.0%)
+  TP outlier rate = attack accurate AND targets unusual records  ← concerning if high
+  FP outlier rate = attack prefers outliers but is wrong         ← less concerning
+
+  Method                               Overall    TPs [concerning]    FPs [less concern]
+  ---------------------------------------------------------------------------------------
+  SynthDistance                          0.1%↓-10.0pp      0.0%  ↓-10.0pp  (n=1003)      0.1%  ↓ -9.9pp  (n=997)
+  NNDR                                  13.6%▲ +3.6pp     14.1%  ▲ +4.1pp  (n=973)     13.1%  ▲ +3.1pp  (n=1027)
+  RA-as-MIA (RandomForest, QI1)         10.1%  +0.1pp     11.3%  ▲ +1.3pp  (n=1007)      8.9%  ↓ -1.1pp  (n=993)
+  RA-as-MIA (RandomForest, wide QI)     13.0%▲ +3.0pp     15.6%  ▲ +5.6pp  (n=1003)     10.4%    +0.4pp  (n=997)
+
+  Subgroup AUC  (outliers: n=2000,  non-outliers: n=18000)
+  Outlier AUC >> Non-outlier AUC → attack disproportionately effective on unusual records
+
+  Method                               Outlier AUC    Non-outlier AUC    Difference
+  ---------------------------------------------------------------------------------
+  SynthDistance                              0.487              0.500        -0.014
+  NNDR                                       0.488              0.502        -0.014
+  RA-as-MIA (RandomForest, QI1)              0.512              0.495        +0.016
+  RA-as-MIA (RandomForest, wide QI)          0.513              0.494        +0.019
+════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA — adult / Synthpop
+════════════════════════════════════════════════════════════
+
+  [SynthDistance]
+  [SynthDistance] score (↑=member)  members: -0.0349  non-members: -0.0394
+
+  [NNDR]
+  [NNDR] score (↑=member)  members: 938824.9377  non-members: 1358.8143
+
+  [RA-as-MIA / QI=QI1]
+  [RA-as-MIA] score (↑=member)  members: 0.3888  non-members: 0.3667
+
+  [RA-as-MIA / wide QI (11 features)]
+  [RA-as-MIA] score (↑=member)  members: 0.4185  non-members: 0.3780
+
+════════════════════════════════════════════════════════════
+  MIA vs RA-as-MIA Comparison — adult / Synthpop
+════════════════════════════════════════════════════════════
+  Method                                AUC  Advantage   TPR@FPR1%
+  -----------------------------------------------------------------
+  SynthDistance                       0.548      0.075        0.036
+  NNDR                                0.581      0.124        0.042
+  RA-as-MIA (RandomForest, QI1)       0.517      0.035        0.000
+  RA-as-MIA (RandomForest, wide QI)   0.531      0.059        0.000
+
+  Quadrant Analysis (training records, median threshold):
+    vs SynthDistance:
+      Both-high=3314  MIA-only=1998  RA-only=1899  Both-low=2789
+      Spearman r=0.347  (p=0.0000)
+    vs NNDR:
+      Both-high=3096  MIA-only=2489  RA-only=2117  Both-low=2298
+      Spearman r=0.112  (p=0.0000)
+
+  Outlier Intersection  (top 10% of scores = 'predicted member',  baseline outlier rate: 10.0%)
+  TP outlier rate = attack accurate AND targets unusual records  ← concerning if high
+  FP outlier rate = attack prefers outliers but is wrong         ← less concerning
+
+  Method                               Overall    TPs [concerning]    FPs [less concern]
+  ---------------------------------------------------------------------------------------
+  SynthDistance                          0.7%↓ -9.3pp      0.9%  ↓ -9.1pp  (n=1286)      0.1%  ↓ -9.9pp  (n=714)
+  NNDR                                   4.5%↓ -5.6pp      4.3%  ↓ -5.7pp  (n=1354)      4.8%  ↓ -5.2pp  (n=646)
+  RA-as-MIA (RandomForest, QI1)          8.0%↓ -2.1pp      8.9%  ↓ -1.1pp  (n=1083)      6.9%  ↓ -3.1pp  (n=917)
+  RA-as-MIA (RandomForest, wide QI)      8.5%↓ -1.5pp      8.2%  ↓ -1.8pp  (n=1156)      8.9%  ↓ -1.1pp  (n=844)
+
+  Subgroup AUC  (outliers: n=2000,  non-outliers: n=18000)
+  Outlier AUC >> Non-outlier AUC → attack disproportionately effective on unusual records
+
+  Method                               Outlier AUC    Non-outlier AUC    Difference
+  ---------------------------------------------------------------------------------
+  SynthDistance                              0.551              0.554        -0.003
+  NNDR                                       0.559              0.584  ↓     -0.025
+  RA-as-MIA (RandomForest, QI1)              0.531              0.516        +0.016
+  RA-as-MIA (RandomForest, wide QI)          0.511              0.533  ↓     -0.023
+════════════════════════════════════════════════════════════
+
+
+All comparisons complete.
+wandb: WARNING The anonymous setting has no effect and will be removed in a future version.
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/golobs/.netrc.
+wandb: Currently logged in as: golobs (golobs-university-of-washington) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.24.2
+wandb: Run data is saved locally in /home/golobs/Reconstruction/wandb/run-20260519_181826-jlktugxl
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run compare_mia_ra_adult
+wandb: ⭐️ View project at https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks
+wandb: 🚀 View run at https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks/runs/jlktugxl
+wandb: uploading console lines 123-129; updating run metadata
+wandb: uploading history steps 2-2, summary, console lines 130-169
+wandb: 
+wandb: Run history:
+wandb:                 MST_eps1000/NNDR_MIA_advantage ▁
+wandb:                       MST_eps1000/NNDR_MIA_auc ▁
+wandb:              MST_eps1000/NNDR_MIA_balanced_acc ▁
+wandb:             MST_eps1000/NNDR_MIA_tpr_at_fpr001 ▁
+wandb:      MST_eps1000/NNDR_auc_non_outlier_subgroup ▁
+wandb:          MST_eps1000/NNDR_auc_outlier_subgroup ▁
+wandb:      MST_eps1000/NNDR_outlier_rate_top10pct_fp ▁
+wandb: MST_eps1000/NNDR_outlier_rate_top10pct_overall ▁
+wandb:      MST_eps1000/NNDR_outlier_rate_top10pct_tp ▁
+wandb:               MST_eps1000/NNDR_vs_RA_both_high ▁
+wandb:                                           +128 ...
+wandb: 
+wandb: Run summary:
+wandb:                 MST_eps1000/NNDR_MIA_advantage 0.0152
+wandb:                       MST_eps1000/NNDR_MIA_auc 0.5016
+wandb:              MST_eps1000/NNDR_MIA_balanced_acc 0.5076
+wandb:             MST_eps1000/NNDR_MIA_tpr_at_fpr001 0.0093
+wandb:      MST_eps1000/NNDR_auc_non_outlier_subgroup 0.5021
+wandb:          MST_eps1000/NNDR_auc_outlier_subgroup 0.4877
+wandb:      MST_eps1000/NNDR_outlier_rate_top10pct_fp 0.1315
+wandb: MST_eps1000/NNDR_outlier_rate_top10pct_overall 0.136
+wandb:      MST_eps1000/NNDR_outlier_rate_top10pct_tp 0.1408
+wandb:               MST_eps1000/NNDR_vs_RA_both_high 2127
+wandb:                                           +128 ...
+wandb: 
+wandb: 🚀 View run compare_mia_ra_adult at: https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks/runs/jlktugxl
+wandb: ⭐️ View project at: https://wandb.ai/golobs-university-of-washington/tabular-reconstruction-attacks
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260519_181826-jlktugxl/logs
+
+
+as6i/logs
+
+

@@ -43,11 +43,22 @@ CLAUDE.md
 !experiment_scripts/results.db
 
 # Result CSVs that regen_camera_tables.py reads alongside results.db. Tables 2,
-# 7 and 9 cannot be regenerated without them, so they are part of the artifact.
+# 6, 7 and 9 cannot be regenerated without them, so they are part of the artifact.
 !experiment_scripts/quality_results_merged.csv
 !experiment_scripts/linear_sweep_adult_1000_20260822_182357.csv
 !experiment_scripts/ds_risk_scores.csv
 !experiment_scripts/per_attack_disparity_postrepair.csv
+!experiment_scripts/per_attack_disparity_postrepair_perfeat.csv
+!experiment_scripts/mia_comparison_results.csv
+
+# Membership-inference results. These live outside results.db (the schema is for
+# reconstruction runs), so the CSVs and the console logs they were extracted
+# from are tracked directly.
+!experiment_scripts/mia_rebuttal_sweep_results.csv
+!experiment_scripts/mia_rebuttal_sweep_adult1k_results.csv
+!experiment_scripts/raw_logs/
+!experiment_scripts/raw_logs/*.log
+!experiment_scripts/raw_logs/*.txt
 
 # The dummy dataset that lets reviewers exercise the pipeline with no downloads.
 !data/dummy/
