@@ -31,6 +31,16 @@ smartnoise-sql==1.0.7
 DataSynthesizer==0.1.11      # PrivBayes
 jax==0.4.30                  # PrivateGSD backend
 jaxlib==0.4.30
+# genetic_sd (pinned below) imports chex and flax but declares neither, so pip
+# installs it happily and it then fails at import time. chex/flax/optax are
+# installed separately with --no-deps (see the Dockerfiles): chex 0.1.90
+# declares numpy>=1.24.1, which would drag numpy off the 1.23.5 pin above --
+# the paper's environment runs exactly this combination. These four are the
+# only transitive imports that combination actually needs.
+absl-py==2.3.1
+toolz==1.1.0
+msgpack==1.1.2
+rich==13.7.1
 
 # --- dependencies of the external MIA_on_diffusion tree ----------------------
 # Needed by the CondDDPM / CondRePaint / RePaint attacks, which import through

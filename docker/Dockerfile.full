@@ -46,6 +46,8 @@ RUN apt-get update \
 COPY docker/requirements-attacks.txt /tmp/requirements-attacks.txt
 RUN conda create -y -n recon_ python=3.9.23 \
  && conda run -n recon_ pip install --no-cache-dir -r /tmp/requirements-attacks.txt \
+ && conda run -n recon_ pip install --no-cache-dir --no-deps \
+      chex==0.1.90 optax==0.2.4 flax==0.8.5 \
  && conda clean -afy
 
 # --- synthetic data generation environment -----------------------------------
@@ -57,7 +59,7 @@ RUN conda create -y -n recon_ python=3.9.23 \
 # gives rpy2 the R it links against, with no R_HOME to set.
 COPY docker/requirements-sdg.txt /tmp/requirements-sdg.txt
 RUN conda create -y -n sdg -c conda-forge --override-channels \
-      python=3.10.19 r-base=4.5.3 r-synthpop r-sdcmicro \
+      python=3.10.19 r-base=4.5.3 r-synthpop=1.9.2 r-sdcmicro=5.8.2 \
  && conda run -n sdg pip install --no-cache-dir -r /tmp/requirements-sdg.txt \
  && conda clean -afy
 
@@ -68,6 +70,19 @@ RUN conda create -y -n sdg -c conda-forge --override-channels \
 # Its real runtime dependencies (opendp, pac-synth, smartnoise-sql) are pinned in
 # requirements-sdg.txt above.
 RUN conda run -n sdg pip install --no-cache-dir --no-deps smartnoise-synth==1.0.5
+
+# TabPFN ships without its weights and downloads a ~100 MB checkpoint into its
+# own site-packages directory on first use. The image runs as a non-root user,
+# who cannot write there, so the attack fails with a PermissionError the first
+# time a reviewer runs it. Fetch the checkpoint at build time instead; this also
+# means the image needs no network access at run time.
+RUN conda run -n recon_ python -c "\
+import numpy as np; \
+from tabpfn import TabPFNClassifier; \
+c = TabPFNClassifier(device='cpu', N_ensemble_configurations=1); \
+c.fit(np.random.rand(20, 3), np.random.randint(0, 2, 20)); \
+c.predict(np.random.rand(5, 3))" \
+ && chmod -R a+rX /opt/conda/envs/recon_/lib/python3.9/site-packages/tabpfn
 
 # Three fixes that only surface when the image is actually run:
 #
@@ -82,9 +97,18 @@ RUN conda run -n sdg pip install --no-cache-dir --no-deps smartnoise-synth==1.0.
 #    explicitly and both invocations work.
 # 3. pycox (a synthcity dependency) mkdirs inside site-packages on import, which
 #    fails for the non-root user the image runs as. Create it at build time.
-RUN ln -sf /opt/conda/envs/sdg/lib/libstdc++.so.6.0.36 /lib/x86_64-linux-gnu/libstdc++.so.6 \
- && mkdir -p /opt/conda/envs/sdg/lib/python3.10/site-packages/pycox/datasets/data \
- && chmod -R a+rwX /opt/conda/envs/sdg/lib/python3.10/site-packages/pycox/datasets
+# The libstdc++ filename carries its version, and conda picks that version, so
+# it must be discovered rather than hard-coded: `ln -sf` to a name that does not
+# exist silently creates a dangling link, which would break every C++ binary in
+# the image with no build error. Resolve the newest match and fail the build
+# loudly if there is none.
+RUN set -eux; \
+    libcxx="$(ls -1 /opt/conda/envs/sdg/lib/libstdc++.so.6.0.* | sort -V | tail -1)"; \
+    test -f "$libcxx"; \
+    ln -sfn "$libcxx" /lib/x86_64-linux-gnu/libstdc++.so.6; \
+    test -f /lib/x86_64-linux-gnu/libstdc++.so.6; \
+    mkdir -p /opt/conda/envs/sdg/lib/python3.10/site-packages/pycox/datasets/data; \
+    chmod -R a+rwX /opt/conda/envs/sdg/lib/python3.10/site-packages/pycox/datasets
 
 ENV R_HOME=/opt/conda/envs/sdg/lib/R
 

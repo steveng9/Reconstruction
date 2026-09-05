@@ -4,7 +4,8 @@
 # This is the image artifact reviewers should use. It covers every stage of the
 # pipeline that runs on CPU in reasonable time:
 #   * generating synthetic data with the CPU DP generators (MST, AIM, PrivBayes,
-#     PrivSyn, MWEM-PGM, PrivateGSD)
+#     PrivSyn, MWEM-PGM, Private-GSD) -- each verified to produce a synthetic
+#     frame in this image
 #   * running every attack in the registry, including the diffusion-based ones
 #     (CondDDPM, CondRePaint, RePaint), on that synthetic data
 #   * regenerating the paper's tables and figures from the shipped results.db
@@ -13,8 +14,9 @@
 #   * LinearReconstruction, which needs a licensed Gurobi (gurobipy);
 #   * the GPU generators (TVAE, CTGAN, ARF, TabDDPM) and the R-based ones
 #     (Synthpop, RankSwap, CellSuppression) -- see docker/Dockerfile.full.
-# Both degrade gracefully: attacks whose dependencies are absent are disabled
-# with a clear message rather than breaking the attack registry.
+# All degrade gracefully: an attack or generator whose dependencies are absent
+# raises a clear ImportError naming the missing package, rather than breaking
+# the registry it belongs to.
 #
 # Build (from the repository root):
 #     docker build -f docker/Dockerfile -t recon-artifact:latest .
@@ -58,6 +60,25 @@ RUN pip3 install --no-cache-dir --upgrade pip==24.0 \
 # real runtime dependencies (opendp, pac-synth, smartnoise-sql) are pinned in
 # requirements-attacks.txt above.
 RUN pip3 install --no-cache-dir --no-deps smartnoise-synth==1.0.5
+
+# Same treatment for Private-GSD's jax stack. chex 0.1.90 declares numpy>=1.24.1
+# while this environment is pinned to numpy 1.23.5 -- the combination the paper's
+# results were produced with, and one the resolver will not accept. optax and
+# flax are here too because each depends on chex and would drag it back in.
+RUN pip3 install --no-cache-dir --no-deps chex==0.1.90 optax==0.2.4 flax==0.8.5
+
+# TabPFN ships without its weights and downloads a ~100 MB checkpoint into its
+# own site-packages directory on first use. The image runs as a non-root user,
+# who cannot write there, so the attack fails with a PermissionError the first
+# time a reviewer runs it. Fetch the checkpoint at build time instead; this also
+# means the image needs no network access at run time.
+RUN python -c "\
+import numpy as np; \
+from tabpfn import TabPFNClassifier; \
+c = TabPFNClassifier(device='cpu', N_ensemble_configurations=1); \
+c.fit(np.random.rand(20, 3), np.random.randint(0, 2, 20)); \
+c.predict(np.random.rand(5, 3))" \
+ && chmod -R a+rX "$VIRTUAL_ENV/lib/python3.9/site-packages/tabpfn"
 
 # ENV PATH is not seen by a login shell, which re-derives PATH from /etc/profile.
 # `docker run ... bash` (the documented command) is not a login shell and works
