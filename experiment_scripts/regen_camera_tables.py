@@ -150,6 +150,119 @@ def table1(df):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# The per-dataset attack x SDG tables: CDC Diabetes at 1k and 100k, and NIST SBO.
+#
+# These three share a shape that differs from Table 1: a Mode baseline row above
+# a rule, then the ML attacks, with the best value in each column bolded among
+# the ML attacks only. Table 1 instead groups attacks by family and carries an
+# average column, so it keeps its own function.
+#
+# Column and row sets differ per table and are NOT derived from what happens to
+# be in the database -- they are transcribed from the printed tables, so a
+# regenerated table is directly comparable to the paper. A cell with no runs
+# prints "---" rather than silently changing the table's shape.
+#
+# Output files are named by \label rather than by printed table number: the
+# numbering shifts whenever a table moves, and these three sit in the appendix.
+# ─────────────────────────────────────────────────────────────────────────────
+# The row printed as "CoBP-RA$^\dagger$" in all three of these tables is the
+# QIGraph + EntropyBP variant, not the plain attack -- verified by matching every
+# non-superseded cell of all three printed tables exactly (e.g. NIST SBO RankSwap
+# 80.8, CDC 100k Cell Supp. 85.7, CDC 1k TVAE 46.3), which no other variant does.
+# Table 1 (Adult) uses a different variant and keeps its own row spec.
+COBP_VARIANT = "MarginalRF_graphQI_entropyBP"
+
+MST_EPS_COLS = [("MST_eps0.1", r"MST $(\varepsilon{=}0.1)$"), ("MST_eps1", r"MST $(\varepsilon{=}1)$"),
+                ("MST_eps10", r"MST $(\varepsilon{=}10)$"), ("MST_eps100", r"MST $(\varepsilon{=}100)$"),
+                ("MST_eps1000", r"MST $(\varepsilon{=}1000)$")]
+DEID_COLS = [("RankSwap", "RankSwap"), ("CellSuppression", "Cell Supp."), ("Synthpop", "Synthpop")]
+DEEP_COLS = [("TVAE", "TVAE"), ("CTGAN", "CTGAN"), ("ARF", "ARF"), ("TabDDPM", "TabDDPM")]
+
+PER_DATASET = [
+    dict(
+        out="table_ra_mean_cdc.tex", label="tab:ra_mean_cdc",
+        dataset="cdc_diabetes", size=1000, qi="QI1",
+        cols=DEID_COLS + MST_EPS_COLS
+             + [("AIM_eps1", r"AIM $(\varepsilon{=}1)$"), ("AIM_eps3", r"AIM $(\varepsilon{=}3)$"),
+                ("AIM_eps10", r"AIM $(\varepsilon{=}10)$")] + DEEP_COLS,
+        # `TabDDPM` as an *attack* label is CondDDPM; as an SDG column it is the
+        # generator. The two never collide because they index different axes.
+        rows=[("KNN", "KNN"), ("RandomForest", "Random Forest"), ("MLP", "MLP"),
+              ("TabDDPM", r"CondDDPM$^\dagger$"), (COBP_VARIANT, r"CoBP-RA$^\dagger$")],
+    ),
+    dict(
+        out="table_cdc_100k.tex", label="tab:cdc_100k",
+        dataset="cdc_diabetes", size=100000, qi="QI1",
+        cols=DEID_COLS + MST_EPS_COLS + [("AIM_eps1", r"AIM $(\varepsilon{=}1)$")] + DEEP_COLS,
+        rows=[("RandomForest", "Random Forest"), ("MLP", r"\textsc{mlp}"),
+              ("NaiveBayes", "Naive Bayes"), (COBP_VARIANT, r"CoBP-RA$^\dagger$")],
+    ),
+    dict(
+        out="table_ra_mean_nist_sbo.tex", label="tab:ra_mean_nist_sbo",
+        dataset="nist_sbo", size=1000, qi="QI1",
+        cols=MST_EPS_COLS + [("CellSuppression", "Cell Supp."), ("RankSwap", "RankSwap"),
+                             ("Synthpop", "Synthpop")] + DEEP_COLS,
+        rows=[("KNN", "KNN"), ("NaiveBayes", "Naive Bayes"),
+              ("RandomForest", "Random Forest"), (COBP_VARIANT, r"CoBP-RA$^\dagger$")],
+    ),
+]
+
+def table_perdataset(df):
+    """Build all three per-dataset tables. Returns rows with no runs, per table.
+
+    Reproduction against the printed tables, checked cell by cell:
+
+      tab:cdc_100k          exact -- all 52 cells match the paper.
+      tab:ra_mean_cdc       9 of 75 cells differ, and every one of them sits in
+                            the MST(eps=0.1) or AIM(eps=3) column. Both columns
+                            were invalidated by the 2026-08 float-binned encoding
+                            repair and re-run; the paper prints the pre-repair
+                            values. Largest move 0.9 pp (MLP / AIM eps=3). The
+                            superseded rows are still in `runs_superseded`.
+      tab:ra_mean_nist_sbo  the eight non-MST columns are exact. The MST columns
+                            are not reproducible as printed: MST(eps=0.1) and
+                            MST(eps=1) were superseded and never re-run, so they
+                            print "---", and the other three MST budgets survive
+                            on 2 disjoint samples rather than 5, which moves them
+                            by up to 0.4 pp. Filling this needs new runs, not a
+                            new generator.
+
+    A cell with no post-repair runs prints "---" rather than falling back to the
+    superseded value: an honest gap is better than a stale number.
+    """
+    gaps = []
+    for spec in PER_DATASET:
+        d = df[(df.dataset == spec["dataset"]) & (df.dataset_size == spec["size"])
+               & (df.qi == spec["qi"]) & (df.split == "standard")]
+        # Mode is a reference point, not an attack: it sits above the rule and is
+        # never a candidate for the per-column bold.
+        mode = [cell(d, attack_label="Mode", sdg_method=s)[0] for s, _ in spec["cols"]]
+        ml = {atk: [cell(d, attack_label=atk, sdg_method=s)[0] for s, _ in spec["cols"]]
+              for atk, _ in spec["rows"]}
+
+        best = []
+        for i in range(len(spec["cols"])):
+            col = [ml[a][i] for a, _ in spec["rows"] if not pd.isna(ml[a][i])]
+            best.append(max(col) if col else np.nan)
+
+        lines = ["Mode & " + " & ".join(f1(v) for v in mode) + r" \\", r"\midrule"]
+        for atk, lab in spec["rows"]:
+            cells = []
+            for i, v in enumerate(ml[atk]):
+                t = f1(v)
+                # Bold on the rounded value, so a visible tie is bolded twice --
+                # as the printed tables do (CDC 100k, RankSwap column).
+                if not pd.isna(v) and not pd.isna(best[i]) and t == f1(best[i]):
+                    t = rf"\textbf{{{t}}}"
+                cells.append(t)
+            lines.append(f"{lab} & " + " & ".join(cells) + r" \\")
+            if all(pd.isna(v) for v in ml[atk]):
+                gaps.append((spec["label"], lab))
+        (OUT / spec["out"]).write_text("\n".join(lines) + "\n")
+    return gaps
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Table 4 — the epsilon float, now six generators (tab:mst_eps_sweep -> tab:eps_sweep)
 # Variant (a) full: 6 generators x 3 attacks x 2 QI, all 9 budgets.
 # Variant (compact): 6 generators x 2 QI, cell = mean of the 3 attacks.

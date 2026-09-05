@@ -128,21 +128,30 @@ MANIFEST: list[PaperObject] = [
     PaperObject(
         key="table_cdc_1k", title="Attack x SDG, CDC Diabetes 1k",
         label="tab:ra_mean_cdc", source=DB + " (cdc_diabetes, 1k)",
-        status="todo", tier="A",
-        note="Same shape as Table 1; parameterise table1() by dataset and size "
-             "rather than duplicating it.",
+        generator="table_perdataset",
+        output="table_ra_mean_cdc.tex", status="done", check=True,
+        note="Reproduces the printed table except the MST(eps=0.1) and AIM(eps=3) "
+             "columns, which the 2026-08 encoding repair invalidated and re-ran: "
+             "9 of 75 cells, largest move 0.9 pp. The row printed as CoBP-RA is "
+             "the QIGraph+EntropyBP variant.",
     ),
     PaperObject(
         key="table_cdc_100k", title="Attack x SDG, CDC Diabetes 100k",
         label="tab:cdc_100k", source=DB + " (cdc_diabetes, 100k)",
-        status="todo", tier="A",
-        note="Same generator as tab:ra_mean_cdc, different size filter.",
+        generator="table_perdataset",
+        output="table_cdc_100k.tex", status="done", check=True,
+        note="Reproduces the printed table exactly, all 52 cells. The row printed "
+             "as CoBP-RA is the QIGraph+EntropyBP variant.",
     ),
     PaperObject(
         key="table_sbo", title="Attack x SDG, NIST SBO 1k",
         label="tab:ra_mean_nist_sbo", source=DB + " (nist_sbo, 1k)",
-        status="todo", tier="A",
-        note="Same generator as tab:ra_mean_cdc.",
+        generator="table_perdataset",
+        output="table_ra_mean_nist_sbo.tex", status="done", check=True,
+        note="The eight non-MST columns reproduce exactly. MST(eps=0.1) and "
+             "MST(eps=1) were superseded by the encoding repair and never rerun, "
+             "so they print '---'; the other MST budgets rest on 2 samples rather "
+             "than 5 and move by up to 0.4 pp. Closing this needs new runs.",
     ),
     PaperObject(
         key="table_feature_eps", title="Per-feature breakdown across epsilon",

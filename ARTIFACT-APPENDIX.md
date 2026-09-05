@@ -184,7 +184,7 @@ reduced-scale experiments below are provided instead.
 
 | Task | Human time | Compute time | Disk |
 |---|---|---|---|
-| Clone (with submodules) + build the light Docker image | 5 min | 10–15 min | ~3 GB |
+| Clone (with submodules) + build the light Docker image | 5 min | 10–15 min | ~5.6 GB |
 | `./test.sh` (full smoke test) | 1 min | ~2 min | negligible |
 | Experiment 1 — regenerate all paper tables and figures | 2 min | ~1 min | <10 MB |
 | Experiment 2 — attack vs. baseline on the dummy dataset | 2 min | ~1 min | negligible |
@@ -192,9 +192,16 @@ reduced-scale experiments below are provided instead.
 | Experiment 4 — reduced-scale ε sweep (Adult) | 10 min | ~50 min | ~200 MB |
 
 The repository itself is ~93 MB tracked (dominated by the 68 MB `results.db`),
-plus ~90 MB for the two submodules. Budget **under 5 GB total** including the
-Docker image. Nothing here requires the 50 GB-class hosting discussed in the
-PoPETs FAQ.
+plus ~90 MB for the two submodules. The light image is 5.6 GB of layers, and
+Docker's build cache adds a few GB more while the build runs, so budget
+**about 10 GB of free disk**. Nothing here requires the 50 GB-class hosting
+discussed in the PoPETs FAQ.
+
+These figures are measured, not estimated: the light image was built and
+`./test.sh` was run inside it on Ubuntu 22.04 (kernel 5.15), 24 physical cores,
+passing all 18 checks. The build took ~6 minutes of step time there; 10-15
+minutes is a fairer estimate on a laptop with a slower network, since most of
+the time is spent downloading wheels.
 
 ## Environment
 
@@ -381,6 +388,8 @@ Outputs land in `expected_output/tables/`:
 | `table6_mia_comparison.tex` | Table 6 — MIA vs. RA-as-MIA |
 | `table7_memorization.tex` | Table 7 — memorization test (Result 5) |
 | `table9_disparate_impact.tex` | Table 9 — disparate impact (Result 5) |
+| `table_ra_mean_cdc.tex`, `table_cdc_100k.tex` | CDC Diabetes at 1k and 100k rows |
+| `table_ra_mean_nist_sbo.tex` | NIST SBO |
 | `fig_eps_curves.pdf`, `fig_eps_curves_perattack.pdf` | ε-curve figures |
 | `STATS_eps_curve.md`, `STATS_memorization.md` | paired significance tests |
 
@@ -397,13 +406,23 @@ their PNG companions will differ: matplotlib embeds a creation timestamp, and
 glyph rasterisation varies with the freetype build. The numbers plotted in them
 are verified through `STATS_eps_curve.md`, which is byte-compared.
 
-Compare any output against the corresponding table in the paper PDF. This
-comparison is exact, not within 5%.
+Comparison against the *paper PDF* needs one caveat. The database was repaired
+in August 2026 (a float-binned encoding bug, described in `README.md`), and some
+printed tables still carry pre-repair numbers -- most visibly Table 1's five MST
+columns. The artifact regenerates from the repaired database, so those cells
+differ from the PDF. Every such difference is enumerated in
+`TODO-TABLE-COVERAGE.md`; none of them changes a claim in the paper, and outside
+the MST columns every classical-attack row of Table 1 matches the printed table
+exactly. Two rows (`CondDDPM`, `CondRePaint`) print `---` because their runs were
+flagged as broken and excluded rather than silently kept.
 
-Nine of the paper's 33 labelled tables and figures regenerate this way, covering
-every table that carries a main claim. Nine more are not derived from this
+Where a table is unaffected by the repair the agreement is exact rather than
+within 5% -- `tab:cdc_100k`, for instance, reproduces all 52 of its cells.
+
+Twelve of the paper's 33 labelled tables and figures regenerate this way,
+covering every table that carries a main claim. Nine more are not derived from this
 repository at all (the NIST scoreboard, the hand-written dataset and QI-definition
-tables, the two diagrams). The remaining 15 are supporting tables whose data is
+tables, the two diagrams). The remaining 12 are supporting tables whose data is
 committed but whose generators are not yet written; `python reproduce.py --list`
 names each one, and `TODO-TABLE-COVERAGE.md` tracks the work.
 
