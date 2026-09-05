@@ -1,15 +1,22 @@
 #!/usr/bin/env python
 """
-Regenerate every camera-ready table body from results.db (the source of truth).
+The generator functions behind the paper's tables and figures.
 
-Emits LaTeX table bodies + a stats report to manuscript/camera_ready/generated/.
-Nothing here edits the manuscript; each output is a drop-in replacement body that
-the author pastes (or \input's) into manuscript_CAMERA.tex.
+Each `tableN` / `figure_*` / `stats_*` function here builds exactly one group of
+outputs from results.db or from a named, committed result CSV, and writes them
+into the directory named by RECON_TABLE_OUT (default: expected_output/tables/).
+Nothing here edits the manuscript; each output is a drop-in replacement body the
+author pastes (or \input's) into the .tex.
 
-Provenance rule: every number printed by this script comes from results.db or from
-a named post-repair CSV. No number is carried over from the .tex.
+**Which of these run, and in what order, is decided by the manifest in
+`experiment_scripts/paper_objects.py` and dispatched by `reproduce.py`.** Adding
+a function here does nothing until a manifest row names it.
 
-    python experiment_scripts/regen_camera_tables.py
+Provenance rule: every number printed comes from results.db or from a named
+post-repair CSV. No number is carried over from the .tex.
+
+    python reproduce.py                  # the entry point
+    python experiment_scripts/regen_camera_tables.py    # equivalent, still supported
 """
 from __future__ import annotations
 import sys as _sys, pathlib as _pathlib
@@ -474,15 +481,10 @@ def stats_report(df):
 
 
 if __name__ == "__main__":
-    runs = load_runs()
-    runs = runs[runs.confidence=="certain"]     # never build a table from flagged rows
-    grid, cov = table1(runs)
-    table4(runs); table2(runs); miss=table7(runs); table6(); table9(); figure_eps(runs); stats_report(runs)
-    print("wrote:")
-    for f in sorted(OUT.iterdir()): print(f"  {f.name:<40}{f.stat().st_size:>8} B")
-    if miss:
-        print("\nTable 7 rows with NO QI_linear memorization runs (cannot be filled without new runs):")
-        for m in miss: print(f"  {m}")
-    if cov:
-        print("\ncells with n<5 disjoint samples (caption must not claim 5):")
-        for a,b,n in cov: print(f"  {a:<24}{b:<28}n={n}")
+    # The entry point moved to reproduce.py at the repository root, which decides
+    # what to build from the manifest in paper_objects.py. This file is now the
+    # library of generator functions. Running it directly still works, and does
+    # exactly what `python reproduce.py` does.
+    sys.path.insert(0, str(ROOT))
+    import reproduce
+    raise SystemExit(reproduce.main([]))

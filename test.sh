@@ -8,7 +8,9 @@
 #      real attack beats the mode baseline (i.e. it is genuinely reconstructing,
 #      not just predicting the most common value);
 #   3. the paper's tables regenerate from the shipped results database and match
-#      the committed reference copies byte for byte.
+#      the committed reference copies byte for byte. Which tables those are is
+#      read from experiment_scripts/paper_objects.py, so this list never goes
+#      stale as coverage grows.
 #
 # Usage:  ./test.sh
 # Runtime: about two minutes on a laptop, CPU only.
@@ -34,6 +36,13 @@ hdr "1/4  Environment and path resolution"
 import sys; sys.path.insert(0, ".")
 import paths, get_data, scoring, util, attack_defaults  # noqa: F401
 EOF
+
+# The manifest lists every paper object and the generator that builds it. If a
+# row names a generator that does not exist, the table would simply never be
+# written -- so check the manifest before trusting section 4's file list.
+"$PY" experiment_scripts/paper_objects.py >/dev/null 2>&1 \
+  && ok "paper-object manifest is self-consistent" \
+  || bad "paper-object manifest is self-consistent"
 
 # --- 2. dummy data present ---------------------------------------------------
 hdr "2/4  Dummy dataset"
@@ -68,10 +77,16 @@ if [ ! -f experiment_scripts/results.db ]; then
   bad "experiment_scripts/results.db missing"
 else
   TMPOUT=$(mktemp -d)
-  RECON_TABLE_OUT="$TMPOUT" "$PY" experiment_scripts/regen_camera_tables.py >/dev/null 2>&1
-  for t in table1_ra_mean_adult.tex table2_quality_overview.tex \
-           table4_eps_sweep_full.tex table6_mia_comparison.tex \
-           table7_memorization.tex table9_disparate_impact.tex; do
+  "$PY" reproduce.py --out "$TMPOUT" >/dev/null 2>&1
+  # The list of files to verify comes from the manifest, not from this script,
+  # so adding a paper object to paper_objects.py automatically extends the test.
+  # Figures are excluded there: PDF/PNG are not byte-stable across matplotlib
+  # versions, but the numbers behind them are checked via STATS_eps_curve.md.
+  CHECKED=$("$PY" reproduce.py --check-list)
+  if [ -z "$CHECKED" ]; then
+    bad "could not read the manifest's list of verified outputs"
+  fi
+  for t in $CHECKED; do
     if diff -q "expected_output/tables/$t" "$TMPOUT/$t" >/dev/null 2>&1; then
       ok "$t matches the committed reference"
     else

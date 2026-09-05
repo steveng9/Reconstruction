@@ -33,8 +33,8 @@ The artifact contains everything used to produce the paper's results:
 - the driver scripts for every experiment in the paper;
 - **`experiment_scripts/results.db`**, a 68 MB SQLite database holding all
   **49,126** scored runs behind the paper, and
-  `experiment_scripts/regen_camera_tables.py`, which regenerates the paper's
-  tables and figures from it.
+  `reproduce.py`, which regenerates the paper's tables and figures from it,
+  driven by a manifest naming every table and figure in the paper.
 
 ### What `results.db` does and does not contain
 
@@ -262,28 +262,34 @@ Inside the container:
 ./test.sh
 ```
 
-This checks four things: that the environment imports and paths resolve; that
-the dummy dataset is present; that the attack pipeline runs end to end and a
-real attack **beats the mode baseline**; and that the paper's tables regenerate
-from `results.db` byte-for-byte identically to the committed reference copies.
+This checks four things: that the environment imports and the paths and the
+paper-object manifest resolve; that the dummy dataset is present; that the
+attack pipeline runs end to end and a real attack **beats the mode baseline**;
+and that the paper's tables regenerate from `results.db` byte-for-byte
+identically to the committed reference copies. The list of tables it verifies
+is read from the manifest, so it cannot fall behind as coverage grows.
 
 Expected output (final lines):
 
 ```
 === 3/4  Attack pipeline (dummy dataset, MST epsilon=10) ===
   mode baseline : 33.88333333333333
-  CoBP-RA       : 40.15
+  CoBP-RA       : 40.38333333333333
   PASS  CoBP-RA beats the mode baseline by >2 points
 
 === 4/4  Paper tables regenerate from results.db ===
   PASS  table1_ra_mean_adult.tex matches the committed reference
   PASS  table2_quality_overview.tex matches the committed reference
+  PASS  table4_eps_sweep_compact.tex matches the committed reference
   PASS  table4_eps_sweep_full.tex matches the committed reference
+  PASS  STATS_eps_curve.md matches the committed reference
+  PASS  table6_mia_comparison.tex matches the committed reference
   PASS  table7_memorization.tex matches the committed reference
+  PASS  STATS_memorization.md matches the committed reference
   PASS  table9_disparate_impact.tex matches the committed reference
 
 ============================================
-  10 passed, 0 failed
+  15 passed, 0 failed
 ============================================
 ```
 
@@ -352,7 +358,17 @@ regenerates the paper's tables and figures. No number is copied from the
 manuscript; everything is recomputed from the database.
 
 ```bash
-python experiment_scripts/regen_camera_tables.py
+python reproduce.py
+```
+
+`reproduce.py` is the single entry point for this artifact. It reads the manifest
+in `experiment_scripts/paper_objects.py` — one row per table and figure in the
+paper, naming its source, its generator and its output file — and builds
+everything that can be built from committed data. To see the coverage, including
+what is *not* yet covered and why:
+
+```bash
+python reproduce.py --list
 ```
 
 Outputs land in `expected_output/tables/`:
@@ -372,12 +388,24 @@ Because the reference copies of these files are committed, you can verify
 reproduction exactly rather than by eye:
 
 ```bash
-RECON_TABLE_OUT=/tmp/check python experiment_scripts/regen_camera_tables.py
+python reproduce.py --out /tmp/check
 diff -r expected_output/tables /tmp/check   # .tex and .md files should be identical
 ```
 
-Compare any of them against the corresponding table in the paper PDF. This
+`./test.sh` performs exactly this diff on the nine text outputs. The two PDFs and
+their PNG companions will differ: matplotlib embeds a creation timestamp, and
+glyph rasterisation varies with the freetype build. The numbers plotted in them
+are verified through `STATS_eps_curve.md`, which is byte-compared.
+
+Compare any output against the corresponding table in the paper PDF. This
 comparison is exact, not within 5%.
+
+Nine of the paper's 33 labelled tables and figures regenerate this way, covering
+every table that carries a main claim. Nine more are not derived from this
+repository at all (the NIST scoreboard, the hand-written dataset and QI-definition
+tables, the two diagrams). The remaining 15 are supporting tables whose data is
+committed but whose generators are not yet written; `python reproduce.py --list`
+names each one, and `TODO-TABLE-COVERAGE.md` tracks the work.
 
 #### Experiment 2: Attack versus baseline on the dummy dataset
 
@@ -475,10 +503,10 @@ limitations below concern everything beyond that.
    tables and figures behind the five main claims. The paper also contains
    supporting tables — per-dataset results for CDC and NIST SBO, the per-dataset
    quality profiles, the QI-composition analysis — whose underlying data is
-   committed but which do not yet have a generator wired into
-   `regen_camera_tables.py`. `TODO-TABLE-COVERAGE.md` enumerates all 33 paper
-   objects, states which of the four categories each falls into, and tracks the
-   remaining work. No main claim depends on an object outside Experiment 1.
+   committed but which do not yet have a generator. `python reproduce.py --list`
+   names every one of the paper's 33 labelled objects and reports which of them
+   rebuild; `TODO-TABLE-COVERAGE.md` tracks the remaining work. No main claim
+   depends on an object outside Experiment 1.
 
 7. **`environment.yaml` is superseded.** The historical conda file in the
    repository root does not reflect the versions actually used. The authoritative,

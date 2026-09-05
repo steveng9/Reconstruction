@@ -358,6 +358,7 @@ python experiment_scripts/synth_quality_to_latex.py experiment_scripts/synth_qua
 
 ```
 Reconstruction/
+├── reproduce.py                  ← Rebuild every paper table/figure; --list shows coverage
 ├── master_experiment_script.py   ← Main entry point: runs one experiment, logs to WandB
 ├── attack_defaults.py            ← Default hyperparameters for all 13 attacks
 ├── get_data.py                   ← Data loading: load_data(), load_mia_data(), QI definitions
@@ -414,7 +415,9 @@ Reconstruction/
 │   ├── synth_quality_to_latex.py ← Synth quality LaTeX table
 │   ├── results_db.py             ← SQLite results database utilities
 │   ├── plot_ensembling_heatmap.py ← Heatmap visualization
-│   ├── regen_camera_tables.py    ← Regenerate every paper table from results.db
+│   ├── paper_objects.py         ← Manifest: every paper table/figure, its source and generator
+│   ├── regen_camera_tables.py    ← The generator functions reproduce.py calls
+│   ├── make_docs.py             ← Regenerates the manifest-derived doc sections
 │   ├── results.db                ← 49,126 scored runs behind the paper (68 MB)
 │   ├── mia_comparison_results.csv ← MIA results (these live outside the DB)
 │   ├── raw_logs/                 ← Console logs that are the primary source for MIA
@@ -423,6 +426,7 @@ Reconstruction/
 │
 ├── ARTIFACT-APPENDIX.md          ← PoPETs artifact appendix (start here to review)
 ├── TODO-TABLE-COVERAGE.md        ← Which of the 33 paper tables/figures regenerate, and what is left
+│                                   (generated from experiment_scripts/paper_objects.py)
 ├── test.sh                       ← One-command smoke test (env + attack + tables)
 ├── paths.py                      ← Central path resolution; every root is env-overridable
 │
