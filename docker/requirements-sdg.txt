@@ -11,11 +11,35 @@ scipy==1.15.3
 scikit-learn==1.7.2
 torch==2.2.2
 
-smartnoise-synth==1.0.5      # MST, AIM
+# smartnoise-synth (MST, AIM) is NOT listed here. Its 1.0.5 metadata declares
+# opacus<0.15.0, while synthcity 0.2.12 declares opacus>=1.3, and pip cannot
+# resolve both -- the build fails outright. MST and AIM never touch opacus (it is
+# pulled in for smartnoise's DP-GAN synthesizers, which this artifact does not
+# use), so Dockerfile.full installs it with --no-deps after this file and pins its
+# real runtime dependencies below. This mirrors what Dockerfile does for the
+# attack environment, and matches the environment the paper's results came from.
 opendp==0.12.1
+pac-synth==0.0.8
+smartnoise-sql==1.0.7
 sdv==1.34.0                  # TVAE, CTGAN
 synthcity==0.2.12            # ARF
 rpy2==3.6.4                  # bridge to R: Synthpop, RankSwap, CellSuppression
+                             # Requires R >= 4.5 (it binds the R_getVar symbol).
+                             # Dockerfile.full supplies R 4.5 from conda-forge;
+                             # Debian bookworm's r-base is 4.2.2 and will not work.
+
+# Transitive requirements that the SDG code paths import but no pinned package
+# declares. Each was found by importing sdg/ inside the built image:
+#   opacus            synthcity declares opacus>=1.3, and pip resolves that to a
+#                     version needing torch.nn.RMSNorm, which torch 2.2.2 above
+#                     does not have. 1.4.0 satisfies synthcity and works on 2.2.2.
+#   icecream          imported by MIA_on_diffusion's TabDDPM lib
+#   category_encoders imported by the ARF path
+#   tomli_w           imported by the TabDDPM config writer
+opacus==1.4.0
+icecream==2.2.0
+category_encoders==2.8.1
+tomli_w==1.2.0
 
 tqdm==4.66.4
 PyYAML==6.0.1

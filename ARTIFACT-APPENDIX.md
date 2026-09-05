@@ -261,6 +261,18 @@ R-based ones (Synthpop, RankSwap, CellSuppression) do you need the larger image:
 docker build -f docker/Dockerfile.full -t recon-artifact:full .
 ```
 
+That image is ~16 GB and takes considerably longer to build. It was verified by
+building and running it: R 4.5.3 with `synthpop` and `sdcMicro` reachable through
+`rpy2`, all 13 SDG methods registering, and the attack environment unaffected.
+
+Two notes on it. R comes from conda-forge rather than the distribution, because
+Debian bookworm ships R 4.2.2 and `rpy2` 3.6.4 requires R >= 4.5. As a result the
+R packages are conda-forge's (`synthpop` 1.9.2, `sdcMicro` 5.8.2), which are
+newer than the versions used when the paper's synthetic data was generated; no
+number in the paper comes from this image, but synthetic data regenerated with it
+will not be bit-identical to ours. And none of the evaluated experiments need
+this image -- Experiments 1 through 4 all run in the light one.
+
 ### Testing the Environment
 
 Inside the container:

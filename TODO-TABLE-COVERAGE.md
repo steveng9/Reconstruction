@@ -108,6 +108,58 @@ and nobody goes looking for a generator.
 
 ---
 
+## PENDING AUTHOR DECISIONS
+
+Nothing below has been changed in the manuscript. These are waiting on Steven.
+
+### 1. Table 6 (`tab:mia_comparison`) -- leaning "leave it"  [raised 2026-09-05]
+
+**What it is.** The table reports AUC for three membership-inference methods
+across six SDG methods, on three datasets. The printed version was assembled
+from two batches run three months apart: NIST Arizona from the August 2026 runs
+(after the float-binned encoding repair), parts of Adult and CDC from May 2026
+(before it). The regenerated version uses the August batch throughout, so all
+three datasets are measured the same way.
+
+**What changes.** Seven numbers move by 0.01 AUC:
+
+| Block | Row | Column | Printed | Regenerated |
+|---|---|---|---|---|
+| Adult | SynthDistance | MST (eps=1) | 0.50 | 0.51 |
+| Adult | NNDR | TabDDPM | 0.80 | 0.79 |
+| Adult | RA-as-MIA | TabDDPM | 0.62 | 0.61 |
+| Adult | RA-as-MIA | Synthpop | 0.52 | 0.51 |
+| Adult | RA-as-MIA | MST (eps=1) | 0.49 | 0.50 |
+| CDC | RA-as-MIA | Cell Supp. | 0.60 | 0.61 |
+| CDC | RA-as-MIA | TabDDPM | 0.71 | 0.70 |
+
+Bolding also shifts on two Adult cells (MST eps=1 and eps=1000 move from NNDR to
+SynthDistance). The whole NIST Arizona block is already identical. No method
+changes rank; no claim or sentence in the paper is affected.
+
+**Steven's inclination (2026-09-05):** leave the printed table as is, and not
+mention the difference at all, to keep things simple.
+
+**The one caveat.** The artifact regenerates this table, so a reviewer running
+`python reproduce.py` will see 0.61 where the paper prints 0.62. Recommended
+middle path: leave the *paper* untouched, and let the artifact carry the
+explanation -- which it already does, in the section below and in
+`ARTIFACT-APPENDIX.md`. That costs no manuscript edit and no reader-facing
+complexity, while removing the "someone spots an inconsistency later" risk.
+
+**Drop-in if you decide to swap:** `expected_output/tables/table6_mia_comparison.tex`.
+
+### 2. The CoBP-RA variant note
+
+The row printed as `CoBP-RA$^\dagger$` is a different registered attack in
+different tables -- see "A naming note" below. Making them consistent is not
+possible from existing data (it needs a fresh ~65-job sweep), so the agreed
+direction is a brief appendix note stating the parameters rather than changing
+any accepted number. Draft wording is not yet in the manuscript. This also feeds
+Reviewer E's request for explicit pseudocode.
+
+---
+
 ## Known discrepancies between the regenerated tables and the printed paper
 
 The database was repaired in August 2026 (the float-binned encoding bug), and

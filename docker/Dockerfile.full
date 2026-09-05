@@ -32,11 +32,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     NUMEXPR_NUM_THREADS=1 \
     WANDB_MODE=offline
 
-# git for the pinned VCS dependencies; R for Synthpop / sdcMicro.
+# git for the pinned VCS dependencies. R is deliberately NOT installed from apt:
+# Debian bookworm ships R 4.2.2 (2022), and both rpy2 3.6.4 (which binds the
+# R_getVar symbol, added in R 4.5) and any recent CRAN snapshot need a newer R.
+# R comes from conda-forge with the sdg environment below.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       git build-essential \
-      r-base r-base-dev \
       libcurl4-openssl-dev libssl-dev libxml2-dev \
  && rm -rf /var/lib/apt/lists/*
 
@@ -47,15 +49,44 @@ RUN conda create -y -n recon_ python=3.9.23 \
  && conda clean -afy
 
 # --- synthetic data generation environment -----------------------------------
+# R and the two R packages come from conda-forge as prebuilt binaries for R 4.5.
+# Building them from a CRAN snapshot against the distro's R 4.2.2 does not work:
+# recent sources use R API functions (R_ClosureFormals, Rf_allocLang) that 4.2.2
+# lacks, so Deriv fails to compile and takes synthpop down with it -- silently,
+# because install.packages() only warns. Installing R into this environment also
+# gives rpy2 the R it links against, with no R_HOME to set.
 COPY docker/requirements-sdg.txt /tmp/requirements-sdg.txt
-RUN conda create -y -n sdg python=3.10.19 \
+RUN conda create -y -n sdg -c conda-forge --override-channels \
+      python=3.10.19 r-base=4.5.3 r-synthpop r-sdcmicro \
  && conda run -n sdg pip install --no-cache-dir -r /tmp/requirements-sdg.txt \
  && conda clean -afy
 
-# --- R packages for Synthpop / RankSwap / CellSuppression ---------------------
-# Pinned to a dated CRAN snapshot so the versions cannot drift.
-RUN Rscript -e "options(repos = c(CRAN = 'https://packagemanager.posit.co/cran/2026-08-01')); \
-                install.packages(c('synthpop', 'sdcMicro'))"
+# smartnoise-synth 1.0.5 pins opacus<0.15.0 and synthcity 0.2.12 pins opacus>=1.3;
+# installing both through the resolver is impossible. MST and AIM -- the only
+# smartnoise synthesizers this artifact uses -- never import opacus, so it is
+# installed without its declared dependencies, exactly as the light image does.
+# Its real runtime dependencies (opendp, pac-synth, smartnoise-sql) are pinned in
+# requirements-sdg.txt above.
+RUN conda run -n sdg pip install --no-cache-dir --no-deps smartnoise-synth==1.0.5
+
+# Three fixes that only surface when the image is actually run:
+#
+# 1. conda-forge's R 4.5 brings ICU 78, which needs CXXABI_1.3.15. Bookworm's
+#    system libstdc++ stops at 1.3.13, and /lib is a trusted loader directory
+#    that ld.so.conf cannot override -- so once any pip package pulls in the
+#    system library, conda's ICU fails to resolve. libstdc++ is forward
+#    compatible, so pointing the system SONAME at the newer conda build fixes it
+#    for every environment. Verified not to disturb recon_ (torch 1.13.1).
+# 2. rpy2 locates R through R_HOME. `conda run -n sdg` sets it from the env's
+#    activation scripts, but calling the interpreter directly does not, so set it
+#    explicitly and both invocations work.
+# 3. pycox (a synthcity dependency) mkdirs inside site-packages on import, which
+#    fails for the non-root user the image runs as. Create it at build time.
+RUN ln -sf /opt/conda/envs/sdg/lib/libstdc++.so.6.0.36 /lib/x86_64-linux-gnu/libstdc++.so.6 \
+ && mkdir -p /opt/conda/envs/sdg/lib/python3.10/site-packages/pycox/datasets/data \
+ && chmod -R a+rwX /opt/conda/envs/sdg/lib/python3.10/site-packages/pycox/datasets
+
+ENV R_HOME=/opt/conda/envs/sdg/lib/R
 
 ARG UID=1000
 ARG GID=1000
