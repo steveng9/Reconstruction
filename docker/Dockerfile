@@ -59,6 +59,13 @@ RUN pip3 install --no-cache-dir --upgrade pip==24.0 \
 # requirements-attacks.txt above.
 RUN pip3 install --no-cache-dir --no-deps smartnoise-synth==1.0.5
 
+# ENV PATH is not seen by a login shell, which re-derives PATH from /etc/profile.
+# `docker run ... bash` (the documented command) is not a login shell and works
+# either way, but `bash -l`, `bash --login` and some `docker exec` invocations
+# are, and there the venv would silently fall back to the system python -- which
+# has none of the dependencies. Put the venv on the login PATH too.
+RUN printf 'export PATH="%s/bin:$PATH"\n' "$VIRTUAL_ENV" > /etc/profile.d/10-venv.sh
+
 # Match the default host UID/GID so files written to the mounted volume stay
 # editable outside the container. Override with --build-arg if `id` differs.
 ARG UID=1000
