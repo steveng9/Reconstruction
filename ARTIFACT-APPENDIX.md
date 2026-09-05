@@ -306,9 +306,12 @@ Expected output (final lines):
   PASS  table7_memorization.tex matches the committed reference
   PASS  STATS_memorization.md matches the committed reference
   PASS  table9_disparate_impact.tex matches the committed reference
+  PASS  table_ra_mean_cdc.tex matches the committed reference
+  PASS  table_cdc_100k.tex matches the committed reference
+  PASS  table_ra_mean_nist_sbo.tex matches the committed reference
 
 ============================================
-  15 passed, 0 failed
+  18 passed, 0 failed
 ============================================
 ```
 
@@ -464,21 +467,22 @@ Regenerates a small corner of Table 1 from raw data, to confirm the numbers in
 needs the Adult dataset, which downloads freely:
 
 ```bash
-mkdir -p data/adult
-python -c "from ucimlrepo import fetch_ucirepo; \
-  fetch_ucirepo(id=2).data.original.to_csv('data/adult/full_data.csv', index=False)"
+# download Adult, write its schema, and carve the training samples
+python experiment_scripts/fetch_dataset.py adult
 
-# carve training samples and generate synthetic data (CPU generators only)
-python sdg/generate_synth.py sample
-python sdg/generate_synth.py sdg
-
-# run the attacks
-python experiment_scripts/run_production_sweep.py --workers 4
+# generate the synthetic data and run the attacks
+bash experiment_scripts/run_artifact_experiment3.sh
 ```
 
-Expect the ordering of attacks and of SDG methods to match Table 1, with
-individual cells within a few points of the published values — five disjoint
-samples are averaged in the paper, and a reduced run averages fewer.
+The second script fixes the slice being reproduced: four generator settings
+that are Table 1 columns (MST at ε=1, 10 and 100, and AIM at ε=1) attacked by
+five that are Table 1 rows (Mode, KNN, RandomForest, NaiveBayes, CoBP-RA), over
+two training samples. Every one of them runs on CPU in the light image — no
+GPU, no R, no Gurobi. Pass `WORKERS=<n>` if you have fewer than four cores.
+
+Expect the ordering of attacks and of SDG methods to match that block of
+Table 1, with individual cells within a few points of the published values —
+the paper averages five disjoint samples and this averages two.
 
 #### Experiment 4: Reduced-scale epsilon sweep
 
@@ -490,8 +494,19 @@ using the same 9-point ε grid as the paper (0.1, 0.3, 1, 3, 10, 30, 100, 300,
 1000):
 
 ```bash
-bash experiment_scripts/run_cdc_dp_sweep_pipeline.sh
+# download CDC Diabetes, write its schema, and carve five training samples
+python experiment_scripts/fetch_dataset.py cdc_diabetes
+
+# generate the synthetic data and run the sweep
+RECON_RESULTS_DB=experiment_scripts/results_reproduction.db \
+  bash experiment_scripts/run_cdc_dp_sweep_pipeline.sh
 ```
+
+`RECON_RESULTS_DB` sends the new runs to a separate database. Without it they
+are appended to the shipped `results.db`, which would move the numbers that
+Experiment 1 and `test.sh` compare against the committed tables. On a machine
+with fewer cores than the authors', also pass `SWEEP_WORKERS` to match what you
+have, e.g. `SWEEP_WORKERS=4`.
 
 Expect $R_{adv}$ to rise steeply from ε=0.1 to ε≈10 and to be close to flat
 above it, matching the curve shape in `fig_eps_curves.pdf`. The absolute values

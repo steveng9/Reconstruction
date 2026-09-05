@@ -20,11 +20,28 @@ done
 : "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
 
 cd "$REPO_ROOT"
-source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate recon_
+
+# On the authors' machine the environment is a conda env; inside the artifact's
+# Docker image it is a venv already on PATH and there is no conda at all. Only
+# activate if conda is actually present, so the same script runs in both.
+if command -v conda >/dev/null 2>&1; then
+  source "$(conda info --base)/etc/profile.d/conda.sh"
+  conda activate recon_
+fi
 
 # Cap per-process thread usage so this doesn't monopolize all 48 cores and
 # starve other users (daniilf, sikha) sharing the machine.
+#
+# PIN is the CPU-affinity prefix applied to the two heavy steps below. Pinning
+# to cores 0-23 needs a machine with at least 24 of them; on a smaller host
+# (a reviewer's laptop, a CPU-limited container) taskset would fail outright,
+# so fall back to running unpinned there.
+PIN=""
+if command -v taskset >/dev/null 2>&1 && [ "$(nproc)" -ge 24 ]; then
+  PIN="taskset -c 0-23"
+fi
+WORKERS="${SWEEP_WORKERS:-12}"
+
 export OMP_NUM_THREADS=2
 export OPENBLAS_NUM_THREADS=2
 export MKL_NUM_THREADS=2
@@ -48,12 +65,12 @@ echo "=== STEP 1: generate MST/PrivBayes/PrivSyn synth, samples 0-4 x 9 epsilons
 #     a fixed small size (PRIVBAYES_INNER_POOL_SIZE, default 2) before it's
 #     ever called. With that fixed, taskset's core-range pinning is now
 #     sufficient on its own to bound total resource usage.
-taskset -c 0-23 python experiment_scripts/generate_new_dp_sweep.py \
+$PIN python experiment_scripts/generate_new_dp_sweep.py \
   --data-root ${RECON_DATA_ROOT}/cdc_diabetes/size_1000 \
   --meta-path ${RECON_DATA_ROOT}/cdc_diabetes/meta.json \
   --methods MST PrivBayes PrivSyn \
   --samples 0 1 2 3 4 \
-  --workers 12
+  --workers "$WORKERS"
 
 echo ""
 echo "=== STEP 2: attack sweep - 3 attacks x 2 QIs x 5 samples x 9 epsilons x 3 generators, cdc_diabetes size_1000 ==="
@@ -63,10 +80,10 @@ SWEEP_DATA_ROOT=${RECON_DATA_ROOT}/cdc_diabetes/size_1000 \
 SWEEP_N_SAMPLES=5 \
 SWEEP_QI_VARIANTS="QI1,QI_large" \
 SWEEP_WANDB_GROUP="new-dp-epsilon-sweep-cdc-1k" \
-taskset -c 0-23 python experiment_scripts/run_new_dp_epsilon_sweep.py \
+$PIN python experiment_scripts/run_new_dp_epsilon_sweep.py \
   --sdg-methods MST PrivBayes PrivSyn \
   --samples 0 1 2 3 4 \
-  --workers 12
+  --workers "$WORKERS"
 
 echo ""
 echo "=== STEP 3: insert results into results.db ==="

@@ -16,7 +16,8 @@ Two-step usage:
     Step 2 — Generate synthetic data (after verifying samples):
         python sdg/generate_synth.py sdg
 
-    Runs in background by default, logging to sdg_log.txt in the dataset's size dir.
+    Runs in the foreground, also logging to sdg_log.txt in the dataset's size dir.
+    To detach:  nohup python sdg/generate_synth.py sdg &
     Tail progress with:  tail -f $RECON_DATA_ROOT/adult/size_1000/sdg_log.txt
 
 Single-job mode (called internally by sdg step):
@@ -85,13 +86,17 @@ FEATURE_SUBSET = None
 # ]
 
 # Which samples to generate SDG for (0-indexed).
-SAMPLES_TO_GENERATE = range(5)
+# Which samples step 2 generates for. This is separate from NUM_SAMPLES above,
+# which governs how many step 1 creates -- when SDG_NUM_SAMPLES is set the two
+# are meant to agree, so follow it.
+SAMPLES_TO_GENERATE = (range(NUM_SAMPLES) if os.environ.get("SDG_NUM_SAMPLES")
+                       else range(5))
 #SAMPLES_TO_GENERATE = range(5, 10)
 #SAMPLES_TO_GENERATE = [4]
 
 # Max parallel SDG jobs per sample.
 # GPU methods (TVAE, CTGAN, ARF, TabDDPM) share GPU memory — tune accordingly.
-MAX_WORKERS = 2
+MAX_WORKERS = int(os.environ.get("SDG_MAX_WORKERS", 2))
 
 # Column metadata — loaded from meta.json next to full_data.csv
 META_PATH = DATA_ROOT / DATASET / "meta.json"
@@ -255,6 +260,38 @@ if DATASET not in _SDG_JOBS_BY_DATASET:
     )
 
 SDG_JOBS = _SDG_JOBS_BY_DATASET[DATASET]
+
+
+def _parse_job_spec(spec):
+    """Parse "MST:1,MST:10,AIM:1,TVAE" into [(method, config), ...].
+
+    A bare name means no parameters; NAME:EPS sets that epsilon. This exists so
+    the artifact's documented commands can pick a generator set without editing
+    the lists above, which record whatever the authors last ran by hand.
+    """
+    jobs = []
+    for item in spec.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if ":" in item:
+            name, eps = item.split(":", 1)
+            jobs.append((name.strip(), {"epsilon": float(eps)}))
+        else:
+            jobs.append((item, {}))
+    return jobs
+
+
+if os.environ.get("SDG_JOBS"):
+    SDG_JOBS = _parse_job_spec(os.environ["SDG_JOBS"])
+    # MST and AIM estimate continuous bounds privately, which fails on skewed
+    # columns at small epsilon (see the per-dataset notes above); every entry in
+    # the lists above that uses those two sets this flag, so the artifact's
+    # commands need a way to set it as well.
+    if os.environ.get("SDG_BIN_CONTINUOUS"):
+        SDG_JOBS = [(m, {**c, "bin_continuous_as_ordinal": True})
+                    if "epsilon" in c else (m, c)
+                    for m, c in SDG_JOBS]
 
 
 def _base_dir() -> Path:

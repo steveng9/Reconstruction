@@ -14,45 +14,65 @@ where:
 
 from .smartnoise_methods import mst_generate, aim_generate
 
+
+def _unavailable(name, err):
+    """Placeholder for an SDG method whose optional dependency is missing.
+
+    `except ImportError as _e` unbinds _e when the block ends, so a fallback
+    that closes over _e directly raises NameError -- hiding the real reason the
+    method is missing. Passing the exception in as an argument keeps it alive.
+    """
+    def _fn(*a, **kw):
+        raise ImportError(f"{name} unavailable: {err}") from err
+    return _fn
+
+
 try:
     from .privbayes_method import privbayes_generate
 except ImportError as _e:
-    def privbayes_generate(*a, **kw):
-        raise ImportError(f"PrivBayes unavailable: {_e}") from _e
+    privbayes_generate = _unavailable("PrivBayes", _e)
 
 try:
     from .mwem_pgm_method import mwem_pgm_generate
 except ImportError as _e:
-    def mwem_pgm_generate(*a, **kw):
-        raise ImportError(f"MWEM+PGM unavailable: {_e}") from _e
+    mwem_pgm_generate = _unavailable("MWEM+PGM", _e)
 
 try:
     from .private_gsd_method import private_gsd_generate
 except ImportError as _e:
-    def private_gsd_generate(*a, **kw):
-        raise ImportError(f"Private-GSD unavailable: {_e}") from _e
+    private_gsd_generate = _unavailable("Private-GSD", _e)
 
 try:
     from .privsyn_method import privsyn_generate
 except ImportError as _e:
-    def privsyn_generate(*a, **kw):
-        raise ImportError(f"PrivSyn unavailable: {_e}") from _e
+    privsyn_generate = _unavailable("PrivSyn", _e)
 
 try:
     from .tvae_method import tvae_generate
 except ImportError as _e:
-    def tvae_generate(*a, **kw):
-        raise ImportError(f"TVAE unavailable (SDV API mismatch): {_e}") from _e
+    tvae_generate = _unavailable("TVAE (SDV API mismatch)", _e)
 
 try:
     from .ctgan_method import ctgan_generate
 except ImportError as _e:
-    def ctgan_generate(*a, **kw):
-        raise ImportError(f"CTGAN unavailable: {_e}") from _e
+    ctgan_generate = _unavailable("CTGAN", _e)
 
-from .arf_method import arf_generate
-from .tabddpm_method import tabddpm_generate
-from .r_methods import synthpop_generate, rankswap_generate, cellsuppression_generate
+try:
+    from .arf_method import arf_generate
+except ImportError as _e:
+    arf_generate = _unavailable("ARF (needs synthcity)", _e)
+
+try:
+    from .tabddpm_method import tabddpm_generate
+except ImportError as _e:
+    tabddpm_generate = _unavailable("TabDDPM", _e)
+
+try:
+    from .r_methods import synthpop_generate, rankswap_generate, cellsuppression_generate
+except ImportError as _e:
+    synthpop_generate = _unavailable("Synthpop (needs rpy2 and R)", _e)
+    rankswap_generate = _unavailable("RankSwap (needs rpy2 and R)", _e)
+    cellsuppression_generate = _unavailable("CellSuppression (needs rpy2 and R)", _e)
 
 
 SDG_REGISTRY = {

@@ -66,9 +66,13 @@ from results_db import ResultsDB
 #DATASET_NAME  = "adult"   # QI lookup key — change with N_FEATURES
 #DATASET_BASE  = "california"
 #DATASET_NAME  = "california"   # QI lookup key — change with N_FEATURES
-DATASET_BASE  = "cdc_diabetes"
-DATASET_NAME  = "cdc_diabetes"
-DATASET_SIZE  = 1_000
+# These three are overridable from the environment so the artifact's documented
+# commands are one-liners rather than "edit this file first":
+#     SWEEP_DATASET=adult SWEEP_DATASET_SIZE=10000 python experiment_scripts/run_production_sweep.py
+# Unset, they keep the values the authors last ran with.
+DATASET_BASE  = os.environ.get("SWEEP_DATASET", "cdc_diabetes")
+DATASET_NAME  = os.environ.get("SWEEP_DATASET_NAME", DATASET_BASE)
+DATASET_SIZE  = int(os.environ.get("SWEEP_DATASET_SIZE", 1_000))
 #N_FEATURES    = 25                      # None | 25 | 50
 N_FEATURES    = None                      # None | 25 | 50
 DATA_ROOT     = (
@@ -198,6 +202,39 @@ ATTACK_CONFIGS = [
 
 
 ]
+
+# ── Overrides for the artifact's documented commands ──────────────────────────
+# The two lists above record whatever the authors last ran by hand -- most of
+# their entries are commented out, and SDG_METHODS is assigned twice (the second
+# assignment wins). Rather than disturb that, the artifact's experiments select
+# what they need from the environment:
+#
+#   SWEEP_SDG_METHODS="MST:1,MST:10,MST:100,AIM:1"
+#   SWEEP_ATTACKS="Mode,KNN,RandomForest,NaiveBayes,CoBP-RA"
+#
+# A bare name means no parameters; NAME:EPS sets that epsilon.
+
+def _parse_pairs(spec):
+    out = []
+    for item in spec.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if ":" in item:
+            name, eps = item.split(":", 1)
+            out.append((name.strip(), {"epsilon": float(eps)}))
+        else:
+            out.append((item, {}))
+    return out
+
+
+if os.environ.get("SWEEP_SDG_METHODS"):
+    SDG_METHODS = _parse_pairs(os.environ["SWEEP_SDG_METHODS"])
+if os.environ.get("SWEEP_ATTACKS"):
+    ATTACK_CONFIGS = _parse_pairs(os.environ["SWEEP_ATTACKS"])
+if os.environ.get("SWEEP_N_SAMPLES"):
+    SAMPLE_RANGE = list(reversed(range(int(os.environ["SWEEP_N_SAMPLES"]))))
+
 
 # ATTACK_PARAM_DEFAULTS is imported from attack_defaults.py (repo root) at the top of this file.
 # Explicitly passed params in ATTACK_CONFIGS override those defaults; the merged result
