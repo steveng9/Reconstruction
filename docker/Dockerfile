@@ -4,16 +4,18 @@
 # This is the image artifact reviewers should use. It covers every stage of the
 # pipeline that runs on CPU in reasonable time:
 #   * generating synthetic data with the CPU DP generators (MST, AIM, PrivBayes,
-#     PrivSyn, MWEM-PGM, Private-GSD) -- each verified to produce a synthetic
-#     frame in this image
+#     PrivSyn, MWEM-PGM, Private-GSD) and with TabDDPM, which shares the
+#     diffusion attacks' torch stack and so runs here too, slowly. Each was
+#     verified to produce a synthetic frame in this image; run
+#     experiment_scripts/verify_registries.py to check for yourself.
 #   * running every attack in the registry, including the diffusion-based ones
 #     (CondDDPM, CondRePaint, RePaint), on that synthetic data
 #   * regenerating the paper's tables and figures from the shipped results.db
 #
 # Two things are deliberately NOT here:
 #   * LinearReconstruction, which needs a licensed Gurobi (gurobipy);
-#   * the GPU generators (TVAE, CTGAN, ARF, TabDDPM) and the R-based ones
-#     (Synthpop, RankSwap, CellSuppression) -- see docker/Dockerfile.full.
+#   * the GPU generators TVAE, CTGAN and ARF, and the R-based ones (Synthpop,
+#     RankSwap, CellSuppression) -- see docker/Dockerfile.full.
 # All degrade gracefully: an attack or generator whose dependencies are absent
 # raises a clear ImportError naming the missing package, rather than breaking
 # the registry it belongs to.

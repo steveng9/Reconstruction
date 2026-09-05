@@ -319,6 +319,34 @@ The CoBP-RA number varies by a few tenths between runs (the attack's random
 forests are not seeded identically across platforms); anything comfortably above
 the 33.88 baseline is a pass.
 
+### Checking what this environment actually supports
+
+`test.sh` runs two attacks. To see which of the attacks and generators genuinely
+work in the environment you have — rather than which merely import — run:
+
+```bash
+python experiment_scripts/verify_registries.py          # both registries
+python experiment_scripts/verify_registries.py attacks  # attacks only
+```
+
+Every attack is run against the dummy dataset and every generator is asked for a
+small synthetic frame, with training budgets cut to the minimum that still
+exercises each code path. In the light image this takes about fifteen minutes
+and ends with **24 of 29 attacks and 7 of 13 generators running**. The rest fail
+with an ImportError naming the dependency they need, which is the expected
+result for that image:
+
+* the three `LinearReconstruction` variants need a Gurobi licence;
+* `TVAE`, `CTGAN` and `ARF` need SDV / SynthCity, and `Synthpop`, `RankSwap` and
+  `CellSuppression` need R — all six are in the full image;
+* the `Mean` baseline is a continuous-data baseline registered for categorical
+  data as well, and cannot average string-valued categories. The paper's
+  datasets are numerically coded, where it works as intended.
+
+Thirteen further attacks are continuous-data-only and cannot be exercised by the
+categorical dummy dataset; the script lists them rather than counting them as
+failures.
+
 ## Artifact Evaluation
 
 ### Main Results and Claims
