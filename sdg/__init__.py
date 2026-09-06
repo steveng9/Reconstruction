@@ -24,7 +24,23 @@ def _unavailable(name, err):
     """
     def _fn(*a, **kw):
         raise ImportError(f"{name} unavailable: {err}") from err
+    # Tagged so callers can ask whether a registry entry is real without calling
+    # it. generate_synth.py uses this to route a job to whichever environment
+    # actually has the method (see _interpreter_for there).
+    _fn._sdg_unavailable = f"{name}: {err}"
     return _fn
+
+
+# MST and AIM import fine without mbi -- smartnoise only needs it when the
+# synthesizer actually runs, and the ImportError it raises then carries no
+# message at all, so the failure says nothing about what is missing. Check for
+# mbi up front and register the same placeholder the other methods use, which
+# names the dependency.
+try:
+    import mbi as _mbi  # noqa: F401
+except ImportError as _e:
+    mst_generate = _unavailable("MST (needs mbi, from private-pgm)", _e)
+    aim_generate = _unavailable("AIM (needs mbi, from private-pgm)", _e)
 
 
 try:

@@ -30,6 +30,7 @@ import json
 import time
 import logging
 import subprocess
+import shutil
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -474,6 +475,81 @@ def do_sdg():
     log("All done!")
 
 
+# ------------------------------------------------------------------
+#  Which interpreter can actually run a given generator
+# ------------------------------------------------------------------
+# The full Docker image splits the generators across two conda environments on
+# purpose: the DP stack (MST, AIM, PrivBayes, MWEM-PGM, PrivSyn, Private-GSD)
+# needs numpy < 2, and the GPU/R stack (TVAE, CTGAN, ARF, TabDDPM, Synthpop,
+# RankSwap, CellSuppression) needs numpy >= 2. Installing both in one
+# environment upgrades numpy and takes torch down with it -- tested, it breaks
+# four generators.
+#
+# Rather than make the caller know which environment holds which generator, look
+# it up. sdg/__init__.py tags the placeholder it registers for a method whose
+# dependency is missing, so an unusable entry is recognisable without calling it.
+# When this interpreter has only a placeholder, ask each sibling conda
+# environment whether it has the real thing, and run the job there. Outside a
+# multi-environment image there are no siblings and this changes nothing.
+_ENV_FOR_METHOD = {}
+
+
+def _sibling_conda_envs():
+    """Conda environments alongside this one, newest-listed first."""
+    conda = os.environ.get("CONDA_EXE") or shutil.which("conda")
+    if not conda:
+        return []
+    here = os.environ.get("CONDA_DEFAULT_ENV")
+    try:
+        out = subprocess.run([conda, "env", "list", "--json"],
+                             capture_output=True, text=True, timeout=60)
+        envs = json.loads(out.stdout)["envs"]
+    except Exception:
+        return []
+    names = [os.path.basename(e) for e in envs]
+    return [n for n in names if n and n != here and n != "base"]
+
+
+def _method_available_in(env, method):
+    """Does conda environment `env` register a working `method`?"""
+    conda = os.environ.get("CONDA_EXE") or shutil.which("conda")
+    probe = (
+        "import sys; sys.path.insert(0, %r); from sdg import get_sdg; "
+        "sys.exit(1 if hasattr(get_sdg(%r), '_sdg_unavailable') else 0)"
+        % (str(REPO_ROOT), method)
+    )
+    try:
+        return subprocess.run([conda, "run", "-n", env, "python", "-c", probe],
+                              capture_output=True, timeout=300).returncode == 0
+    except Exception:
+        return False
+
+
+def _interpreter_for(method):
+    """argv prefix that can run `method` -- this interpreter unless it cannot."""
+    if method in _ENV_FOR_METHOD:
+        return _ENV_FOR_METHOD[method]
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from sdg import get_sdg
+    if not hasattr(get_sdg(method), "_sdg_unavailable"):
+        _ENV_FOR_METHOD[method] = [sys.executable]
+        return _ENV_FOR_METHOD[method]
+
+    for env in _sibling_conda_envs():
+        if _method_available_in(env, method):
+            log(f"  [ROUTE] {method} is not in this environment; running it in '{env}'")
+            _ENV_FOR_METHOD[method] = ["conda", "run", "--no-capture-output",
+                                       "-n", env, "python"]
+            return _ENV_FOR_METHOD[method]
+
+    # Nowhere to route to: run it here so the job fails with the registry's own
+    # message, which names the dependency that is missing.
+    _ENV_FOR_METHOD[method] = [sys.executable]
+    return _ENV_FOR_METHOD[method]
+
+
+
 def launch_sdg_jobs(sample_idx):
     """Launch all SDG jobs for one sample in parallel, wait for completion."""
     sys.path.insert(0, str(REPO_ROOT))
@@ -523,8 +599,8 @@ def launch_sdg_jobs(sample_idx):
         job_log = job_log_dir / "sdg.log"
         job_log_fh = open(job_log, "w")
 
-        cmd = [
-            sys.executable, script, "--job",
+        cmd = _interpreter_for(method) + [
+            script, "--job",
             method, train_csv, output_csv,
             json.dumps(_effective_meta()), json.dumps(config),
         ]

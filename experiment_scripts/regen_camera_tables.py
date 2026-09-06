@@ -65,8 +65,27 @@ def _require(path: Path) -> Path:
     return Path(path)
 
 
+def _connect_for_reading(path):
+    """Open the results database without needing to write next to it.
+
+    `results.db` is in WAL mode, and reading a WAL database means creating a
+    `-shm` and a `-wal` file beside it -- so an ordinary read fails with
+    "attempt to write a readonly database" whenever the repository is mounted
+    somewhere the current user cannot write. That is the normal case inside a
+    container whose user id does not match the host's. Regenerating tables only
+    ever reads, so fall back to opening the file as immutable, which tells
+    SQLite to skip the WAL and the locking entirely.
+    """
+    try:
+        con = sqlite3.connect(path)
+        con.execute("SELECT 1 FROM runs LIMIT 1").fetchone()
+        return con
+    except sqlite3.Error:
+        return sqlite3.connect(f"file:{Path(path).resolve()}?immutable=1", uri=True)
+
+
 def load_runs() -> pd.DataFrame:
-    con = sqlite3.connect(DB)
+    con = _connect_for_reading(DB)
     df = pd.read_sql("SELECT dataset,dataset_size,sample,qi,sdg_method,attack_label,split,ra_mean,run_id,confidence FROM runs", con)
     con.close()
     # `MarginalRF` is the pre-2026-06 label for `CoBP-RA` (same attack). 92 cells carry

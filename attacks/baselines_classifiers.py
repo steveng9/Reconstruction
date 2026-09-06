@@ -2,6 +2,7 @@ import sys
 
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
 from os import listdir
 from os.path import isfile, join
 from sklearn.neighbors import NearestNeighbors
@@ -96,7 +97,21 @@ def random_baseline(cfg, deid, targets, qi, hidden_features):
 
 
 def mean_baseline(cfg, deid, targets, qi, hidden_features):
-    # TODO: mean won't work for discrete values. Fix this somehow.
+    """Predict every hidden feature as its column mean in the released data.
+
+    A mean is only defined over numbers. The paper's datasets code every
+    categorical feature as an integer, so this runs there; on a dataset whose
+    categories are strings there is no meaningful mean, and pandas would raise a
+    TypeError about concatenating the category labels. Say what is actually
+    wrong instead, and name Mode as the baseline that does apply.
+    """
+    non_numeric = [f for f in hidden_features
+                   if not is_numeric_dtype(deid[f])]
+    if non_numeric:
+        raise ValueError(
+            "Mean is defined only for numerically coded features; "
+            f"{', '.join(non_numeric)} hold non-numeric categories. "
+            "Use the Mode baseline for string-valued categorical data.")
     reconstructed_targets = targets.copy()
     for hidden_feature in hidden_features:
         reconstructed_targets[hidden_feature] = deid[hidden_feature].mean()

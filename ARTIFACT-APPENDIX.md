@@ -184,7 +184,7 @@ reduced-scale experiments below are provided instead.
 
 | Task | Human time | Compute time | Disk |
 |---|---|---|---|
-| Clone (with submodules) + build the light Docker image | 5 min | 10–15 min | ~5.6 GB |
+| Clone (with submodules) + build the light Docker image | 5 min | 10–15 min | ~8.4 GB |
 | `./test.sh` (full smoke test) | 1 min | ~2 min | negligible |
 | Experiment 1 — regenerate all paper tables and figures | 2 min | ~1 min | <10 MB |
 | Experiment 2 — attack vs. baseline on the dummy dataset | 2 min | ~1 min | negligible |
@@ -192,10 +192,13 @@ reduced-scale experiments below are provided instead.
 | Experiment 4 — reduced-scale ε sweep (Adult) | 10 min | ~50 min | ~200 MB |
 
 The repository itself is ~93 MB tracked (dominated by the 68 MB `results.db`),
-plus ~90 MB for the two submodules. The light image is 5.6 GB of layers, and
-Docker's build cache adds a few GB more while the build runs, so budget
-**about 10 GB of free disk**. Nothing here requires the 50 GB-class hosting
-discussed in the PoPETs FAQ.
+plus ~90 MB for the two submodules. Two numbers get quoted for a Docker image and
+they differ: the light image is 5.6 GB of layers -- what a registry transfers --
+but `docker images` reports 8.4 GB, which is what it occupies unpacked on disk.
+The build cache adds several GB more while the build runs, so budget **about 20
+GB of free disk** for the light image, or **about 45 GB** if you also build the
+full one. Nothing here requires the 50 GB-class hosting discussed in the PoPETs
+FAQ.
 
 These figures are measured, not estimated: the light image was built and
 `./test.sh` was run inside it on Ubuntu 22.04 (kernel 5.15), 24 physical cores,
@@ -228,8 +231,15 @@ repositories that carry no explicit licence documented candidly in
 ```bash
 git clone --recurse-submodules https://github.com/steveng9/Reconstruction.git
 cd Reconstruction
-docker build -f docker/Dockerfile -t recon-artifact:latest .
+docker build -f docker/Dockerfile --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t recon-artifact:latest .
 ```
+
+The two `--build-arg` flags matter. The image runs as a non-root user, and the
+repository is mounted from the host, so that user has to be *you* or it cannot
+write the files the experiments produce. Without them the user is 1000:1000,
+which is right only if your own ids happen to be 1000. (Experiment 1 is
+unaffected either way -- it opens `results.db` read-only -- but Experiments 3 and
+4 write generated data and results, and would fail.)
 
 If you cloned without `--recurse-submodules`:
 
@@ -258,20 +268,40 @@ Only if you need the GPU-oriented generators (TVAE, CTGAN, ARF, TabDDPM) or the
 R-based ones (Synthpop, RankSwap, CellSuppression) do you need the larger image:
 
 ```bash
-docker build -f docker/Dockerfile.full -t recon-artifact:full .
+docker build -f docker/Dockerfile.full --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t recon-artifact:full .
 ```
 
-That image is ~16 GB and takes considerably longer to build. It was verified by
-building and running it: R 4.5.3 with `synthpop` and `sdcMicro` reachable through
-`rpy2`, all 13 SDG methods registering, and the attack environment unaffected.
+That image takes considerably longer to build, and `docker images` reports it as
+23.1 GB (the sum of its layers, which is what a registry transfers, is ~16 GB).
+It was verified by building and running it: R 4.5.3 with `synthpop` and
+`sdcMicro` reachable through `rpy2`, all 13 SDG methods generating, and the
+attack environment unaffected. The build itself now checks the second of those
+-- it loads R through `rpy2` and `torch` in the attack environment before the
+image is finished -- so a build that would produce a broken image fails instead.
 
-Two notes on it. R comes from conda-forge rather than the distribution, because
+Start it the same way, with `recon-artifact:full` in place of
+`recon-artifact:latest`. It holds two conda environments: `recon_` (Python 3.9)
+for the attacks, scoring and table regeneration, and `sdg` (Python 3.10) for the
+GPU-oriented and R generators. They are separate because they cannot be merged:
+the DP generator stack pins `numpy < 2` and the SDV / SynthCity stack pins
+`numpy >= 2`, and installing both in one environment upgrades numpy and breaks
+`torch`. You do not have to keep track of which generator lives where --
+`sdg/generate_synth.py` detects when the environment it was started in cannot
+provide a generator and runs that job in the one that can:
+
+```bash
+conda run -n recon_ python sdg/generate_synth.py sdg     # any generator
+```
+
+Three notes on it. R comes from conda-forge rather than the distribution, because
 Debian bookworm ships R 4.2.2 and `rpy2` 3.6.4 requires R >= 4.5. As a result the
 R packages are conda-forge's (`synthpop` 1.9.2, `sdcMicro` 5.8.2), which are
 newer than the versions used when the paper's synthetic data was generated; no
 number in the paper comes from this image, but synthetic data regenerated with it
-will not be bit-identical to ours. And none of the evaluated experiments need
-this image -- Experiments 1 through 4 all run in the light one.
+will not be bit-identical to ours. Both images are `linux/amd64` only: the
+attack environment pins `torch==1.13.1+cu117`, which has no arm64 build, so on
+Apple Silicon they run under emulation and slowly. And none of the evaluated
+experiments need this image -- Experiments 1 through 4 all run in the light one.
 
 ### Testing the Environment
 
@@ -331,21 +361,37 @@ python experiment_scripts/verify_registries.py attacks  # attacks only
 
 Every attack is run against the dummy dataset and every generator is asked for a
 small synthetic frame, with training budgets cut to the minimum that still
-exercises each code path. In the light image this takes about fifteen minutes
-and ends with **24 of 29 attacks and 7 of 13 generators running**. The rest fail
-with an ImportError naming the dependency they need, which is the expected
-result for that image:
+exercises each code path. In the light image this takes about twenty minutes and
+ends with **25 of the 28 attacks and 7 of the 12 generators** running (the rebuilt
+full image runs the same 25 attacks). Whatever does not run reports an
+ImportError naming the dependency it needs, which for the light image means:
 
-* the three `LinearReconstruction` variants need a Gurobi licence;
+* the three `LinearReconstruction` variants need a Gurobi licence (see
+  *Limitations* for how to enable them if you have one);
 * `TVAE`, `CTGAN` and `ARF` need SDV / SynthCity, and `Synthpop`, `RankSwap` and
-  `CellSuppression` need R — all six are in the full image;
-* the `Mean` baseline is a continuous-data baseline registered for categorical
-  data as well, and cannot average string-valued categories. The paper's
-  datasets are numerically coded, where it works as intended.
+  `CellSuppression` need R — all six are in the full image.
 
-Thirteen further attacks are continuous-data-only and cannot be exercised by the
-categorical dummy dataset; the script lists them rather than counting them as
-failures.
+Two further things are reported as skipped rather than failed, because they are
+facts about the dummy dataset rather than about the environment. The `Mean`
+baseline averages the released column, which needs numbers, and the dummy
+dataset spells its categories out as words; every dataset in the paper codes
+them as integers, where `Mean` runs. `RankSwap` swaps values between adjacent
+ranks and so needs at least one continuous column, which the dummy dataset does
+not have. Thirteen attacks are continuous-data-only for the same reason, and the
+script lists them instead of counting them as failures.
+
+In the full image, run the generator half once in each environment:
+
+```bash
+conda run -n recon_ python experiment_scripts/verify_registries.py
+conda run -n sdg    python experiment_scripts/verify_registries.py sdg
+```
+
+Each environment holds part of the set — `recon_` runs AIM, MST, MWEM-PGM,
+PrivBayes, PrivSyn, Private-GSD and TabDDPM; `sdg` runs ARF, CTGAN, TVAE,
+TabDDPM, Synthpop and CellSuppression — and between them every generator runs.
+This split matters only to this script: `sdg/generate_synth.py` routes each job
+to the environment that can run it, so real generation needs one command.
 
 ## Artifact Evaluation
 
@@ -553,10 +599,31 @@ limitations below concern everything beyond that.
    California Housing are freely scriptable and cover the majority of results.
    `data/dummy/` stands in for format and pipeline purposes.
 
-2. **LinearReconstruction needs Gurobi.** The LP solver requires a Gurobi licence
-   (free for academics, but it must be requested and activated), so `gurobipy` is
-   not in the Docker images. The LinearReconstruction rows of the comparison
-   tables cannot be regenerated without it. Every other attack is unaffected.
+2. **LinearReconstruction needs Gurobi.** This attack solves the reconstruction
+   as a linear program, and the solver it uses is commercial. Gurobi is free for
+   academics, but the licence has to be requested and activated per machine, and
+   it cannot be redistributed inside a container image — so `gurobipy` is not
+   installed and the three `LinearReconstruction` variants report that they are
+   unavailable. Nothing else in the artifact depends on it, and every other
+   attack is unaffected.
+
+   A reviewer who already has, or obtains, an academic licence can enable it
+   without rebuilding anything:
+
+   ```
+   # 1. Request a free academic licence at https://www.gurobi.com/academia/
+   # 2. Install the licence on the host; this writes ~/gurobi.lic
+   grbgetkey <your-licence-key>
+   # 3. Install the Python bindings and mount the licence into the container
+   docker run --rm -it -v "${PWD}":/workspace -w /workspace -v "$HOME/gurobi.lic":/opt/gurobi/gurobi.lic:ro -e GRB_LICENSE_FILE=/opt/gurobi/gurobi.lic recon-artifact:latest bash
+   pip install --user gurobipy==11.0.3
+   python experiment_scripts/verify_registries.py attacks
+   ```
+
+   The three `LinearReconstruction` rows then run, and the attack becomes
+   available to `master_experiment_script.py` and the sweep scripts like any
+   other. Note that the academic licence is single-machine and does not permit
+   use on a shared cluster node.
 
 3. **The full sweep is far too long for an evaluation window.** Reproducing all
    49,126 runs from raw data takes CPU-weeks. This is why the scored results ship

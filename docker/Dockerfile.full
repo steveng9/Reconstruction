@@ -97,18 +97,34 @@ c.predict(np.random.rand(5, 3))" \
 #    explicitly and both invocations work.
 # 3. pycox (a synthcity dependency) mkdirs inside site-packages on import, which
 #    fails for the non-root user the image runs as. Create it at build time.
-# The libstdc++ filename carries its version, and conda picks that version, so
-# it must be discovered rather than hard-coded: `ln -sf` to a name that does not
-# exist silently creates a dangling link, which would break every C++ binary in
-# the image with no build error. Resolve the newest match and fail the build
-# loudly if there is none.
+# Note on (1): nothing here is missing. Every conda environment ships its own
+# libstdc++, all newer than Debian's; what is wrong is only which copy the loader
+# picks. Debian cannot supply a fix either -- bookworm's newest is 6.0.30 (GCC 12)
+# and CXXABI_1.3.15 first appears in GCC 13 -- so retargeting the system SONAME
+# at the newest copy already in the image is the fix, not a workaround.
+#
+# Two details keep that from rotting. The newest copy is discovered across every
+# environment rather than hard-coded, since conda chooses the version and puts it
+# in the filename. And the check afterwards is functional rather than a file
+# test: `test -f` only proves the link is not dangling, so instead both
+# environments load the things that actually depend on this -- R through rpy2 in
+# sdg (which needs the newer CXXABI) and torch in recon_ (which must keep working
+# against the older one). A future rebuild that picks a libstdc++ satisfying one
+# but not the other stops the build here with the real error, instead of shipping
+# an image that fails the first time a reviewer runs it.
 RUN set -eux; \
-    libcxx="$(ls -1 /opt/conda/envs/sdg/lib/libstdc++.so.6.0.* | sort -V | tail -1)"; \
-    test -f "$libcxx"; \
+    libcxx="$(for f in /opt/conda/lib/libstdc++.so.6.0.* /opt/conda/envs/*/lib/libstdc++.so.6.0.*; do \
+                  if [ -f "$f" ]; then printf '%s %s\n' "${f##*.}" "$f"; fi; \
+              done | sort -n | tail -1 | cut -d' ' -f2)"; \
+    test -n "$libcxx"; \
+    echo "system libstdc++ -> $libcxx"; \
     ln -sfn "$libcxx" /lib/x86_64-linux-gnu/libstdc++.so.6; \
-    test -f /lib/x86_64-linux-gnu/libstdc++.so.6; \
     mkdir -p /opt/conda/envs/sdg/lib/python3.10/site-packages/pycox/datasets/data; \
-    chmod -R a+rwX /opt/conda/envs/sdg/lib/python3.10/site-packages/pycox/datasets
+    chmod -R a+rwX /opt/conda/envs/sdg/lib/python3.10/site-packages/pycox/datasets; \
+    R_HOME=/opt/conda/envs/sdg/lib/R conda run --no-capture-output -n sdg \
+        python -c "import rpy2.robjects as r; print('rpy2 ->', r.r('R.version.string')[0])"; \
+    conda run --no-capture-output -n recon_ \
+        python -c "import torch; print('torch ->', torch.__version__)"
 
 ENV R_HOME=/opt/conda/envs/sdg/lib/R
 

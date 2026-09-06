@@ -112,15 +112,30 @@ def check_attacks():
     scratch = str(Path(tmp) / "sample_00")
     shutil.copytree(str(SAMPLE), scratch)
 
+    # Mean averages the released column, which needs numbers. Every dataset in
+    # the paper codes its categories as integers, so it runs there; the dummy
+    # dataset spells its categories out, so there is nothing here to average.
+    # Same situation as the continuous-only attacks below, reported the same way.
+    numeric_only = [n for n in sorted(runnable) if n == "Mean"]
+    for n in numeric_only:
+        runnable.pop(n)
+
+    # Two of the three LP attacks reconstruct one attribute per solve and reject
+    # a multi-feature request outright; the paper drives them one feature at a
+    # time. Give them one, or they fail here for a reason that has nothing to do
+    # with the environment.
+    single_feature = {"LinearReconstruction", "LinearReconstructionCategorical"}
+
     print(f"\n=== attacks ({len(runnable)} runnable on categorical data) ===")
     passed = failed = 0
     for name in sorted(runnable):
         t0 = time.time()
+        want = hidden[:1] if name in single_feature else hidden
         try:
-            out = runnable[name](_cfg_for(name), synth, targets, qi, hidden)
+            out = runnable[name](_cfg_for(name), synth, targets, qi, want)
             recon = out[0] if isinstance(out, tuple) else out
             ok = recon is not None and len(recon) == len(targets)
-            detail = f"reconstructed {len(recon)}x{len(hidden)}" if ok else "empty result"
+            detail = f"reconstructed {len(recon)}x{len(want)}" if ok else "empty result"
         except Exception as e:
             ok, detail = False, f"{type(e).__name__}: {str(e)[:90]}"
         if _row(name, ok, detail, time.time() - t0):
@@ -130,6 +145,9 @@ def check_attacks():
 
     shutil.rmtree(tmp, ignore_errors=True)
 
+    for name in numeric_only:
+        print(f"  skip  {name:<28}    -    needs numerically coded categories; "
+              "the dummy dataset spells them out")
     if cont_only:
         print(f"  -- {len(cont_only)} continuous-only attacks not exercised by the "
               f"categorical dummy dataset: {', '.join(cont_only)}")
@@ -143,6 +161,12 @@ GENERATOR_QUICK = {
     "TVAE": {"epochs": 2},
     "CTGAN": {"epochs": 2},
 }
+
+# RankSwap swaps values between records of adjacent rank, so it needs at least
+# one continuous column. The dummy dataset is entirely categorical/ordinal, so
+# there is nothing here for it to swap -- report it as skipped, the same way
+# continuous-only attacks are, rather than as an environment failure.
+SDG_CONTINUOUS_ONLY = ("RankSwap",)
 
 
 def check_sdg():
@@ -158,12 +182,22 @@ def check_sdg():
     folded = {"categorical": meta["categorical"] + meta["ordinal"],
               "continuous": meta["continuous"], "ordinal": []}
 
-    print(f"\n=== generators ({len(SDG_REGISTRY)}) ===")
+    # CellSuppression k-anonymises a caller-chosen set of quasi-identifiers and
+    # has no default for them, so it needs an explicit list to run at all.
+    cell_keys = meta["categorical"][:3]
+
+    runnable = [n for n in sorted(SDG_REGISTRY) if n not in SDG_CONTINUOUS_ONLY]
+    skipped = [n for n in sorted(SDG_REGISTRY) if n in SDG_CONTINUOUS_ONLY]
+
+    print(f"\n=== generators ({len(runnable)} runnable here"
+          + (f", {len(skipped)} need continuous data)" if skipped else ")") + " ===")
     passed = failed = 0
-    for name in sorted(SDG_REGISTRY):
+    for name in runnable:
         t0 = time.time()
         cfg = {"epsilon": 10.0} if name in (
             "MST", "AIM", "PrivBayes", "MWEMPGM", "PrivSyn", "PrivateGSD") else {}
+        if name == "CellSuppression":
+            cfg["key_vars"] = cell_keys
         # As with the attacks: exercise the code path, do not train to quality.
         # TabDDPM defaults to 10,000 iterations, which is many minutes on CPU.
         cfg.update(GENERATOR_QUICK.get(name, {}))
@@ -178,6 +212,9 @@ def check_sdg():
             passed += 1
         else:
             failed += 1
+    for name in skipped:
+        print(f"  skip  {name:<28}    -    needs a continuous column; the dummy "
+              "dataset has none")
     return passed, failed
 
 
