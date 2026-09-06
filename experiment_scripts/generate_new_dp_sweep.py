@@ -53,6 +53,21 @@ def _sdg_dirname(method, eps):
     return f"{method}_eps{eps:g}"
 
 
+# MST and AIM estimate the bounds of a continuous column under the privacy
+# budget, and on CDC Diabetes (BMI, MentHlth, PhysHlth) that estimate fails at
+# epsilon=0.1 with "BinTransformer could not find bounds" -- so the smallest
+# epsilon of the sweep silently produced nothing. Bin those columns as ordinals
+# first, which is how these releases have always been generated here:
+# run_artifact_experiment3.sh sets the same flag for MST and AIM.
+_NEEDS_BINNED_CONTINUOUS = {"MST", "AIM"}
+
+
+def _extra_config(method):
+    if method in _NEEDS_BINNED_CONTINUOUS:
+        return {"bin_continuous_as_ordinal": True}
+    return {}
+
+
 def _job_list(samples, methods, epsilons, data_root, meta_path):
     jobs = []
     for s in samples:
@@ -84,7 +99,7 @@ def run_one(job):
     else:
         gen = get_sdg(method)
         t0 = time.time()
-        synth_df = gen(train_df, meta, epsilon=eps)
+        synth_df = gen(train_df, meta, epsilon=eps, **_extra_config(method))
         elapsed = time.time() - t0
         out_dir.mkdir(parents=True, exist_ok=True)
         synth_df.to_csv(out_csv, index=False)
