@@ -521,6 +521,11 @@ def main():
     if args.attack is not None:
         all_jobs = [j for j in all_jobs if j.attack_method == args.attack]
 
+    # outfiles/ is gitignored, so it exists on a machine that has run a sweep
+    # before and not in a fresh clone. Create it rather than failing on the
+    # progress log before any work starts.
+    if args.progress_log:
+        Path(args.progress_log).parent.mkdir(parents=True, exist_ok=True)
     progress_log = open(args.progress_log, "w", buffering=1) if args.progress_log else None
 
     header = (
