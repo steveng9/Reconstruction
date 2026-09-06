@@ -40,7 +40,11 @@ DATASETS = {
     "adult": {
         "uci_id": 2,
         "default_size": 10_000,
-        "default_samples": 5,
+        # Four, not five. The training samples are disjoint slices, and Adult
+        # has 47,621 rows once the rows with missing values are dropped -- five
+        # slices of 10,000 do not fit, so asking for five fails outright. The
+        # experiments below use two.
+        "default_samples": 4,
         # Exact column order of the authors' full_data.csv. UCI's own ordering
         # differs, and column order is part of what the pipeline reproduces.
         "columns": [

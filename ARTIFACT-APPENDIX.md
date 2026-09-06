@@ -556,7 +556,12 @@ GPU, no R, no Gurobi. Pass `WORKERS=<n>` if you have fewer than four cores.
 
 Expect the ordering of attacks and of SDG methods to match that block of
 Table 1, with individual cells within a few points of the published values —
-the paper averages five disjoint samples and this averages two.
+the paper averages five training samples and this averages two.
+
+`fetch_dataset.py adult` carves four samples, not five. The samples are disjoint
+slices and Adult holds 47,621 rows once rows with missing values are dropped, so
+a fifth slice of 10,000 does not fit; the paper's fifth Adult sample was drawn
+separately and overlaps the others. Four is more than this experiment uses.
 
 #### Experiment 4: Reduced-scale epsilon sweep
 
