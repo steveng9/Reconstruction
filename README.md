@@ -16,9 +16,15 @@ The same methodology placed **first among all red teams** in the 2025 NIST Priva
 > ```bash
 > git clone --recurse-submodules https://github.com/steveng9/Reconstruction.git
 > cd Reconstruction
-> docker build -f docker/Dockerfile -t recon-artifact:latest .
+> docker build -f docker/Dockerfile --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t recon-artifact:latest .
 > docker run --rm -it -v "${PWD}":/workspace -w /workspace recon-artifact:latest ./test.sh
 > ```
+>
+> That is the macOS and Linux form. On Windows, run it from a WSL2 shell exactly
+> as written; in PowerShell, drop the two `--build-arg` flags (Windows bind
+> mounts do not carry Unix ownership, so the defaults are correct there) and use
+> `${PWD}` as shown. The image is `linux/amd64`; on an Apple Silicon Mac Docker
+> emulates it, so everything below works but takes longer.
 
 ---
 
@@ -58,6 +64,15 @@ We use **rarity-weighted reconstruction advantage** ($R_{adv}$): a correct predi
 ---
 
 ## Installation
+
+> **This section is the native, from-source developer setup — it is *not* the
+> artifact-evaluation path.** Reviewers should use the Docker images, whose
+> dependency versions are pinned and verified end to end; see
+> [`ARTIFACT-APPENDIX.md`](ARTIFACT-APPENDIX.md). The conda and `pip` commands
+> below are unpinned and reflect how the environment was originally assembled,
+> not the exact versions the paper's results were produced with. Those live in
+> `docker/requirements-attacks.txt` and `docker/requirements-sdg.txt`, and
+> `environment.yaml` is superseded by them.
 
 ### Step 1: Clone this repository
 
@@ -133,7 +148,7 @@ conda activate recon_
 conda run -n sdg python -m sdg.test_sdg
 
 # Run a minimal reconstruction experiment:
-python master_experiment_script.py --n_runs 1 --on_server T
+python master_experiment_script.py --n_runs 1
 ```
 
 ---
@@ -155,7 +170,11 @@ All experiments use pre-generated data stored under a root data directory. The e
           synth.csv    ← synthetic data generated from train.csv
 ```
 
-Update `DATA_ROOT` at the top of `experiment_scripts/run_production_sweep.py` to point to your data directory.
+Point the code at that directory by setting `RECON_DATA_ROOT`; every script
+resolves it through `paths.py`, so no path is hardcoded and no file needs
+editing. (`RECON_RESULTS_DB`, `RECON_TABLE_OUT`, `RECON_PYTHON` and
+`RECON_EXTERNAL_ROOT` work the same way.) The Docker images set
+`RECON_DATA_ROOT` to `/workspace/data` already.
 
 ### Dataset 1: Adult (Census Income)
 
@@ -252,7 +271,7 @@ python sdg/generate_synth.py count    # Verify expected synth.csv files exist
 conda activate recon_
 
 # Edit configs/example_cfg.yaml to point to your data and set the attack/SDG method
-python master_experiment_script.py --n_runs 1 --on_server T
+python master_experiment_script.py --n_runs 1
 ```
 
 Results are logged to WandB under the project and group specified in the config YAML. Set `WANDB_MODE=offline` to run without a WandB account.
@@ -263,14 +282,14 @@ Results are logged to WandB under the project and group specified in the config 
 # Create a config pointing to adult/size_10000/sample_00, SDG_method=MST_eps1
 # attack_method: CoBP-RA
 # data_type: categorical
-python master_experiment_script.py --n_runs 1 --on_server T
+python master_experiment_script.py --n_runs 1
 ```
 
 ---
 
 ## Reproducing Paper Results
 
-The paper reports results averaged over **5 disjoint training samples** × **9 SDG methods** (MST at 5 ε values + AIM, TVAE, CTGAN, ARF, TabDDPM, Synthpop, RankSwap, CellSuppression). The full production sweep is run via:
+The paper reports results averaged over **5 training samples** × **9 SDG methods** (MST at 5 ε values + AIM, TVAE, CTGAN, ARF, TabDDPM, Synthpop, RankSwap, CellSuppression). The full production sweep is run via:
 
 ```bash
 conda activate recon_
@@ -290,7 +309,7 @@ tail -f outfiles/progress.log
 
 | Paper section | Script |
 |---|---|
-| Main attack × SDG table (Table 1) | `experiment_scripts/run_production_sweep.py` |
+| Main attack × SDG table (`tab:ra_mean_adult`) | `experiment_scripts/run_production_sweep.py` |
 | Epsilon sweep (MST, AIM over ε) | `experiment_scripts/run_mst_epsilon_rf_nb_sweep.py` |
 | LinearReconstruction comparison | `experiment_scripts/run_linear_sweep.py` |
 | Memorization test (train vs. holdout) | `experiment_scripts/run_memorization_sweep.py` |

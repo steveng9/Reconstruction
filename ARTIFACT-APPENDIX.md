@@ -154,7 +154,11 @@ reduced-scale experiments below are provided instead.
 
 - **OS**: developed and run on Ubuntu 22.04 (kernel 5.15). The Docker images are
   Debian-based and the artifact is not OS-specific; any Linux, macOS, or Windows
-  host that can run Docker will work.
+  host that can run Docker will work. Both images are built for `linux/amd64`,
+  pinned in the Dockerfiles themselves, so an Apple Silicon Mac builds and runs
+  them under Docker Desktop's emulation -- correctly, but slower than a native
+  amd64 host. On Windows, either a WSL2 shell or PowerShell works; the *Set Up
+  the Environment* section gives the exact command for each.
 - **Container runtime**: Docker Engine 28.0 or later. Everything else is supplied
   by the images. The pinned dependency set has been verified to install and run
   end to end in a clean Python 3.9.23 virtual environment (`./test.sh` passes
@@ -174,6 +178,11 @@ reduced-scale experiments below are provided instead.
 - **ML models**: no pre-trained model is required. TabPFN downloads its
   pre-trained checkpoint on first use; every other attack trains from scratch on
   the synthetic data it is given.
+- **GPU libraries**: none. The light image installs `torch 1.13.1+cpu` from
+  PyTorch's CPU index rather than the default PyPI build, which would pull ~900 MB
+  of CUDA libraries (cuBLAS, cuDNN, nvrtc) that a CPU-only image can never use.
+  The CPU kernels are the same ones the CUDA build runs on a machine without a
+  GPU, so this changes the image size and nothing else.
 - **Datasets**: none are redistributed. Three of the five are freely scriptable
   (Adult, CDC Diabetes, California Housing); two are access-restricted (NIST
   Arizona needs an IPUMS registration, NIST SBO is available from NIST on
@@ -184,7 +193,7 @@ reduced-scale experiments below are provided instead.
 
 | Task | Human time | Compute time | Disk |
 |---|---|---|---|
-| Clone (with submodules) + build the light Docker image | 5 min | 10–15 min | ~8.4 GB |
+| Clone (with submodules) + build the light Docker image | 5 min | 10–15 min | ~4.1 GB |
 | `./test.sh` (full smoke test) | 1 min | ~2 min | negligible |
 | Experiment 1 — regenerate all paper tables and figures | 2 min | ~1 min | <10 MB |
 | Experiment 2 — attack vs. baseline on the dummy dataset | 2 min | ~1 min | negligible |
@@ -193,10 +202,10 @@ reduced-scale experiments below are provided instead.
 
 The repository itself is ~93 MB tracked (dominated by the 68 MB `results.db`),
 plus ~90 MB for the two submodules. Two numbers get quoted for a Docker image and
-they differ: the light image is 5.6 GB of layers -- what a registry transfers --
-but `docker images` reports 8.4 GB, which is what it occupies unpacked on disk.
-The build cache adds several GB more while the build runs, so budget **about 20
-GB of free disk** for the light image, or **about 45 GB** if you also build the
+they differ: the light image is 1.1 GB of layers -- what a registry transfers --
+but `docker images` reports 4.1 GB, which is what it occupies unpacked on disk.
+The build cache adds several GB more while the build runs, so budget **about 15
+GB of free disk** for the light image, or **about 40 GB** if you also build the
 full one. Nothing here requires the 50 GB-class hosting discussed in the PoPETs
 FAQ.
 
@@ -228,18 +237,40 @@ repositories that carry no explicit licence documented candidly in
 
 ### Set Up the Environment
 
+**Linux and macOS** (including Apple Silicon), in a normal shell:
+
 ```bash
 git clone --recurse-submodules https://github.com/steveng9/Reconstruction.git
 cd Reconstruction
 docker build -f docker/Dockerfile --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t recon-artifact:latest .
 ```
 
-The two `--build-arg` flags matter. The image runs as a non-root user, and the
-repository is mounted from the host, so that user has to be *you* or it cannot
-write the files the experiments produce. Without them the user is 1000:1000,
-which is right only if your own ids happen to be 1000. (Experiment 1 is
-unaffected either way -- it opens `results.db` read-only -- but Experiments 3 and
-4 write generated data and results, and would fail.)
+**Windows.** The simplest path is a WSL2 shell, where the commands above and
+everywhere below work unchanged. If you would rather use PowerShell, drop the two
+`--build-arg` flags -- Windows bind mounts do not carry Unix ownership, so the
+default user inside the image is already correct -- and keep `${PWD}` as written
+in the `docker run` commands:
+
+```powershell
+git clone --recurse-submodules https://github.com/steveng9/Reconstruction.git
+cd Reconstruction
+docker build -f docker/Dockerfile -t recon-artifact:latest .
+```
+
+The two `--build-arg` flags matter on Linux and macOS. The image runs as a
+non-root user, and the repository is mounted from the host, so that user has to
+be *you* or it cannot write the files the experiments produce. Without them the
+user is 1000:1000, which is right only if your own ids happen to be 1000.
+(Experiment 1 is unaffected either way -- it opens `results.db` read-only -- but
+Experiments 3 and 4 write generated data and results, and would fail.)
+
+You do not need a `--platform` flag on any host. Both Dockerfiles pin
+`linux/amd64` in their own `FROM` lines, because two of the pinned dependencies
+(`pac-synth` and `torch 1.13.1`) publish no arm64 wheel at all; left to the host
+architecture, the build fails part-way through `pip` on an Apple Silicon Mac with
+an error about a missing Rust compiler that says nothing about the real cause.
+With the pin, Docker Desktop emulates amd64 there and the build completes -- more
+slowly than on an amd64 machine, but with the same results.
 
 If you cloned without `--recurse-submodules`:
 
@@ -280,7 +311,8 @@ attack environment unaffected. The build itself now checks the second of those
 image is finished -- so a build that would produce a broken image fails instead.
 
 Start it the same way, with `recon-artifact:full` in place of
-`recon-artifact:latest`. It holds two conda environments: `recon_` (Python 3.9)
+`recon-artifact:latest`; every command in this document, `./test.sh` included,
+works unchanged there (it passes 18/18 in both images). It holds two conda environments: `recon_` (Python 3.9)
 for the attacks, scoring and table regeneration, and `sdg` (Python 3.10) for the
 GPU-oriented and R generators. They are separate because they cannot be merged:
 the DP generator stack pins `numpy < 2` and the SDV / SynthCity stack pins
@@ -298,9 +330,9 @@ Debian bookworm ships R 4.2.2 and `rpy2` 3.6.4 requires R >= 4.5. As a result th
 R packages are conda-forge's (`synthpop` 1.9.2, `sdcMicro` 5.8.2), which are
 newer than the versions used when the paper's synthetic data was generated; no
 number in the paper comes from this image, but synthetic data regenerated with it
-will not be bit-identical to ours. Both images are `linux/amd64` only: the
-attack environment pins `torch==1.13.1+cu117`, which has no arm64 build, so on
-Apple Silicon they run under emulation and slowly. And none of the evaluated
+will not be bit-identical to ours. Both images are `linux/amd64`, pinned in the
+`FROM` line rather than left to the host, so they build and run on an Apple
+Silicon Mac too -- under emulation, and slowly. And none of the evaluated
 experiments need this image -- Experiments 1 through 4 all run in the light one.
 
 ### Testing the Environment
@@ -402,19 +434,21 @@ to the environment that can run it, so real generation needs one command.
 Across the attack × SDG grid, the spread in reconstruction advantage between SDG
 methods is much larger than the spread between attacks on any fixed SDG method.
 The independent variable is the SDG method (columns) and the attack (rows); the
-dependent variable is mean $R_{adv}$. Reported in **Table 1**. Supported by
+dependent variable is mean $R_{adv}$. Reported in the attack × SDG grid for
+Adult (`tab:ra_mean_adult`). Supported by
 [Experiment 1](#experiment-1-regenerate-every-paper-table-and-figure) and, at
 reduced scale, [Experiment 3](#experiment-3-reduced-scale-attack--sdg-grid).
 
 #### Main Result 2: De-identification methods are the most exposed
 
-Cell Suppression, RankSwap and Synthpop sit at the high-risk end of Table 1,
-well above the DP generators. Same table, same experiments as Result 1.
+Cell Suppression, RankSwap and Synthpop sit at the high-risk end of
+`tab:ra_mean_adult`, well above the DP generators. Same table, same experiments
+as Result 1.
 
 #### Main Result 3: CoBP-RA is the strongest attack measured
 
 The newly introduced CoBP-RA attack attains the highest mean $R_{adv}$ of all
-attacks evaluated. Reported in **Table 1**; visible directly in the smoke test,
+attacks evaluated. Reported in `tab:ra_mean_adult`; visible directly in the smoke test,
 where CoBP-RA beats the mode baseline on the dummy dataset.
 
 #### Main Result 4: DP reduces reconstruction up to ε≈10, above which risk flattens
@@ -422,7 +456,8 @@ where CoBP-RA beats the mode baseline on the dummy dataset.
 Sweeping ε from 0.1 to 1000 across **six** DP mechanisms (MST, AIM, PrivBayes,
 PrivSyn, MWEM-PGM, PrivateGSD), reconstruction advantage falls steadily as ε
 decreases below about 10, and is close to flat above it. Independent variable:
-ε; dependent variable: mean $R_{adv}$. Reported in **Table 4** and
+ε; dependent variable: mean $R_{adv}$. Reported in the ε-sweep tables
+(`tab:eps_sweep`, `tab:eps_full`) and
 `fig_eps_curves.pdf`, with paired significance tests in `STATS_eps_curve.md`.
 Supported by [Experiment 1](#experiment-1-regenerate-every-paper-table-and-figure)
 and, at reduced scale, [Experiment 4](#experiment-4-reduced-scale-epsilon-sweep).
@@ -436,7 +471,8 @@ The memorization test scores each attack on training targets and on held-out
 non-training targets. The gap between them is small for most SDG methods, so
 attack success mostly reflects population structure rather than memorized
 records; where the gap is large it concentrates on atypical records. Reported in
-**Table 7** (memorization) and **Table 9** (disparate impact). Supported by
+`tab:memorization_and_ds_risk` (memorization) and `tab:disparate_impact`
+(disparate impact). Supported by
 [Experiment 1](#experiment-1-regenerate-every-paper-table-and-figure).
 
 ### Experiments
@@ -469,18 +505,28 @@ python reproduce.py --list
 
 Outputs land in `expected_output/tables/`:
 
-| File | Paper object |
-|---|---|
-| `table1_ra_mean_adult.tex` | Table 1 — attack × SDG grid (Results 1, 2, 3) |
-| `table2_quality_overview.tex` | Table 2 — synthetic data quality |
-| `table4_eps_sweep_compact.tex`, `table4_eps_sweep_full.tex` | Table 4 — ε sweep (Result 4) |
-| `table6_mia_comparison.tex` | Table 6 — MIA vs. RA-as-MIA |
-| `table7_memorization.tex` | Table 7 — memorization test (Result 5) |
-| `table9_disparate_impact.tex` | Table 9 — disparate impact (Result 5) |
-| `table_ra_mean_cdc.tex`, `table_cdc_100k.tex` | CDC Diabetes at 1k and 100k rows |
-| `table_ra_mean_nist_sbo.tex` | NIST SBO |
-| `fig_eps_curves.pdf`, `fig_eps_curves_perattack.pdf` | ε-curve figures |
-| `STATS_eps_curve.md`, `STATS_memorization.md` | paired significance tests |
+| File | Paper object | Find it in the PDF by its caption |
+|---|---|---|
+| `table1_ra_mean_adult.tex` | `tab:ra_mean_adult` (Results 1, 2, 3) | attack × SDG grid, Adult 10k |
+| `table2_quality_overview.tex` | `tab:quality_overview` | synthetic data quality profile, Adult |
+| `table4_eps_sweep_compact.tex`, `table4_eps_sweep_full.tex` | `tab:eps_sweep`, `tab:eps_full` (Result 4) | ε sweep, compact and full |
+| `table6_mia_comparison.tex` | `tab:mia_comparison` | MIA baselines vs. RA-as-MIA |
+| `table7_memorization.tex` | `tab:memorization_and_ds_risk` (Result 5) | memorization gap and disclosure risk |
+| `table9_disparate_impact.tex` | `tab:disparate_impact` (Result 5) | disparate impact by race and sex |
+| `table_ra_mean_cdc.tex`, `table_cdc_100k.tex` | `tab:ra_mean_cdc`, `tab:cdc_100k` | attack × SDG, CDC Diabetes at 1k and 100k |
+| `table_ra_mean_nist_sbo.tex` | `tab:ra_mean_nist_sbo` | attack × SDG, NIST SBO |
+| `fig_eps_curves.pdf`, `fig_eps_curves_perattack.pdf` | `fig:eps_curves` | reconstruction risk vs. privacy budget |
+| `STATS_eps_curve.md`, `STATS_memorization.md` | `tab:eps_stats` and its memorization counterpart | paired significance tests |
+
+**On table numbers.** The middle column gives each object's LaTeX `\label`, not
+its printed number, and that is deliberate: table numbers move whenever a float
+is added or reordered during copy-editing, so a number written down here could
+be wrong by the time you read the final PDF. The labels do not move. Where a
+number does appear elsewhere in this document -- "Table 1", say -- read it as a
+convenience for the version submitted with this artifact, and match by caption if
+it disagrees with the PDF in front of you. `python reproduce.py --list` prints the
+same label-to-file mapping straight from the manifest in
+`experiment_scripts/paper_objects.py`, which is the authority.
 
 Because the reference copies of these files are committed, you can verify
 reproduction exactly rather than by eye:
@@ -495,15 +541,47 @@ their PNG companions will differ: matplotlib embeds a creation timestamp, and
 glyph rasterisation varies with the freetype build. The numbers plotted in them
 are verified through `STATS_eps_curve.md`, which is byte-compared.
 
-Comparison against the *paper PDF* needs one caveat. The database was repaired
-in August 2026 (a float-binned encoding bug, described in `README.md`), and some
-printed tables still carry pre-repair numbers -- most visibly Table 1's five MST
-columns. The artifact regenerates from the repaired database, so those cells
-differ from the PDF. Every such difference is enumerated in
-`TODO-TABLE-COVERAGE.md`; none of them changes a claim in the paper, and outside
-the MST columns every classical-attack row of Table 1 matches the printed table
-exactly. Two rows (`CondDDPM`, `CondRePaint`) print `---` because their runs were
-flagged as broken and excluded rather than silently kept.
+#### Comparing against the paper PDF
+
+Two things to know before you diff a regenerated table against the printed one.
+
+**The artifact is the system of record, and it was frozen before the paper was.**
+This artifact is submitted at the artifact deadline; the camera-ready manuscript
+is still being finalised and is due six days later. Every number the artifact
+produces is regenerated, in front of you, from committed data by a script whose
+output `./test.sh` checks byte-for-byte -- so where a printed cell and a
+regenerated cell disagree, the regenerated one is the value that is actually
+traceable to the data in this repository, and the paper is being corrected toward
+it rather than the other way round. A handful of cells may therefore still differ
+in the published PDF from what you see here. None of them changes a claim: the
+five main results in the previous section are each supported by margins far
+larger than any of these differences, and the table below lists every one we
+know of.
+
+**Some printed cells predate a database repair.** The database was repaired in
+August 2026 (a float-binned encoding bug, described in `README.md`), and some
+printed tables still carry pre-repair numbers -- most visibly the five MST columns
+of `tab:ra_mean_adult`. The artifact regenerates from the repaired database, so
+those cells differ from the PDF. Outside the MST columns, every classical-attack
+row of that table matches the printed table exactly. Two rows (`CondDDPM`,
+`CondRePaint`) print `---` because their runs were flagged as broken and excluded
+rather than silently kept.
+
+The complete, cell-level list of differences -- which table, how many cells, and
+the largest move in each -- is in `TODO-TABLE-COVERAGE.md` under "Known
+discrepancies between the regenerated tables and the printed paper". It is worth
+opening: it is the audit behind the summary here, and it is the document that
+tells you, for any cell you find that disagrees, whether we already knew. In
+brief, as of this submission:
+
+| Paper object | What differs | Size |
+|---|---|---|
+| `tab:ra_mean_adult` | the five MST columns; `CondDDPM` and `CondRePaint` rows blanked | pre-repair vs. repaired runs |
+| `tab:ra_mean_cdc` | MST(ε=0.1) and AIM(ε=3) columns | 9 of 75 cells, largest move 0.9 pp |
+| `tab:ra_mean_nist_sbo` | MST(ε=0.1) and MST(ε=1) print `---`; other MST budgets rest on 2 samples, not 5 | up to 0.4 pp |
+| `tab:mia_comparison` | printed table mixes pre- and post-repair runs | 7 cells |
+| `tab:disparate_impact` | printed from a run older than any committed CSV; regenerated adds an `AIM (ε=1)` row | 32 of 45 cells move >5% relative, but the largest absolute move is 1.68 pp |
+| `tab:cdc_100k`, `tab:quality_overview`, `tab:eps_sweep`, `tab:eps_full`, `tab:eps_stats`, `tab:memorization_and_ds_risk` | nothing | exact match |
 
 Where a table is unaffected by the repair the agreement is exact rather than
 within 5% -- `tab:cdc_100k`, for instance, reproduces all 52 of its cells.
@@ -536,7 +614,7 @@ the mode baseline at **33.88** and CoBP-RA around **40**.
 - Time: 10 human-minutes + ~40 compute-minutes
 - Storage: ~100 MB
 
-Regenerates a small corner of Table 1 from raw data, to confirm the numbers in
+Regenerates a small corner of `tab:ra_mean_adult` from raw data, to confirm the numbers in
 `results.db` are actually produced by this code rather than merely stored. This
 needs the Adult dataset, which downloads freely:
 
@@ -549,13 +627,14 @@ bash experiment_scripts/run_artifact_experiment3.sh
 ```
 
 The second script fixes the slice being reproduced: four generator settings
-that are Table 1 columns (MST at ε=1, 10 and 100, and AIM at ε=1) attacked by
-five that are Table 1 rows (Mode, KNN, RandomForest, NaiveBayes, CoBP-RA), over
+that are `tab:ra_mean_adult` columns (MST at ε=1, 10 and 100, and AIM at ε=1)
+attacked by five that are its rows (Mode, KNN, RandomForest, NaiveBayes,
+CoBP-RA), over
 two training samples. Every one of them runs on CPU in the light image — no
 GPU, no R, no Gurobi. Pass `WORKERS=<n>` if you have fewer than four cores.
 
 Expect the ordering of attacks and of SDG methods to match that block of
-Table 1, with individual cells within a few points of the published values —
+`tab:ra_mean_adult`, with individual cells within a few points of the published values —
 the paper averages five training samples and this averages two.
 
 `fetch_dataset.py adult` carves four samples, not five. The samples are disjoint
@@ -593,13 +672,15 @@ depend on how many trials complete; the *shape* is the claim.
 
 ## Limitations
 
-Experiment 1 regenerates Tables 1, 2, 4, 6, 7 and 9 and the ε-curve figures —
-the tables carrying all five main claims — exactly, from the shipped data. The
+Experiment 1 regenerates the tables carrying all five main claims —
+`tab:ra_mean_adult`, `tab:quality_overview`, `tab:eps_sweep`, `tab:eps_full`,
+`tab:mia_comparison`, `tab:memorization_and_ds_risk`, `tab:disparate_impact` —
+and the ε-curve figures, exactly, from the shipped data. The
 limitations below concern everything beyond that.
 
 1. **Two datasets cannot be redistributed.** NIST Arizona requires a free IPUMS
    registration; NIST SBO is available from NIST on request as part of the
-   Privacy CRC. Their rows in Tables 1 and 4 therefore cannot be regenerated from
+   Privacy CRC. Their rows in `tab:ra_mean_adult` and the ε-sweep tables therefore cannot be regenerated from
    scratch without the reviewer obtaining that access. Adult, CDC Diabetes and
    California Housing are freely scriptable and cover the majority of results.
    `data/dummy/` stands in for format and pipeline purposes.
@@ -642,7 +723,7 @@ limitations below concern everything beyond that.
 5. **Small run-to-run variance.** Several attacks (random forests, MLPs, the
    diffusion samplers) are stochastic and not seeded bit-identically across
    platforms. Individual cells move by a few tenths of a point between runs;
-   the paper's tables average five disjoint samples. Table *regeneration*
+   the paper's tables average five training samples. Table *regeneration*
    (Experiment 1) is deterministic and exact.
 
 6. **Not every supporting table regenerates yet.** Experiment 1 rebuilds the
@@ -657,7 +738,21 @@ limitations below concern everything beyond that.
 7. **`environment.yaml` is superseded.** The historical conda file in the
    repository root does not reflect the versions actually used. The authoritative,
    pinned dependency sets are `docker/requirements-attacks.txt` and
-   `docker/requirements-sdg.txt`.
+   `docker/requirements-sdg.txt`. `README.md`'s Installation section describes
+   that same historical native setup and is flagged there as not being the
+   evaluation path.
+
+8. **The camera-ready paper was not yet final when this artifact was frozen.**
+   The artifact deadline falls six days before the camera-ready deadline, so a
+   small number of printed cells may still differ from what the artifact
+   regenerates, and table *numbers* may shift as floats are reordered. Two
+   consequences for a reviewer. First, identify tables by caption or `\label`
+   rather than by number -- the mapping is in the Experiment 1 section above and
+   in `python reproduce.py --list`. Second, where a printed value and a
+   regenerated value disagree, the regenerated one is the one traceable to
+   committed data; every difference we know of is enumerated cell-by-cell in
+   `TODO-TABLE-COVERAGE.md`, and none of them changes a claim. The known cases as
+   of this submission are summarised in the Experiment 1 section.
 
 ## Notes on Reusability
 

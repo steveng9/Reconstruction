@@ -1,3 +1,8 @@
+# check=skip=FromPlatformFlagConstDisallowed
+# ^ BuildKit lints a hardcoded `FROM --platform`, on the reasoning that it
+# usually means someone forgot about cross-compilation. Here it is deliberate
+# and explained at the FROM line below, so the lint is silenced rather than
+# left to print a warning a reviewer would have to wonder about.
 # =============================================================================
 # Full image: everything in the light image, plus the GPU-oriented and R-based
 # synthetic data generators.
@@ -22,7 +27,11 @@
 #     conda run -n sdg    python sdg/generate_synth.py sdg
 # =============================================================================
 
-FROM continuumio/miniconda3:25.1.1-2@sha256:0c1494093f919a36ba4cf543abf5e2e426deb3e8aa61c9d4074bcc267d264fe5
+# Pinned to amd64 for the same reason as docker/Dockerfile: several pins here
+# have no arm64 build, so leaving the platform to the host turns an Apple
+# Silicon build into a hard failure rather than a slow one. Docker Desktop
+# emulates amd64, so this builds and runs everywhere -- slowly on arm64.
+FROM --platform=linux/amd64 continuumio/miniconda3:25.1.1-2@sha256:0c1494093f919a36ba4cf543abf5e2e426deb3e8aa61c9d4074bcc267d264fe5
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -127,6 +136,18 @@ RUN set -eux; \
         python -c "import torch; print('torch ->', torch.__version__)"
 
 ENV R_HOME=/opt/conda/envs/sdg/lib/R
+
+# Make `python` mean the attack environment's python, not conda's base one.
+# Without this, `docker run ... recon-artifact:full ./test.sh` -- the documented
+# command, with only the image name changed -- runs base conda's python, which
+# has no numpy, and the smoke test fails 14 of its 18 checks for a reason that
+# has nothing to do with the artifact. The generator environment is still
+# reachable as `conda run -n sdg`, and sdg/generate_synth.py routes to it by
+# itself. /etc/profile.d covers login shells, which re-derive PATH and would
+# otherwise ignore the ENV.
+ENV PATH=/opt/conda/envs/recon_/bin:$PATH
+RUN printf 'export PATH="/opt/conda/envs/recon_/bin:$PATH"\n' \
+      > /etc/profile.d/10-recon-env.sh
 
 ARG UID=1000
 ARG GID=1000

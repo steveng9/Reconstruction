@@ -110,6 +110,11 @@ MANIFEST: list[PaperObject] = [
         key="table9", title="Disparate impact by race and sex",
         label="tab:disparate_impact", output="table9_disparate_impact.tex",
         source=DISP, generator="table9", status="done", check=True,
+        note="Regenerates from the post-repair CSV. The printed table predates "
+             "it and predates the pre-repair backup too, so its numbers have no "
+             "committed source: an extra AIM row here, and 32 of 45 shared cells "
+             "move by >5% relative (largest absolute move 1.68 pp). The "
+             "qualitative claim is unchanged. See TODO-TABLE-COVERAGE.md.",
     ),
     PaperObject(
         key="fig_eps", title="Reconstruction risk vs privacy budget",

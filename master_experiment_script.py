@@ -17,26 +17,23 @@ N_RUNS_default = 1
 parser = argparse.ArgumentParser()
 argparse.ArgumentParser(description="Run tabular Reconstruction experiments")
 parser.add_argument("--n_runs", type=int, default=N_RUNS_default, help="Number of runs to average over")
-parser.add_argument("--on_server", type=bool, default=False, help="changes directories depending on which machine running on")
+# Accepted and ignored. It once chose between two hardcoded path sets; paths
+# now resolve through paths.py on every machine, so there is nothing left to
+# switch. Kept so older scripts that still pass it do not break. It is a
+# store_true flag rather than type=bool because argparse's type=bool calls
+# bool() on the string, which makes even `--on_server False` come out True.
+parser.add_argument("--on_server", action="store_true",
+                    help=argparse.SUPPRESS)
 parser.add_argument("--mode", type=str, default="reconstruction", choices=["reconstruction", "mia"],
                     help="Experiment mode: 'reconstruction' (default) or 'mia' (membership inference)")
 args = parser.parse_args()
 
 # Set path BEFORE importing other modules
-if args.on_server:
-    sys.path.append(str(MIA_ON_DIFFUSION))
-    sys.path.append(str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'))
-    sys.path.append(str(RECON_SYNTH))
-    sys.path.append(str(RECON_SYNTH / 'attacks'))
-    sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
-else:
-    # Paths now resolve through paths.py on every machine, so both branches agree.
-    # --on_server is retained only for backwards compatibility with older scripts.
-    sys.path.append(str(MIA_ON_DIFFUSION))
-    sys.path.append(str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'))
-    sys.path.append(str(RECON_SYNTH))
-    sys.path.append(str(RECON_SYNTH / 'attacks'))
-    sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
+sys.path.append(str(MIA_ON_DIFFUSION))
+sys.path.append(str(MIA_ON_DIFFUSION / 'midst_models' / 'single_table_TabDDPM'))
+sys.path.append(str(RECON_SYNTH))
+sys.path.append(str(RECON_SYNTH / 'attacks'))
+sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
 
 # Override with the CONFIG_PATH environment variable, as documented in the README.
 CONFIG_PATH_default = os.environ.get(

@@ -162,6 +162,10 @@ Reviewer E's request for explicit pseudocode.
 
 ## Known discrepancies between the regenerated tables and the printed paper
 
+Objects are named by their LaTeX `\label`, which does not move; a "(Table N)"
+beside one is the number in the draft submitted with the artifact and may not be
+the number in the final PDF.
+
 The database was repaired in August 2026 (the float-binned encoding bug), and
 some printed tables still carry pre-repair numbers. The artifact regenerates from
 the repaired database, so those cells differ. Every difference found so far is
@@ -206,6 +210,39 @@ current, but parts of the Adult and CDC blocks come from the May 2026 runs.
 Seven cells differ, all by <=0.01 AUC.
 `expected_output/tables/table6_mia_comparison.tex` is the post-repair version.
 Bolding shifts on the Adult MST columns, because SynthDistance now edges NNDR.
+
+### `tab:disparate_impact` (Table 9) — an extra row, and 32 of 45 cells
+
+Found in a September 2026 review pass; it had been missed until then, and the
+coverage table above listed this object as done with no caveat.
+
+`reproduce.py` builds this table from
+`experiment_scripts/per_attack_disparity_postrepair.csv`. The printed table comes
+from neither that file nor the pre-repair backup beside it
+(`per_attack_disparity.prerepair.bak.csv`) -- it predates both, and the run it
+came from was not kept. So this is not a pre/post-repair split like the tables
+above; the printed numbers simply have no committed source.
+
+| What differs | Detail |
+|---|---|
+| An extra row | The regenerated table has an `AIM ($\varepsilon{=}1$)` row the printed one does not. |
+| 32 of 45 shared cells move by more than 5% relative | In absolute terms the moves are small: the largest is 1.68 pp (Cell Supp., Female, 42.2 → 43.88). The MST rows move by ~0.1 pp, but off so small a base that the relative move reaches 100% (MST $\varepsilon{=}1000$, API: 0.20 → 0.40). |
+| Two figures quoted in the running text | The prose says TabDDPM "reconstructs outliers $3.4\times$ as well as typical records"; regenerated, that is $3.0\times$. It also says AI/AN individuals are reconstructed at "$7\times$ the rate of the White majority"; regenerated, 8.48 / 1.40 = $6.1\times$. |
+
+**The qualitative claim is unchanged**, and it is the claim the paper actually
+makes: high-fidelity synthesis concentrates risk on outliers and on the smallest
+minority; suppression inverts the sign, protecting the fully-suppressed AI/AN
+group while leaving the majority and partially-retained groups exposed; DP spreads
+risk evenly, with every subgroup inside $1.5\times$. Every one of those holds on
+the regenerated numbers, and the direction and rank order of every column is
+preserved.
+
+**The decision this needs.** Unlike the tables above, there is no "leave it as
+printed and document it" option that is fully satisfying here, because the printed
+values cannot be traced to anything in the repository. The clean fix is to paste
+the regenerated table into the camera-ready and change $3.4\times \to 3.0\times$
+and $7\times \to 6\times$ in the prose of Section~\ref{sec:disparate}. That is a
+manuscript edit, not an artifact one.
 
 ### A naming note
 

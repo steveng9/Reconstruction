@@ -47,11 +47,11 @@ def cmd_list() -> int:
           f"repository.\n")
 
     print("REGENERATES TODAY")
-    print(f"  {'paper label':<34}{'output':<38}{'checked':<9}source")
+    print(f"  {'paper label':<34}{'output':<38}{'checked':<11}source")
     for o in M.by_status("done"):
         label = o.label or "(unlabelled)"
         mark = "byte-diff" if o.check else "--"
-        print(f"  {label:<34}{o.output:<38}{mark:<9}{o.source}")
+        print(f"  {label:<34}{o.output:<38}{mark:<11}{o.source}")
 
     todo = M.by_status("todo")
     if todo:

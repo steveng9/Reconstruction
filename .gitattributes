@@ -1,0 +1,23 @@
+# Line endings, so a Windows clone still works.
+#
+# Git on Windows defaults to core.autocrlf=true, which rewrites text files with
+# CRLF endings on checkout. The container is Linux, so a CRLF `test.sh` fails
+# there with "bash\r: No such file or directory" -- an error that says nothing
+# about the real cause, on the very first command a reviewer runs. Forcing LF
+# on checkout everywhere avoids that regardless of the reviewer's git settings.
+* text=auto eol=lf
+
+# Binary payloads git must not touch. results.db in particular is the shipped
+# system of record; a single rewritten byte would corrupt it.
+*.db    binary
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.zip   binary
+*.pkl   binary
+*.npy   binary
+*.npz   binary
+*.gz    binary
+*.pt    binary
+*.pth   binary
