@@ -26,6 +26,8 @@ rigorous than what this review could have produced independently, and it substan
 the case for the Reproduced badge once a reviewer actually opens it (see the discussion after
 Issue 5).
 
+NOTE FROM STEVEN: todo: whereever we use "Table X" in the artifact, database, etc. we should somehow change it to "Table \ref{tab:<name_in_manuscript>}" unless you have a better idea. It's preferred to have numbers, but we need to make sure those table numbers actually match the number in the final camera-ready manuscript, which are not finalized yet (i.e. what we call Table K might actually end up being Table K+1 in the manuscript, etc.). 
+
 ---
 
 ## Summary / recommendation
