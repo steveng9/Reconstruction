@@ -57,7 +57,8 @@ def median_baseline_cont(cfg, deid, targets, qi, hidden_features):
     return reconstructed_targets, None, None
 
 
-# TODO: fix these two conditional baselines
+# The two conditional baselines below were never finished and are not used by
+# any result in the paper; they are kept commented out for reference.
 # def conditional_mean_baseline_cont(cfg, deid, targets, qi, hidden_features):
 #     """
 #     Fill hidden features with conditional mean based on quasi-identifiers (QI).

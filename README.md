@@ -444,7 +444,7 @@ Reconstruction/
 │   └── historical/               ← One-off repair/fill scripts kept for provenance
 │
 ├── ARTIFACT-APPENDIX.md          ← PoPETs artifact appendix (start here to review)
-├── TODO-TABLE-COVERAGE.md        ← Which of the 33 paper tables/figures regenerate, and what is left
+├── TABLE-COVERAGE.md        ← Which of the 33 paper tables/figures regenerate, and what is left
 │                                   (generated from experiment_scripts/paper_objects.py)
 ├── test.sh                       ← One-command smoke test (env + attack + tables)
 ├── paths.py                      ← Central path resolution; every root is env-overridable

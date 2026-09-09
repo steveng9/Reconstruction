@@ -28,7 +28,7 @@
 # Cores 0-23 are free (the earlier cdc_dp_sweep_pipeline.sh finished and
 # released them). This pipeline uses 0-11. Cores 24-35 are in use by the
 # still-running private_gsd_10k_pipeline.sh. Cores 36-47 stay untouched for
-# other users (daniilf, sikha) per this machine's sharing convention.
+# other users of the shared machine it was developed on.
 
 # Resolve the repository root (the directory containing paths.py) without
 # hard-coding an absolute path, and default the data root beneath it.

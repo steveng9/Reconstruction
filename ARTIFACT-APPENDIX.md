@@ -51,7 +51,7 @@ companion table.
 | Datasets | Adult (29,822), CDC Diabetes (14,378), California (2,267), NIST Arizona (1,428), NIST SBO (1,231) |
 | SDG methods | 59 distinct configurations — the nine evaluated methods plus MST, AIM, PrivBayes, PrivSyn, MWEM-PGM and PrivateGSD across nine ε values |
 | Attacks | 184 labels — every attack in the taxonomy, plus its ablation variants and the pairwise ensembles/chains |
-| Splits | `standard`, and `train` / `nontraining` for the memorization test |
+| Splits | `standard`, and `train` / `nontraining` for the memorization test. A fourth value, `unknown` (1,569 rows), marks runs migrated from Weights & Biases logs that predate the split field; no table in the paper reads them. |
 
 **Three things are deliberately outside it:**
 
@@ -96,8 +96,10 @@ Under `RECON_DATA_ROOT`, each dataset follows one layout:
       <SDG>_eps<E>/synth.csv        # one synthetic release per generator
 ```
 
-`data/dummy/` is a complete, committed instance of this layout, so the pipeline
-runs on a fresh clone with no downloads and no environment variables. To add a
+`data/dummy/` is a committed instance of this layout, so the pipeline runs on a
+fresh clone with no downloads and no environment variables. It carries two
+samples; `sample_00` is complete, and `sample_01` has no `holdout.csv` because
+nothing shipped here runs the memorization test on it. To add a
 real dataset, create `<dataset>/full_data.csv` and run `sdg/generate_synth.py`;
 Experiment 3 walks through this for Adult.
 
@@ -159,10 +161,13 @@ reduced-scale experiments below are provided instead.
   them under Docker Desktop's emulation -- correctly, but slower than a native
   amd64 host. On Windows, either a WSL2 shell or PowerShell works; the *Set Up
   the Environment* section gives the exact command for each.
-- **Container runtime**: Docker Engine 28.0 or later. Everything else is supplied
-  by the images. The pinned dependency set has been verified to install and run
-  end to end in a clean Python 3.9.23 virtual environment (`./test.sh` passes
-  10/10); the container build itself uses the same pinned requirements.
+- **Container runtime**: Docker Engine. Developed and tested on 28.x, and
+  independently built and run on 24.0.6; anything 24.0 or newer is expected to
+  work, and nothing in either Dockerfile requires a newer feature. Everything
+  else is supplied by the images. The pinned dependency set has also been
+  verified to install and run end to end in a clean Python 3.9.23 virtual
+  environment (`./test.sh` passes 18/18); the container build itself uses the
+  same pinned requirements.
 - **Language**: Python 3.9.23 for the attack/analysis environment; Python 3.10.19
   for the synthetic-data-generation environment. The two are separate because
   SDV/SynthCity/SmartNoise require numpy and torch versions that conflict with
@@ -193,7 +198,7 @@ reduced-scale experiments below are provided instead.
 
 | Task | Human time | Compute time | Disk |
 |---|---|---|---|
-| Clone (with submodules) + build the light Docker image | 5 min | 10–15 min | ~4.1 GB |
+| Clone (with submodules) + build the light Docker image | 5 min | 10–15 min | ~3 GB |
 | `./test.sh` (full smoke test) | 1 min | ~2 min | negligible |
 | Experiment 1 — regenerate all paper tables and figures | 2 min | ~1 min | <10 MB |
 | Experiment 2 — attack vs. baseline on the dummy dataset | 2 min | ~1 min | negligible |
@@ -203,7 +208,8 @@ reduced-scale experiments below are provided instead.
 The repository itself is ~93 MB tracked (dominated by the 68 MB `results.db`),
 plus ~90 MB for the two submodules. Two numbers get quoted for a Docker image and
 they differ: the light image is 1.1 GB of layers -- what a registry transfers --
-but `docker images` reports 4.1 GB, which is what it occupies unpacked on disk.
+but `docker images` reports about 2.9 GB, which is what it occupies unpacked on
+disk.
 The build cache adds several GB more while the build runs, so budget **about 15
 GB of free disk** for the light image, or **about 40 GB** if you also build the
 full one. Nothing here requires the 50 GB-class hosting discussed in the PoPETs
@@ -528,6 +534,20 @@ it disagrees with the PDF in front of you. `python reproduce.py --list` prints t
 same label-to-file mapping straight from the manifest in
 `experiment_scripts/paper_objects.py`, which is the authority.
 
+**Expected output.** `reproduce.py` first lists the sixteen files it wrote, and
+then prints two coverage reports: Table 7 rows that have no `QI_linear`
+memorization runs, and Table 1 cells backed by fewer than five disjoint samples
+(many showing `n=0`, for the `CondDDPM` and `CondRePaint` rows that were excluded
+as broken). Those lists are long -- around forty lines -- and they are *not*
+errors: they are provenance notes recording how many samples back each cell, and
+they are printed precisely so that no cell's sample count is taken on trust. The
+run ends with:
+
+```
+done: 16 files written to expected_output/tables
+The lists above are notes on how many samples back each cell, not errors.
+```
+
 Because the reference copies of these files are committed, you can verify
 reproduction exactly rather than by eye:
 
@@ -536,7 +556,7 @@ python reproduce.py --out /tmp/check
 diff -r expected_output/tables /tmp/check   # .tex and .md files should be identical
 ```
 
-`./test.sh` performs exactly this diff on the nine text outputs. The two PDFs and
+`./test.sh` performs exactly this diff on the twelve text outputs. The two PDFs and
 their PNG companions will differ: matplotlib embeds a creation timestamp, and
 glyph rasterisation varies with the freetype build. The numbers plotted in them
 are verified through `STATS_eps_curve.md`, which is byte-compared.
@@ -568,7 +588,7 @@ row of that table matches the printed table exactly. Two rows (`CondDDPM`,
 rather than silently kept.
 
 The complete, cell-level list of differences -- which table, how many cells, and
-the largest move in each -- is in `TODO-TABLE-COVERAGE.md` under "Known
+the largest move in each -- is in `TABLE-COVERAGE.md` under "Known
 discrepancies between the regenerated tables and the printed paper". It is worth
 opening: it is the audit behind the summary here, and it is the document that
 tells you, for any cell you find that disagrees, whether we already knew. In
@@ -576,7 +596,7 @@ brief, as of this submission:
 
 | Paper object | What differs | Size |
 |---|---|---|
-| `tab:ra_mean_adult` | the five MST columns; `CondDDPM` and `CondRePaint` rows blanked | pre-repair vs. repaired runs |
+| `tab:ra_mean_adult` | the five MST columns; `CondDDPM` and `CondRePaint` rows blanked | 128 of 252 cells, largest move 13.2 to 21.7 |
 | `tab:ra_mean_cdc` | MST(ε=0.1) and AIM(ε=3) columns | 9 of 75 cells, largest move 0.9 pp |
 | `tab:ra_mean_nist_sbo` | MST(ε=0.1) and MST(ε=1) print `---`; other MST budgets rest on 2 samples, not 5 | up to 0.4 pp |
 | `tab:mia_comparison` | printed table mixes pre- and post-repair runs | 7 cells |
@@ -591,7 +611,11 @@ covering every table that carries a main claim. Nine more are not derived from t
 repository at all (the NIST scoreboard, the hand-written dataset and QI-definition
 tables, the two diagrams). The remaining 12 are supporting tables whose data is
 committed but whose generators are not yet written; `python reproduce.py --list`
-names each one, and `TODO-TABLE-COVERAGE.md` tracks the work.
+names each one, and `TABLE-COVERAGE.md` tracks the work. Eleven of those twelve
+have their data committed and need only a generator; the twelfth
+(`fig:heatmap_ensemble`) also needs a provenance decision about which of several
+candidate result files produced the printed figure, and is the one object here
+whose source data is not committed.
 
 #### Experiment 2: Attack versus baseline on the dummy dataset
 
@@ -601,8 +625,12 @@ Demonstrates the attack pipeline end to end with no downloads, and shows a real
 attack beating the mode baseline (Main Result 3, in miniature).
 
 ```bash
-python master_experiment_script.py --n_runs 1     # uses configs/demo_dummy.yaml
+python master_experiment_script.py --n_runs 1
 ```
+
+That runs `configs/demo_dummy.yaml`, the default, which needs no downloads. Pass
+`--config <path>` to run any other config; `configs/example_cfg.yaml` is the
+Adult equivalent, and needs the dataset fetched first (Experiment 3).
 
 Edit `attack_method` in `configs/demo_dummy.yaml` to try others (`Mode`,
 `RandomForest`, `KNN`, `NaiveBayes`, `MultiHeadMLP`, `CoBP-RA`, …); the registry
@@ -631,7 +659,9 @@ that are `tab:ra_mean_adult` columns (MST at ε=1, 10 and 100, and AIM at ε=1)
 attacked by five that are its rows (Mode, KNN, RandomForest, NaiveBayes,
 CoBP-RA), over
 two training samples. Every one of them runs on CPU in the light image — no
-GPU, no R, no Gurobi. Pass `WORKERS=<n>` if you have fewer than four cores.
+GPU, no R, no Gurobi. The ~40-minute estimate assumes 12 worker processes; on
+a 4-core laptop budget about 2 hours. Pass `WORKERS=<n>` to match the cores you
+have.
 
 Expect the ordering of attacks and of SDG methods to match that block of
 `tab:ra_mean_adult`, with individual cells within a few points of the published values —
@@ -644,7 +674,8 @@ separately and overlaps the others. Four is more than this experiment uses.
 
 #### Experiment 4: Reduced-scale epsilon sweep
 
-- Time: 10 human-minutes + ~50 compute-minutes
+- Time: 10 human-minutes + ~50 compute-minutes at `SWEEP_WORKERS=12`; budget
+  about 2.5 hours on the 4-core laptop the Hardware section describes
 - Storage: ~200 MB
 
 Reproduces the shape of Main Result 4 on one dataset and a subset of mechanisms,
@@ -656,15 +687,15 @@ using the same 9-point ε grid as the paper (0.1, 0.3, 1, 3, 10, 30, 100, 300,
 python experiment_scripts/fetch_dataset.py cdc_diabetes
 
 # generate the synthetic data and run the sweep
-RECON_RESULTS_DB=experiment_scripts/results_reproduction.db \
-  bash experiment_scripts/run_cdc_dp_sweep_pipeline.sh
+bash experiment_scripts/run_cdc_dp_sweep_pipeline.sh
 ```
 
-`RECON_RESULTS_DB` sends the new runs to a separate database. Without it they
-are appended to the shipped `results.db`, which would move the numbers that
-Experiment 1 and `test.sh` compare against the committed tables. On a machine
-with fewer cores than the authors', also pass `SWEEP_WORKERS` to match what you
-have, e.g. `SWEEP_WORKERS=4`.
+The script writes its runs to `experiment_scripts/results_reproduction.db`, not
+to the shipped `results.db`, so re-running it cannot move the numbers that
+Experiment 1 and `test.sh` check against the committed tables. Set
+`RECON_RESULTS_DB` yourself if you want them somewhere else. On a machine with
+fewer cores than the authors', pass `SWEEP_WORKERS` to match what you have, e.g.
+`SWEEP_WORKERS=4`.
 
 Expect $R_{adv}$ to rise steeply from ε=0.1 to ε≈10 and to be close to flat
 above it, matching the curve shape in `fig_eps_curves.pdf`. The absolute values
@@ -732,7 +763,7 @@ limitations below concern everything beyond that.
    quality profiles, the QI-composition analysis — whose underlying data is
    committed but which do not yet have a generator. `python reproduce.py --list`
    names every one of the paper's 33 labelled objects and reports which of them
-   rebuild; `TODO-TABLE-COVERAGE.md` tracks the remaining work. No main claim
+   rebuild; `TABLE-COVERAGE.md` tracks the remaining work. No main claim
    depends on an object outside Experiment 1.
 
 7. **`environment.yaml` is superseded.** The historical conda file in the
@@ -751,7 +782,7 @@ limitations below concern everything beyond that.
    in `python reproduce.py --list`. Second, where a printed value and a
    regenerated value disagree, the regenerated one is the one traceable to
    committed data; every difference we know of is enumerated cell-by-cell in
-   `TODO-TABLE-COVERAGE.md`, and none of them changes a claim. The known cases as
+   `TABLE-COVERAGE.md`, and none of them changes a claim. The known cases as
    of this submission are summarised in the Experiment 1 section.
 
 ## Notes on Reusability

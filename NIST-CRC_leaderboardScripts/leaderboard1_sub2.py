@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 
 from attacks.baselines_classifiers import KNN_baseline
@@ -103,7 +104,11 @@ methods = {
     ]
 }
 
-data_path = "/Users/golobs/Documents/GradSchool/NIST-CRC-25/NIST_Red-Team_Problems1-24_v2/"
+# Author working paths for the NIST CRC 2025 competition data, which is not
+# redistributed with this artifact. Point RECON_CRC_DATA at your copy.
+data_path = os.environ.get("RECON_CRC_DATA", "")
+if not data_path:
+    raise SystemExit("set RECON_CRC_DATA to the NIST CRC data directory")
 
 def main():
     # reconstruction25f()

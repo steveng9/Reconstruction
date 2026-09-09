@@ -12,7 +12,7 @@ Everything else derives from it, so nothing can drift out of sync:
 
     reproduce.py            dispatches the generators listed here
     test.sh                 byte-diffs exactly the outputs marked check=True
-    TODO-TABLE-COVERAGE.md  its tier tables are regenerated from here
+    TABLE-COVERAGE.md  its tier tables are regenerated from here
     experiment_scripts/README.md   its coverage table likewise
 
 To add a paper object: add a row, write the generator in regen_camera_tables.py,
@@ -36,7 +36,7 @@ class PaperObject:
     source: str = ""            # where the numbers come from
     generator: str | None = None  # function name in regen_camera_tables.py
     status: str = "todo"        # done | todo | external
-    tier: str = ""              # A/B/C/D for todo+external, per TODO-TABLE-COVERAGE.md
+    tier: str = ""              # A/B/C/D for todo+external, per TABLE-COVERAGE.md
     check: bool = False         # test.sh byte-diffs this output
     note: str = ""              # why it is not done, or what to know about it
 
@@ -93,7 +93,7 @@ MANIFEST: list[PaperObject] = [
         label="tab:mia_comparison", output="table6_mia_comparison.tex",
         source=MIA, generator="table6", status="done", check=True,
         note="The printed table mixes pre- and post-repair runs; this output is "
-             "the post-repair version. See TODO-TABLE-COVERAGE.md.",
+             "the post-repair version. See TABLE-COVERAGE.md.",
     ),
     PaperObject(
         key="table7", title="Memorization gap and d_S disclosure risk",
@@ -114,7 +114,7 @@ MANIFEST: list[PaperObject] = [
              "it and predates the pre-repair backup too, so its numbers have no "
              "committed source: an extra AIM row here, and 32 of 45 shared cells "
              "move by >5% relative (largest absolute move 1.68 pp). The "
-             "qualitative claim is unchanged. See TODO-TABLE-COVERAGE.md.",
+             "qualitative claim is unchanged. See TABLE-COVERAGE.md.",
     ),
     PaperObject(
         key="fig_eps", title="Reconstruction risk vs privacy budget",

@@ -1,6 +1,12 @@
 """
-Master experiment script for tabular RePaint experiments.
-Usage: python run_experiment.py --config configs/experiment1.yaml --data_dir /path/to/data
+Master experiment script: runs a reconstruction (or membership-inference)
+experiment described by a YAML config.
+
+    python master_experiment_script.py --n_runs 1
+    python master_experiment_script.py --config configs/example_cfg.yaml
+
+The default config, configs/demo_dummy.yaml, runs against the dummy dataset
+committed in data/dummy/, so it works on a fresh clone with no downloads.
 """
 import sys as _sys, pathlib as _pathlib
 for _anc in _pathlib.Path(__file__).resolve().parents:
@@ -14,9 +20,19 @@ import os
 import sys
 
 N_RUNS_default = 1
-parser = argparse.ArgumentParser()
-argparse.ArgumentParser(description="Run tabular Reconstruction experiments")
+
+# The default config runs on the committed dummy dataset, so `python
+# master_experiment_script.py --n_runs 1` works on a fresh clone with no
+# downloads. configs/example_cfg.yaml points at Adult, which is not
+# redistributed and has to be fetched first (see ARTIFACT-APPENDIX.md,
+# Experiment 3); pass it with --config once you have it.
+CONFIG_PATH_fallback = str(REPO_ROOT / "configs" / "demo_dummy.yaml")
+
+parser = argparse.ArgumentParser(description="Run tabular Reconstruction experiments")
 parser.add_argument("--n_runs", type=int, default=N_RUNS_default, help="Number of runs to average over")
+parser.add_argument("--config", type=str, default=None,
+                    help="Path to config YAML (default: configs/demo_dummy.yaml, "
+                         "or the CONFIG_PATH_default environment variable)")
 # Accepted and ignored. It once chose between two hardcoded path sets; paths
 # now resolve through paths.py on every machine, so there is nothing left to
 # switch. Kept so older scripts that still pass it do not break. It is a
@@ -35,9 +51,11 @@ sys.path.append(str(RECON_SYNTH))
 sys.path.append(str(RECON_SYNTH / 'attacks'))
 sys.path.append(str(RECON_SYNTH / 'attacks' / 'solvers'))
 
-# Override with the CONFIG_PATH environment variable, as documented in the README.
-CONFIG_PATH_default = os.environ.get(
-    "CONFIG_PATH_default", str(REPO_ROOT / "configs" / "example_cfg.yaml"))
+# Resolution order: --config, then the CONFIG_PATH_default environment variable
+# (which test.sh uses to point at a temporary config), then the dummy-dataset
+# default above.
+CONFIG_PATH_default = args.config or os.environ.get(
+    "CONFIG_PATH_default", CONFIG_PATH_fallback)
 
 import yaml
 import numpy as np
@@ -61,11 +79,6 @@ from attacks import get_attack, get_mia_attack
 from enhancements import apply_chaining, apply_ensembling
 
 
-
-
-
-# on_server = len(sys.argv) > 1 and sys.argv[1] == 'T'
-
 def main():
     config = load_config(CONFIG_PATH_default)
 
@@ -84,16 +97,6 @@ def main():
 
     wandb.finish()
     print(f"\n{'=' * 50}\nAll runs complete!\n{'=' * 50}")
-
-
-#
-# def parse_args():
-#     parser = argparse.ArgumentParser(description="Run tabular Reconstruction experiments")
-#     # parser.add_argument("--data_dir", type=str, default=default_data_dir, help="Path to data directory")
-#     # parser.add_argument("--config", type=str, default=CONFIG_PATH_default, help="Path to config YAML file")
-#     parser.add_argument("--n_runs", type=int, default=N_RUNS_default, help="Number of runs to average over")
-#     parser.add_argument("--on_server", type=bool, default=False, help="changes directories depending on which machine running on")
-#     return parser.parse_args()
 
 
 def load_config(config_path):

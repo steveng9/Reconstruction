@@ -13,7 +13,7 @@ class AuxiliaryDatasetCreator:
     for use in probability ratio reconstruction methods.
     """
 
-    def __init__(self, base_path: str = "/Users/golobs/Documents/GradSchool/NIST-CRC-25/"):
+    def __init__(self, base_path: str = os.environ["RECON_CRC_DATA"] + ""):
         """
         Initialize with base path to data directories.
 

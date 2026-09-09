@@ -1,11 +1,12 @@
+import os
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
 
 # Load the files
-mst_df = pd.read_csv("/Users/golobs/Documents/GradSchool/NIST-CRC-25/25_PracticeProblem/25_Demo_MST_e10_25f_Deid.csv")
-qi1_df = pd.read_csv("/Users/golobs/Documents/GradSchool/NIST-CRC-25/25_PracticeProblem/25_Demo_25f_OriginalData_QI1.csv")
+mst_df = pd.read_csv(os.environ["RECON_CRC_DATA"] + "25_PracticeProblem/25_Demo_MST_e10_25f_Deid.csv")
+qi1_df = pd.read_csv(os.environ["RECON_CRC_DATA"] + "25_PracticeProblem/25_Demo_25f_OriginalData_QI1.csv")
 
 # Shared features
 qi1_features = ['F2', 'F17', 'F22', 'F32', 'F37', 'F41', 'F47']

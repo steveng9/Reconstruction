@@ -161,6 +161,15 @@ def _report(gen, results, full_run: bool) -> None:
             for a, b, n in cov:
                 print(f"  {a:<24}{b:<28}n={n}")
 
+    # The coverage lists above are the longest thing on screen and read like a
+    # failure if you were not expecting them. They are not: they are provenance
+    # notes saying how many samples back each cell. Close on an explicit
+    # success line so nobody has to guess.
+    n_written = len(list(gen.OUT.iterdir()))
+    print(f"\ndone: {n_written} files written to {gen.OUT}")
+    print("The lists above are notes on how many samples back each cell, "
+          "not errors.")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 

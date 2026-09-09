@@ -19,6 +19,11 @@ done
   echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
 : "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
 
+# Write results to a separate database. Reviewers re-run test.sh after this,
+# and that compares tables regenerated from the shipped results.db against the
+# committed copies -- appending fresh runs to it would move those numbers.
+export RECON_RESULTS_DB="${RECON_RESULTS_DB:-$REPO_ROOT/experiment_scripts/results_reproduction.db}"
+
 cd "$REPO_ROOT"
 
 # On the authors' machine the environment is a conda env; inside the artifact's
@@ -30,7 +35,7 @@ if command -v conda >/dev/null 2>&1; then
 fi
 
 # Cap per-process thread usage so this doesn't monopolize all 48 cores and
-# starve other users (daniilf, sikha) sharing the machine.
+# starve other users of the shared machine it was developed on.
 #
 # PIN is the CPU-affinity prefix applied to the two heavy steps below. Pinning
 # to cores 0-23 needs a machine with at least 24 of them; on a smaller host

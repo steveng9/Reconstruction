@@ -2,8 +2,8 @@
 """
 Per-attack disparity analysis.
 
-Question (reviewer/\steven TODO): is the demographic / outlier disparity in
-Table tab:disparate_impact a property of the *attack* or of the *SDG mechanism*?
+Question: is the demographic / outlier disparity in `tab:disparate_impact` a
+property of the *attack* or of the *SDG mechanism*?
 
 We reuse analyze_ra_subgroups.run_analysis but sweep the ATTACK_METHOD across the
 fast classifier attacks, for each high-/low-disparity SDG method, on the same

@@ -42,7 +42,12 @@ def _development():
         "25_Demo_MST_e10_25f_Deid.csv",
     ]
 
-    mypath = "/Users/golobs/Documents/GradSchool/NIST-CRC-25/25_PracticeProblem/"
+    # Developer-only helper (reachable only via __main__). Point
+    # RECON_CRC_PRACTICE at the NIST CRC 2025 practice-problem directory;
+    # those are author working files and are not part of the artifact.
+    mypath = os.environ.get("RECON_CRC_PRACTICE", "")
+    if not mypath:
+        raise SystemExit("set RECON_CRC_PRACTICE to run _development()")
     target_filename = "25_Demo_25f_OriginalData.csv"
     targets_original = pd.read_csv(join(mypath, target_filename))
 

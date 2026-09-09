@@ -32,7 +32,7 @@ These are the only scripts the artifact evaluation depends on.
 
 `python reproduce.py` rebuilds the following into `expected_output/tables/`. That is
 12 of the paper's 33 labelled objects; `python reproduce.py --list` shows the rest and
-[`../TODO-TABLE-COVERAGE.md`](../TODO-TABLE-COVERAGE.md) tracks the work to close the gap.
+[`../TABLE-COVERAGE.md`](../TABLE-COVERAGE.md) tracks the work to close the gap.
 
 | Paper object | Output | Source |
 |---|---|---|
@@ -60,7 +60,7 @@ These are the only scripts the artifact evaluation depends on.
 | `../reproduce.py` | DB, CSV | **Experiment 1.** The entry point. Reads the manifest and runs the generators it names. |
 | `paper_objects.py` | — | The manifest: one row per paper table and figure. Data only, no logic. |
 | `regen_camera_tables.py` | DB, CSV | The generator functions `reproduce.py` calls. Running it directly still works and is equivalent. |
-| `make_docs.py` | — | Regenerates the manifest-derived sections of this file and of `TODO-TABLE-COVERAGE.md` (`python reproduce.py --docs`). |
+| `make_docs.py` | — | Regenerates the manifest-derived sections of this file and of `TABLE-COVERAGE.md` (`python reproduce.py --docs`). |
 | `run_production_sweep.py` | RAW, DB | **Experiment 3.** The attack × SDG grid behind Table 1. Reduced-scale runs are what reviewers are asked to do. |
 | `generate_new_dp_sweep.py` | CSV | **Experiment 4, step 1.** Generates `synth.csv` for given SDG method(s) / ε / sample(s). |
 | `run_new_dp_epsilon_sweep.py` | RAW, CSV | **Experiment 4, step 2.** RF + NaiveBayes + CoBP-RA across SDG × ε × QI × sample. |

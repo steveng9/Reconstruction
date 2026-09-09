@@ -14,7 +14,7 @@
 #
 # Cores 24-35 are free (private_gsd_10k_pipeline.sh released them when it
 # finished). Cores 12-19 in use by the nist_arizona PrivateGSD job. Cores
-# 36-47 stay untouched for other users (daniilf, sikha).
+# 36-47 stay untouched for other users of the shared machine.
 
 # Resolve the repository root (the directory containing paths.py) without
 # hard-coding an absolute path, and default the data root beneath it.

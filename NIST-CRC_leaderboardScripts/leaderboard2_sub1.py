@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 
 from attacks.baselines_classifiers import KNN_baseline, simply_measure_deid_itself_baseline
@@ -33,7 +34,11 @@ problems = [
     ("10_MST_e10_50f_QID2", "QI2", 50, ),
 ]
 
-data_path = "/Users/golobs/Documents/GradSchool/NIST-CRC-25/"
+# Author working paths for the NIST CRC 2025 competition data, which is not
+# redistributed with this artifact. Point RECON_CRC_DATA at your copy.
+data_path = os.environ.get("RECON_CRC_DATA", "")
+if not data_path:
+    raise SystemExit("set RECON_CRC_DATA to the NIST CRC data directory")
 
 def main():
     reconstruction()
@@ -42,7 +47,6 @@ def reconstruction():
     for problem, qi_name, num_features, recon_method in problems:
         print("Processing", problem)
         qi = QIs[qi_name]
-        # TODO: sort 50 hidden_features
         hidden_features = minus_QIs[qi_name] if num_features == 25 else list(set(features_50).difference(set(qi)))
 
         deid = pd.read_csv(data_path + "NIST_Red-Team_Problems1-24_v2/" + problem + "_Deid.csv")

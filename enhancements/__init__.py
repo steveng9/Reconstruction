@@ -5,7 +5,9 @@ Enhancements are composable wrappers that augment base attack methods
 without modifying their core implementation. Examples include:
 - Chaining: Sequential feature prediction
 - Ensembling: Combining multiple attack methods
-- Auxiliary data: Augmenting training data (TODO)
+
+Only chaining and ensembling are implemented; they are the two the paper
+evaluates.
 """
 
 from .chaining_wrapper import apply_chaining

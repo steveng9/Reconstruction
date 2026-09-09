@@ -79,7 +79,8 @@ attack_params:
     log_intermediate: false  # Log per-feature accuracy during chaining
     random_seed: 42  # Seed for "random" order_strategy
 
-  # TODO: Future enhancements
+  # Sketch of an auxiliary-data enhancement. Not implemented; the loader
+  # ignores this block. No paper result uses it.
   # auxiliary_data:
   #   enabled: false
   #   source: "public_dataset"

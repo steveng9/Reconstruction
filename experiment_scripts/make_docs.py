@@ -4,7 +4,7 @@ Regenerate the manifest-derived sections of the markdown documentation.
 
 Two documents describe which paper objects rebuild and which do not. Both used to
 be maintained by hand, and both drifted -- the coverage counts in
-TODO-TABLE-COVERAGE.md disagreed with reality twice. Those sections are now
+TABLE-COVERAGE.md disagreed with reality twice. Those sections are now
 generated from `paper_objects.py` instead, spliced between marker comments:
 
     <!-- BEGIN generated: <block> -->   ... generated content ...   <!-- END generated -->
@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import paper_objects as M
 
 ROOT = Path(__file__).resolve().parent.parent
-TODO = ROOT / "TODO-TABLE-COVERAGE.md"
+COVERAGE_DOC = ROOT / "TABLE-COVERAGE.md"
 SCRIPTS_README = ROOT / "experiment_scripts" / "README.md"
 
 TIER_HEADINGS = {
@@ -47,7 +47,7 @@ def _cell(text: str) -> str:
 
 
 def block_coverage() -> str:
-    """The whole status section of TODO-TABLE-COVERAGE.md."""
+    """The whole status section of TABLE-COVERAGE.md."""
     c = M.counts()
     out = [
         f"**Status:** {c['done']} of the manuscript's {c['labelled']} labelled tables "
@@ -96,7 +96,7 @@ def block_reproduction() -> str:
         f"`python reproduce.py` rebuilds the following into `expected_output/tables/`. "
         f"That is\n{c['done']} of the paper's {c['labelled']} labelled objects; "
         f"`python reproduce.py --list` shows the rest and\n"
-        f"[`../TODO-TABLE-COVERAGE.md`](../TODO-TABLE-COVERAGE.md) tracks the work to "
+        f"[`../TABLE-COVERAGE.md`](../TABLE-COVERAGE.md) tracks the work to "
         f"close the gap.",
         "",
         "| Paper object | Output | Source |",
@@ -109,7 +109,7 @@ def block_reproduction() -> str:
 
 
 BLOCKS = {
-    TODO: {"coverage": block_coverage},
+    COVERAGE_DOC: {"coverage": block_coverage},
     SCRIPTS_README: {"reproduction": block_reproduction},
 }
 

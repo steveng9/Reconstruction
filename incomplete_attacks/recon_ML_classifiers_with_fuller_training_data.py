@@ -10,7 +10,7 @@ from attacks.NN_classifier import mlp_300_reconstruction, chained_mlp_reconstruc
 from util import *
 
 
-mypath = "/Users/golobs/Documents/GradSchool/NIST-CRC-25/25_PracticeProblem"
+mypath = os.environ["RECON_CRC_DATA"] + "25_PracticeProblem"
 
 def main():
     qis = [

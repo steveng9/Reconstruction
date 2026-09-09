@@ -1,3 +1,4 @@
+import os
 import sys
 
 import pandas as pd
@@ -163,8 +164,8 @@ def convert_to_graph(synth, targets, nonhidden_features, hidden_features):
 
 def main():
 
-    synth_full = pd.read_csv("/Users/golobs/Documents/GradSchool/NIST-CRC-25/NIST_Red-Team_Problems1-24_v2/10_MST_e10_50f_QID2_Deid.csv")
-    targets = pd.read_csv('/Users/golobs/Documents/GradSchool/NIST-CRC-25/NIST_Red-Team_Problems1-24_v2/10_MST_e10_50f_QID2_AttackTargets.csv')
+    synth_full = pd.read_csv(os.environ["RECON_CRC_DATA"] + "NIST_Red-Team_Problems1-24_v2/10_MST_e10_50f_QID2_Deid.csv")
+    targets = pd.read_csv(os.environ["RECON_CRC_DATA"] + "NIST_Red-Team_Problems1-24_v2/10_MST_e10_50f_QID2_AttackTargets.csv")
     all_nonhidden_features = targets.drop('TargetID', axis=1, inplace=False).columns.tolist()
     all_hidden_features = list(set(synth_full.columns.tolist()).difference(set(all_nonhidden_features)))
     nonhidden_features = all_nonhidden_features[:num_nonhidden_features]

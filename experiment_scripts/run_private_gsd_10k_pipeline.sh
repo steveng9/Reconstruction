@@ -24,12 +24,17 @@ done
   echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
 : "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
 
+# Write results to a separate database, so a re-run cannot move the numbers
+# that the shipped results.db backs (Experiment 1 and test.sh compare
+# against tables regenerated from it).
+export RECON_RESULTS_DB="${RECON_RESULTS_DB:-$REPO_ROOT/experiment_scripts/results_reproduction.db}"
+
 cd "$REPO_ROOT"
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate recon_
 
 # Cap per-process thread usage so this doesn't monopolize all 48 cores and
-# starve other users (daniilf, sikha) sharing the machine.
+# starve other users of the shared machine it was developed on.
 export OMP_NUM_THREADS=2
 export OPENBLAS_NUM_THREADS=2
 export MKL_NUM_THREADS=2

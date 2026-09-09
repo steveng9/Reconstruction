@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 from os.path import join
@@ -83,7 +84,12 @@ def _development():
         # "chained_NB": chained_nb_reconstruction,
     }
 
-    mypath = "/Users/golobs/Documents/GradSchool/NIST-CRC-25/25_PracticeProblem/"
+    # Developer-only helper (reachable only via __main__). Point
+    # RECON_CRC_PRACTICE at the NIST CRC 2025 practice-problem directory;
+    # those are author working files and are not part of the artifact.
+    mypath = os.environ.get("RECON_CRC_PRACTICE", "")
+    if not mypath:
+        raise SystemExit("set RECON_CRC_PRACTICE to run _development()")
     target_filename = "25_Demo_25f_OriginalData.csv"
     targets_original = pd.read_csv(join(mypath, target_filename))
 
@@ -335,9 +341,6 @@ def naive_bayes_reconstruction(cfg, deid, targets, qi, hidden_features, classes=
 #             else:
 #                 # Simple average (or mode for truly categorical)
 #                 feature_values.append(round(np.mean(neighbor_values)))
-#                 # TODO: For categorical features, consider using mode:
-#                 # from scipy import stats
-#                 # feature_values.append(stats.mode(neighbor_values, keepdims=False)[0])
 #
 #         recon[feature] = feature_values
 #

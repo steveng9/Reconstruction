@@ -1,3 +1,4 @@
+import os
 from os.path import join
 
 from sklearn.ensemble import RandomForestClassifier
@@ -36,7 +37,7 @@ def main():
         # "chained_NB": chained_nb_reconstruction,
     }
 
-    mypath = "/Users/golobs/Documents/GradSchool/NIST-CRC-25/25_PracticeProblem/"
+    mypath = os.environ["RECON_CRC_DATA"] + "25_PracticeProblem/"
     target_filename = "25_Demo_25f_OriginalData.csv"
     targets_original = pd.read_csv(join(mypath, target_filename))
 

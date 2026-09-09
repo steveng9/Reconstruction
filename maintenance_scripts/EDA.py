@@ -8,14 +8,15 @@ from os import listdir
 from os.path import isfile, join
 from util import features_25, features_50, QIs, minus_QIs, calculate_reconstruction_score
 
-base_path = "/Users/golobs/Documents/GradSchool/NIST-CRC-25/"
+# Author working paths; this data is not redistributed with the artifact.
+base_path = os.environ.get("RECON_CRC_DATA", "")
 
 def main():
     QI = "QI1"
 
-    reconstructed = pd.read_csv(f"/Users/golobs/PycharmProjects/smartnoise-sdk/reconstructed_data_{QI}.csv").iloc[:, 1:]
+    reconstructed = pd.read_csv(os.environ.get("RECON_EDA_RECON_DIR", "") + f"reconstructed_data_{QI}.csv").iloc[:, 1:]
     # reconstructed = pd.read_csv("25_Demo_25f_Reconstructed.csv").iloc[:, 1:]
-    original = pd.read_csv("/Users/golobs/Documents/GradSchool/NIST-CRC-25/25_PracticeProblem/25_Demo_25f_OriginalData.csv")
+    original = pd.read_csv(base_path + "25_PracticeProblem/25_Demo_25f_OriginalData.csv")
     hidden_features = minus_QIs[QI]
 
     reconstruction_scores = pd.DataFrame(index=features_25)
@@ -64,7 +65,7 @@ def examine_domains():
 
 
 def examine_other_dataset_domains():
-    data_path = "/Users/golobs/Downloads/national2018_b.csv"
+    data_path = os.environ.get("RECON_SBO_NATIONAL_CSV", "")
     df = pd.read_csv(data_path)
     nunique = pd.DataFrame(columns=df.columns)
 
