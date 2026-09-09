@@ -7,6 +7,37 @@ Requested Badge(s):
   - [x] **Functional**
   - [x] **Reproduced**
 
+## Quick start for a reviewer
+
+The whole evaluation is four commands. Everything below this box is detail you
+only need if one of them does not do what it says.
+
+```bash
+git clone --recurse-submodules https://github.com/steveng9/Reconstruction.git
+cd Reconstruction
+docker build -f docker/Dockerfile --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t recon-artifact:latest .
+docker run --rm -it -v "${PWD}":/workspace -w /workspace recon-artifact:latest bash
+```
+
+Then, inside the container:
+
+| Command | What it shows | Time |
+|---|---|---|
+| `./test.sh` | the environment works end to end | ~2 min |
+| `python reproduce.py` | every paper table and figure, rebuilt from committed data | ~1 min |
+| `python master_experiment_script.py --n_runs 1` | a real attack beating the baseline | ~1 min |
+
+`./test.sh` ending in **`18 passed, 0 failed`** is the single check that the
+artifact is functional. On Windows use a WSL2 shell, or PowerShell with the two
+`--build-arg` flags dropped. No `--platform` flag is needed on any host,
+including Apple Silicon.
+
+Two things worth knowing before you compare a regenerated number against the
+printed paper: the artifact was frozen six days before the camera-ready, and a
+database repair in August 2026 means some printed cells are pre-repair. Both are
+covered under *Experiment 1, continued*, and every difference we know of
+is listed cell-by-cell in `TABLE-COVERAGE.md`.
+
 ## Description
 
 This artifact is the complete experiment framework behind:
@@ -561,7 +592,7 @@ their PNG companions will differ: matplotlib embeds a creation timestamp, and
 glyph rasterisation varies with the freetype build. The numbers plotted in them
 are verified through `STATS_eps_curve.md`, which is byte-compared.
 
-#### Comparing against the paper PDF
+#### Experiment 1, continued: comparing against the paper PDF
 
 Two things to know before you diff a regenerated table against the printed one.
 
