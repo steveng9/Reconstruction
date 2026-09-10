@@ -860,6 +860,31 @@ the right `data_type`, and add defaults to `attack_defaults.py`. It is then
 immediately usable by every sweep script, and composable with the chaining and
 ensembling wrappers without further work.
 
+`examples/add_your_own_attack.py` does all three steps in one runnable file, so
+this claim can be checked rather than taken on trust:
+
+```bash
+python examples/add_your_own_attack.py
+```
+
+It writes a small conditional-mode attack, registers it, and scores it against
+the mode baseline and against CoBP-RA on identical data with the paper's own
+metric — about 30 seconds, on the shipped dummy dataset, no downloads. The new
+attack should land between the two:
+
+```
+Attack                            mean R_adv
+--------------------------------------------
+NearestQIMatch (this example)           39.5
+Mode baseline                           33.9
+CoBP-RA (paper's strongest)             40.4
+```
+
+The first two rows are deterministic. CoBP-RA is not — its random forests are
+unseeded, so it moves by a few tenths between runs (40.2–40.7 observed over
+repeated runs on this machine), which is the same tolerance noted for
+Experiment 2 above.
+
 **Adding an SDG method** is the same shape: implement
 `generate(train_df, meta, **config) -> synthetic_df` and register it in
 `SDG_REGISTRY` in `sdg/__init__.py`.
@@ -875,6 +900,15 @@ a `feature_scores` table for per-feature breakdowns. It is a usable secondary
 dataset in its own right for anyone studying reconstruction risk, independent of
 this framework — 49,126 scored runs spanning 184 attack labels and 59 SDG
 configurations.
+
+[`DATABASE.md`](DATABASE.md) documents it for that use: the schema, the two
+label conventions that will otherwise catch you out (six attacks are stored
+under their pre-2026 names, so a query for `ARFFormer` silently returns nothing;
+and `attack_label` also holds ablation variants, chains, ensembles and oracles),
+five worked queries, and the caveats to check before drawing conclusions from
+uneven grid coverage. `python examples/query_results_db.py` runs those queries
+and prints the results — standard library only, so it works without installing
+this repository at all.
 
 **Beyond reconstruction.** The same harness runs membership inference
 (`--mode mia`), and `experiment_scripts/compare_mia_ra.py` implements the paper's

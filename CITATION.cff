@@ -1,0 +1,50 @@
+cff-version: 1.2.0
+title: >-
+  SoK: Reconstruction Attacks on Synthetic Tabular Data
+  (Insights from Winning the NIST CRC)
+message: >-
+  If you use this software, this database, or any of the attacks it implements,
+  please cite the paper below.
+type: software
+authors:
+  - family-names: Golob
+    given-names: Steven
+    affiliation: University of Washington
+    email: golobs@uw.edu
+  - family-names: Pentyala
+    given-names: Sikha
+    affiliation: University of Washington
+  - family-names: De Cock
+    given-names: Martine
+    affiliation: University of Washington
+abstract: >-
+  A systematization and empirical comparison of reconstruction attacks against
+  synthetic tabular data, including six new attacks (CoBP-RA, CondMST, CondDDPM,
+  CondRePaint, ARFFormer and MultiHeadMLP), the composable chaining and
+  ensembling wrappers, nine synthetic-data generators plus differentially private
+  mechanisms across nine privacy budgets, and a database of 49,126 scored
+  attack runs. Insights are drawn in part from the authors' winning entry to the
+  NIST Collaborative Research Cycle.
+keywords:
+  - synthetic data
+  - reconstruction attack
+  - attribute inference
+  - differential privacy
+  - privacy-enhancing technologies
+  - tabular data
+license: MIT
+repository-code: https://github.com/steveng9/Reconstruction
+preferred-citation:
+  type: article
+  title: >-
+    SoK: Reconstruction Attacks on Synthetic Tabular Data
+    (Insights from Winning the NIST CRC)
+  authors:
+    - family-names: Golob
+      given-names: Steven
+    - family-names: Pentyala
+      given-names: Sikha
+    - family-names: De Cock
+      given-names: Martine
+  journal: Proceedings on Privacy Enhancing Technologies
+  year: 2027

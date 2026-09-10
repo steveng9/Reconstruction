@@ -15,6 +15,11 @@ outfiles/
 # (it backs experiment_scripts/regen_camera_tables.py), so it is un-ignored below.
 *.db
 
+# SQLite write-ahead-log sidecars. Opening results.db can create these; they are
+# transient and never part of the artifact.
+*.db-wal
+*.db-shm
+
 # Manuscript (not part of the artifact)
 manuscript/
 manual_references.bib

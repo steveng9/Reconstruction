@@ -39,7 +39,8 @@ The same methodology placed **first among all red teams** in the 2025 NIST Priva
 7. [Attack Taxonomy](#attack-taxonomy)
 8. [SDG Methods](#sdg-methods)
 9. [Configuration Reference](#configuration-reference)
-10. [Citation](#citation)
+10. [Extending and Reusing](#extending-and-reusing)
+11. [Citation](#citation)
 
 ---
 
@@ -378,6 +379,13 @@ python experiment_scripts/synth_quality_to_latex.py experiment_scripts/synth_qua
 ```
 Reconstruction/
 ├── reproduce.py                  ← Rebuild every paper table/figure; --list shows coverage
+├── test.sh                        ← Two-minute smoke test: environment, attack pipeline, tables
+├── DATABASE.md                    ← results.db as a standalone dataset: schema, conventions, queries
+│
+├── examples/                      ← Short, runnable, self-contained
+│   ├── add_your_own_attack.py     ← Write, register and score a new attack in one file
+│   └── query_results_db.py        ← Five worked queries over the 49,126 scored runs
+│
 ├── master_experiment_script.py   ← Main entry point: runs one experiment, logs to WandB
 ├── attack_defaults.py            ← Default hyperparameters for all 13 attacks
 ├── get_data.py                   ← Data loading: load_data(), load_mia_data(), QI definitions
@@ -651,6 +659,52 @@ Key WandB metrics logged per run:
 
 ---
 
+## Extending and Reusing
+
+This is a framework, not a single experiment. Two short, runnable examples show
+what reuse looks like in practice; both work on the shipped dummy data or the
+committed database, with no downloads and no GPU.
+
+**Add your own attack.**
+
+```bash
+python examples/add_your_own_attack.py
+```
+
+Writes a new attack, registers it in `ATTACK_REGISTRY`, and scores it against
+the mode baseline and CoBP-RA on identical data using the paper's own metric.
+The file is commented as a template: copy it, change the attack body, and the
+result is immediately usable by every sweep script in the repository and
+composable with the chaining and ensembling wrappers. Making it permanent means
+putting the function in `attacks/`, adding one line to `attacks/__init__.py`,
+and adding defaults to `attack_defaults.py` — nothing else changes.
+
+Adding an **SDG method** is the same shape: implement
+`generate(train_df, meta, **config) -> synthetic_df` and register it in
+`SDG_REGISTRY` in `sdg/__init__.py`. Adding a **dataset** needs a directory in
+the documented layout (`meta.json` plus `size_{N}/sample_{XX}/train.csv`) and QI
+definitions in the `QIs` / `minus_QIs` dicts in `get_data.py`;
+`data/dummy/make_dummy_data.py` is a short worked example of exactly that.
+
+**Reuse the results instead of the code.**
+
+```bash
+python examples/query_results_db.py
+```
+
+`experiment_scripts/results.db` is plain SQLite holding all 49,126 scored runs
+behind the paper, and is a usable secondary dataset in its own right for anyone
+studying reconstruction risk — no need to install or run this framework.
+[`DATABASE.md`](DATABASE.md) documents the schema, the label conventions that
+would otherwise catch you out, five worked queries, and the caveats to check
+before drawing conclusions.
+
+**Beyond reconstruction.** The same harness runs membership inference
+(`--mode mia`), and `experiment_scripts/compare_mia_ra.py` implements the
+paper's reduction placing reconstruction and MIA on one comparable scale.
+
+---
+
 ## Citation
 
 If you use this code or the CoBP-RA / CondMST / CondDDPM / CondRePaint / MultiHeadMLP / ARFFormer attacks in your research, please cite:
@@ -664,6 +718,9 @@ If you use this code or the CoBP-RA / CondMST / CondDDPM / CondRePaint / MultiHe
   year      = {2027},
 }
 ```
+
+A machine-readable [`CITATION.cff`](CITATION.cff) is also provided, which GitHub
+renders as a "Cite this repository" button.
 
 ---
 
