@@ -234,7 +234,7 @@ reduced-scale experiments below are provided instead.
 | Experiment 1 — regenerate all paper tables and figures | 2 min | ~1 min | <10 MB |
 | Experiment 2 — attack vs. baseline on the dummy dataset | 2 min | ~1 min | negligible |
 | Experiment 3 — reduced-scale attack × SDG grid (Adult) | 10 min | ~40 min | ~100 MB |
-| Experiment 4 — reduced-scale ε sweep (Adult) | 10 min | ~50 min | ~200 MB |
+| Experiment 4 — reduced-scale ε sweep (CDC Diabetes) | 10 min | ~50 min | ~200 MB |
 
 The repository itself is ~93 MB tracked (dominated by the 68 MB `results.db`),
 plus ~90 MB for the two submodules. Two numbers get quoted for a Docker image and
@@ -694,9 +694,27 @@ GPU, no R, no Gurobi. The ~40-minute estimate assumes 12 worker processes; on
 a 4-core laptop budget about 2 hours. Pass `WORKERS=<n>` to match the cores you
 have.
 
-Expect the ordering of attacks and of SDG methods to match that block of
-`tab:ra_mean_adult`, with individual cells within a few points of the published values —
-the paper averages five training samples and this averages two.
+The script ends by printing a mean $R_{adv}$ per attack, averaged over the four
+generator settings and two samples. Running it as documented gives:
+
+| Attack | Mean $R_{adv}$ here | Same four columns of `tab:ra_mean_adult` |
+|---|---|---|
+| CoBP-RA | 24.7 | 23.8 |
+| Random Forest | 23.6 | 23.1 |
+| Naive Bayes | 20.9 | 20.8 |
+| KNN | 20.8 | 19.7 |
+| Mode (baseline) | 10.4 | 10.3 |
+
+The right-hand column is the published table restricted to the same four
+generator settings, so the two are directly comparable. Every attack lands
+within about a point, and the **ordering is identical** — which is the claim:
+CoBP-RA on top (Main Result 3), every real attack far above the mode baseline.
+The residual gap is expected, since the paper averages five training samples and
+this averages two.
+
+Wall-clock on the authors' 24-core machine at `WORKERS=12` was 13 minutes, most
+of it in the synthetic-data generation step; the ~40-minute figure above is
+deliberately conservative for a slower host.
 
 `fetch_dataset.py adult` carves four samples, not five. The samples are disjoint
 slices and Adult holds 47,621 rows once rows with missing values are dropped, so

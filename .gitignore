@@ -27,7 +27,7 @@ workspace/
 notes/
 NIST_code/
 
-# Claude Code instructions / working files (not artifact material)
+# Editor and assistant working files (not artifact material)
 CLAUDE.md
 .claude/
 

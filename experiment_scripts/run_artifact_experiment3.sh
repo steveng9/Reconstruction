@@ -29,9 +29,15 @@ cd "$REPO_ROOT"
 
 # Activate the conda env on the authors' machine; inside the Docker image the
 # environment is already on PATH and there is no conda.
+#
+# `set -u` is lifted across the activation: conda's own activate.d hooks (the
+# MKL one in particular) read unset variables, so leaving it on makes a plain
+# `conda activate` abort the script.
 if command -v conda >/dev/null 2>&1; then
+  set +u
   source "$(conda info --base)/etc/profile.d/conda.sh"
   conda activate recon_
+  set -u
 fi
 
 # Write results to a separate database. Reviewers re-run test.sh after this,

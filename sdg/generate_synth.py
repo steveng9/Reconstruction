@@ -443,7 +443,7 @@ def do_sample():
 
     print(f"\nSaved {NUM_SAMPLES} samples to {base}/")
     print(f"Meta: {META_PATH}" + (f"  (filtered to {len(FEATURE_SUBSET)} cols)" if FEATURE_SUBSET else ""))
-    print(f"Verify, then run:  python generate_synth.py sdg")
+    print("Verify, then run:  python sdg/generate_synth.py sdg")
 
 
 # ============================================================

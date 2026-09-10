@@ -74,7 +74,11 @@ LABEL_REMAP: dict[str, str] = {
 
 # ── Data path helpers ─────────────────────────────────────────────────────────
 
-DATA_ROOT = Path("~/data/reconstruction_data").expanduser()
+# Resolved through paths.py so it honours RECON_DATA_ROOT, like the rest of the
+# repository. Only used to read column cardinalities; if the dataset is absent
+# the tables are still produced, without the cardinality column.
+sys.path.insert(0, str(_SCRIPT_DIR.parent))
+from paths import DATA_ROOT
 
 DATASET_DIR: dict[str, str] = {
     "adult":               "adult",

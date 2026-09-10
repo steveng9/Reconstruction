@@ -43,7 +43,7 @@ MIA_ON_DIFFUSION = EXTERNAL_ROOT / "MIA_on_diffusion"
 RECON_SYNTH = EXTERNAL_ROOT / "recon-synth"
 
 # recon-synth is imported by direct module path rather than as a package, to avoid
-# colliding with this repo's own `attacks/` package (see CLAUDE.md).
+# colliding with this repo's own `attacks/` package.
 EXTERNAL_SYS_PATH = [
     MIA_ON_DIFFUSION,
     MIA_ON_DIFFUSION / "midst_models" / "single_table_TabDDPM",

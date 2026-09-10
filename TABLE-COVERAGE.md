@@ -126,7 +126,7 @@ The largest divergence, and the one to decide about first.
 | What differs | Cells | Why |
 |---|---|---|
 | The five MST columns, nearly every row | 81 | MST synth was regenerated in May 2026; the printed columns predate it. Moves are large (KNN at $\varepsilon{=}10$: 13.2 → 21.7). |
-| `CondDDPM` and `CondRePaint` rows, entirely | 16 | Those runs were flagged `confidence='broken'` and excluded; there are no post-repair replacements, so the generator prints `---`. This is Fault 1 in `manuscript/camera_ready/CAMERA_READY_PLAN.md`, still open. |
+| `CondDDPM` and `CondRePaint` rows, entirely | 16 | Those runs were flagged `confidence='broken'` and excluded; there are no post-repair replacements, so the generator prints `---`. Correcting the printed rows is open work on the camera-ready. |
 | `CoBP-RA`, `CondMST`, `MultiHeadMLP` rows, non-MST columns | 23 | Post-repair re-runs. Largest move 2.8 pp (CoBP-RA on CTGAN). |
 | The `Avg.` row | 8 | Follows from the above. |
 
@@ -164,9 +164,8 @@ coverage table above listed this object as done with no caveat.
 
 `reproduce.py` builds this table from
 `experiment_scripts/per_attack_disparity_postrepair.csv`. The printed table comes
-from neither that file nor the pre-repair backup beside it
-(`per_attack_disparity.prerepair.bak.csv`) -- it predates both, and the run it
-came from was not kept. So this is not a pre/post-repair split like the tables
+from neither that file nor the pre-repair backup we hold locally -- it
+predates both, and the run it came from was not kept. So this is not a pre/post-repair split like the tables
 above; the printed numbers simply have no committed source.
 
 | What differs | Detail |
