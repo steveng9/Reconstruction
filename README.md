@@ -3,7 +3,7 @@
 This repository is the artifact for:
 
 > **SoK: Reconstruction Attacks on Synthetic Tabular Data (Insights from Winning the NIST CRC)**
-> Submitted to *Privacy Enhancing Technologies Symposium (PoPETs) 2027*
+> To appear in *Proceedings on Privacy Enhancing Technologies (PoPETs)*, 2027
 
 The framework systematically evaluates **reconstruction attacks** (attribute inference) on de-identified and synthetic tabular data. Given a synthetic dataset and a target record's quasi-identifying features (e.g., age, sex, race), each attack attempts to reconstruct the target's hidden attribute values. We benchmark **13 attack algorithms** against **9 synthetic data generation (SDG) methods** across **5 benchmark datasets**, and introduce six new attacks: **CoBP-RA**, **CondMST**, **CondDDPM**, **CondRePaint**, **ARFFormer**, and **MultiHeadMLP**.
 
