@@ -34,6 +34,12 @@ keywords:
   - tabular data
 license: MIT
 repository-code: https://github.com/steveng9/Reconstruction
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.XXXXXXX
+    description: >-
+      Concept DOI for the archived artifact; always resolves to the most recent
+      release.
 preferred-citation:
   type: article
   title: >-

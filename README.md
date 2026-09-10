@@ -9,6 +9,15 @@ The framework systematically evaluates **reconstruction attacks** (attribute inf
 
 The same methodology placed **first among all red teams** in the 2025 NIST Privacy Collaborative Research Cycle (CRC).
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
+
+Every tagged release is archived on Zenodo. The DOI above is the *concept* DOI:
+it always resolves to the latest archived version. Note that automatically
+generated source archives (Zenodo's and GitHub's) do not carry submodule
+contents — everything except the diffusion attacks and LinearReconstruction
+works without them, but cloning with `--recurse-submodules` gets you the whole
+thing.
+
 > **Artifact reviewers:** start with **[`ARTIFACT-APPENDIX.md`](ARTIFACT-APPENDIX.md)**.
 > It has the badge-by-badge requirements, the claim-to-experiment mapping, and the
 > exact commands. The short version:
@@ -721,6 +730,10 @@ If you use this code or the CoBP-RA / CondMST / CondDDPM / CondRePaint / MultiHe
 
 A machine-readable [`CITATION.cff`](CITATION.cff) is also provided, which GitHub
 renders as a "Cite this repository" button.
+
+To cite the software artifact itself rather than the paper, use the Zenodo
+concept DOI [10.5281/zenodo.XXXXXXX](https://doi.org/10.5281/zenodo.XXXXXXX),
+which always resolves to the most recent archived release.
 
 ---
 

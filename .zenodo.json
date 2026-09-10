@@ -1,0 +1,38 @@
+{
+  "upload_type": "software",
+  "title": "SoK: Reconstruction Attacks on Synthetic Tabular Data (Insights from Winning the NIST CRC) — research artifact",
+  "description": "<p>The complete experiment framework behind the PoPETs 2027 paper <em>SoK: Reconstruction Attacks on Synthetic Tabular Data (Insights from Winning the NIST CRC)</em>.</p><p>It contains implementations of every reconstruction attack in the paper's taxonomy, including the six the paper introduces (CoBP-RA, CondMST, CondDDPM, CondRePaint, ARFFormer, MultiHeadMLP); the composable chaining and ensembling wrappers; the synthetic-data-generation layer covering all nine evaluated generators plus four further differentially private mechanisms used for the epsilon sweep; and the rarity-weighted reconstruction-advantage scoring code that was also the official NIST Collaborative Research Cycle metric.</p><p>It also ships <code>results.db</code>, a SQLite database of all 49,126 scored attack runs behind the paper, together with <code>reproduce.py</code>, which regenerates the paper's tables and figures from it. <code>DATABASE.md</code> documents that database for use as a standalone dataset, independently of this framework.</p><p>Evaluation is four CPU-only commands in a provided Docker image; <code>./test.sh</code> verifies the environment end to end in about two minutes. No GPU is required.</p><p><strong>Note on this archive:</strong> automatically generated source archives do not include git submodule contents. The <code>external/recon-synth</code> and <code>external/MIA_on_diffusion</code> directories will be empty here. Everything needed for the paper's tables, the test suite and the reduced-scale experiments works without them; only the diffusion attacks and LinearReconstruction require them. To obtain those, clone with <code>git clone --recurse-submodules https://github.com/steveng9/Reconstruction.git</code>.</p>",
+  "creators": [
+    {
+      "name": "Golob, Steven",
+      "affiliation": "University of Washington"
+    },
+    {
+      "name": "Pentyala, Sikha",
+      "affiliation": "University of Washington"
+    },
+    {
+      "name": "De Cock, Martine",
+      "affiliation": "University of Washington"
+    }
+  ],
+  "license": "mit",
+  "access_right": "open",
+  "keywords": [
+    "synthetic data",
+    "reconstruction attack",
+    "attribute inference",
+    "differential privacy",
+    "privacy-enhancing technologies",
+    "tabular data",
+    "NIST Collaborative Research Cycle",
+    "artifact evaluation"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/steveng9/Reconstruction",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

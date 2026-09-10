@@ -275,8 +275,35 @@ The artifact is a single public Git repository:
 
 **<https://github.com/steveng9/Reconstruction>**
 
-Everything is reachable from that one link. The two external dependency
-repositories are wired in as git submodules pinned to exact commits:
+Everything is reachable from that one link, and cloning it is the recommended
+way to obtain the artifact.
+
+It is additionally archived on Zenodo, which gives it a permanent DOI that
+resolves even if the repository is ever moved or renamed:
+
+**<https://doi.org/10.5281/zenodo.XXXXXXX>**
+
+That is the *concept* DOI: it always resolves to the most recent archived
+version, so it stays valid if the artifact is revised during evaluation. Each
+individual release also receives its own version DOI, visible from that page, if
+you would rather pin the exact snapshot you reviewed.
+
+**One caveat if you take the Zenodo archive rather than cloning.**
+Automatically generated source archives — Zenodo's and GitHub's alike — do not
+include git submodule contents, so `external/recon-synth` and
+`external/MIA_on_diffusion` arrive empty. We have verified what that costs:
+`./test.sh` still passes 18/18, `reproduce.py` still rebuilds every paper table
+and figure, and Experiments 1 and 2 are unaffected. Only the diffusion attacks
+(CondDDPM, CondRePaint, RePaint) and LinearReconstruction need the submodules,
+and they report a clear message naming the missing dependency rather than
+failing obscurely. To get them, clone instead:
+
+```bash
+git clone --recurse-submodules https://github.com/steveng9/Reconstruction.git
+```
+
+The two external dependency repositories are wired in as git submodules pinned
+to exact commits:
 
 | Submodule path | Repository | Pinned commit |
 |---|---|---|
@@ -285,7 +312,8 @@ repositories are wired in as git submodules pinned to exact commits:
 
 Licence: MIT (`LICENSE`), with third-party components and two upstream
 repositories that carry no explicit licence documented candidly in
-`LICENSES/THIRD-PARTY-NOTICES.md`.
+`LICENSES/THIRD-PARTY-NOTICES.md`. Citation metadata is in `CITATION.cff`
+(machine-readable) and `README.md` (BibTeX).
 
 ### Set Up the Environment
 
