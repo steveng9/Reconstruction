@@ -174,10 +174,25 @@ and figure in the paper from `results.db`. No GPU is required.
 
 **Hardware the paper's full sweeps were run on**, for reference: a single
 workstation with an AMD Ryzen Threadripper PRO 5965WX (24 physical cores, 48
-threads) and 125 GB RAM, no GPU used for the reported attack results. Sweeps
+threads), 125 GB RAM, and two NVIDIA RTX 6000 Ada GPUs (48 GB each). Sweeps
 were parallelised across 8–12 worker processes with `OMP_NUM_THREADS=1` per
 worker; thread oversubscription was the dominant performance problem and the
 scripts pin it deliberately.
+
+Where the GPUs were used, and why it does not change what you need: the
+torch-based attacks select CUDA when it is available and fall back to CPU when
+it is not, so on that workstation MultiHeadMLP, ARFFormer, the diffusion attacks
+(CondDDPM, CondRePaint, RePaint) and the neural-network classifiers ran on GPU
+(`experiment_scripts/run_joint_mlp_adult10k.py` round-robins its jobs across the
+two cards explicitly). Everything else -- the classical attacks, CoBP-RA,
+CondMST, TabPFN, all scoring, and the DP generators -- is CPU-only, and TabPFN is
+pinned to CPU in `attack_defaults.py`.
+
+None of that is a requirement for this artifact. The light image installs a
+CPU-only build of torch, so the same attacks run there on CPU; a GPU changes how
+long they take, not what they compute. Every number in the paper is already
+scored in `results.db`, and Experiment 1 regenerates the tables from it without
+touching torch at all.
 
 Reproducing the *complete* 49,126-run sweep from scratch needs on the order of
 several CPU-weeks, which is why the scored results ship in `results.db` and the
