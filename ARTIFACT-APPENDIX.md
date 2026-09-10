@@ -909,9 +909,9 @@ CoBP-RA (paper's strongest)             40.4
 ```
 
 The first two rows are deterministic. CoBP-RA is not — its random forests are
-unseeded, so it moves by a few tenths between runs (40.2–40.7 observed over
-repeated runs on this machine), which is the same tolerance noted for
-Experiment 2 above.
+unseeded, so it moves by a few tenths between runs (40.1–40.7 observed over
+repeated runs here), which is the same tolerance noted for Experiment 2 above.
+Anything comfortably above the 33.9 baseline is the expected result.
 
 **Adding an SDG method** is the same shape: implement
 `generate(train_df, meta, **config) -> synthetic_df` and register it in
