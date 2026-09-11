@@ -281,7 +281,7 @@ way to obtain the artifact.
 It is additionally archived on Zenodo, which gives it a permanent DOI that
 resolves even if the repository is ever moved or renamed:
 
-**<https://doi.org/10.5281/zenodo.XXXXXXX>**
+**<https://doi.org/10.5281/zenodo.22701232>**
 
 That is the *concept* DOI: it always resolves to the most recent archived
 version, so it stays valid if the artifact is revised during evaluation. Each
