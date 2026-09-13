@@ -16,7 +16,7 @@ import argparse, os, sys, pathlib, sqlite3, traceback
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parent))
 
-LABEL, METHOD = "AttentionAutoregressive", "ARFFormerAutoregressive"
+METHOD = "ARFFormerAutoregressive"
 SDGS = [("RankSwap", "RankSwap", None), ("CellSuppression", "CellSuppression", None),
         ("Synthpop", "Synthpop", None), ("TVAE", "TVAE", None), ("CTGAN", "CTGAN", None),
         ("ARF", "ARF", None), ("TabDDPM", "TabDDPM", None),
@@ -24,16 +24,16 @@ SDGS = [("RankSwap", "RankSwap", None), ("CellSuppression", "CellSuppression", N
         ("MST_eps100", "MST", 100.0), ("MST_eps1000", "MST", 1000.0), ("AIM_eps1", "AIM", 1.0)]
 
 
-def all_jobs():
+def all_jobs(label):
     return [dict(ds_key="adult10k", sample=s, qi="QI1", sdg_method=d, sdg_base=b, epsilon=e,
-                 attack_label=LABEL, attack_method=METHOD)
+                 attack_label=label, attack_method=METHOD)
             for s in range(5) for d, b, e in SDGS]
 
 
-def done_keys():
+def done_keys(label):
     con = sqlite3.connect(HERE / "results.db", timeout=60)
     rows = con.execute("SELECT sample, sdg_method FROM runs WHERE dataset='adult' AND dataset_size=10000 "
-                       "AND qi='QI1' AND split='standard' AND attack_label=?", (LABEL,)).fetchall()
+                       "AND qi='QI1' AND split='standard' AND attack_label=?", (label,)).fetchall()
     con.close()
     return set(rows)
 
@@ -61,16 +61,19 @@ if __name__ == "__main__":
     ap.add_argument("--gpu", type=int, required=True, help="shard index; set CUDA_VISIBLE_DEVICES to match")
     ap.add_argument("--n-gpus", type=int, default=2)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--label", default="AttentionAutoregressive",
+                    help="DB attack_label; the first fill (original defaults) used the default, "
+                         "the tuned re-run (attack_defaults as of 2026-09-13 evening) AttentionAutoregressiveTuned")
     a = ap.parse_args()
 
     import rerun_queue as q
     root = q.DATASETS["adult10k"][0]
-    js = [j for i, j in enumerate(all_jobs()) if i % a.n_gpus == a.gpu]
+    js = [j for i, j in enumerate(all_jobs(a.label)) if i % a.n_gpus == a.gpu]
     missing = [(j["sample"], j["sdg_method"]) for j in js
                if not (root / f"sample_{j['sample']:02d}" / j["sdg_method"] / "synth.csv").exists()]
     if missing:
         sys.exit(f"synth.csv missing: {missing}")
-    done = done_keys()
+    done = done_keys(a.label)
     js = [j for j in js if (j["sample"], j["sdg_method"]) not in done]
     print(f"shard {a.gpu}: {len(js)} jobs to run ({len(done)} already in DB overall)", flush=True)
     if a.dry_run or not js:

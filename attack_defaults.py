@@ -204,17 +204,31 @@ ATTACK_PARAM_DEFAULTS: dict[str, dict] = {
         "patience":        30,
     },
     "ARFFormerAutoregressive": {
+        # Tuned 2026-09-13 on adult 10k sample 0 (TVAE, CTGAN, ARF, TabDDPM,
+        # CellSuppression, RankSwap). The original settings (width 64, 2 layers,
+        # Adam 1e-3, batch 64, early stop on summed val loss, greedy decode)
+        # early-stopped within a few epochs: the summed loss is dominated by
+        # high-cardinality columns (fnlwgt, and capital-gain/-loss on ARF), so
+        # stopping on it froze the low-cardinality heads undertrained.
         "num_heads_AR":       4,
-        "embedding_dim_AR":   64,   # must be divisible by num_heads_AR
-        "num_layers_AR":      2,
-        "feedforward_dim_AR": 128,
-        "dropout_rate_AR":    0.15,
+        "embedding_dim_AR":   128,  # must be divisible by num_heads_AR
+        "num_layers_AR":      3,
+        "feedforward_dim_AR": 256,
+        "dropout_rate_AR":    0.1,
         "test_size_AR":       0.2,
-        "batch_size_AR":      64,
-        "learning_rate_AR":   0.001,
+        "batch_size_AR":      256,
+        "learning_rate_AR":   5e-4,
         "epochs_AR":          200,
-        "patience_AR":        30,
-        "feature_order":      None,  # None → use hidden_features order
+        "patience_AR":        20,
+        "feature_order":      None,  # None → use hidden_features order; "entropy" → lowest first
+        "weight_decay_AR":    0.01,  # AdamW
+        "label_smoothing_AR": 0.0,
+        "lr_plateau_AR":      True,  # halve LR after 5 stalled epochs
+        "token_dropout_AR":   0.15,  # P(teacher-forced hidden token → PAD) in training
+        "loss_norm_AR":       False, # weight CE by 1/log(#classes)
+        "early_stop_on_AR":   "acc", # mean per-feature validation accuracy
+        "decode_AR":          "mc_marginal",
+        "decode_samples_AR":  32,
     },
 
     # ── Partial diffusion — MIA_on_diffusion/midst_models/single_table_TabDDPM/

@@ -55,6 +55,17 @@ learning_rate_AR_default = 0.001
 epochs_AR_default = 200
 patience_AR_default = 30
 
+# Optional training/decoding refinements - True Autoregressive. The defaults
+# reproduce the original model exactly; see attack_defaults.py for tuned values.
+weight_decay_AR_default = 0.0         # > 0 switches Adam → AdamW
+label_smoothing_AR_default = 0.0
+lr_plateau_AR_default = False         # halve the LR when val loss stalls
+token_dropout_AR_default = 0.0        # P(hidden input token → PAD) during training
+decode_AR_default = "greedy"          # "greedy" | "mc_marginal"
+decode_samples_AR_default = 32        # ancestral samples per target for "mc_marginal"
+loss_norm_AR_default = False          # weight each feature's CE by 1/log(#classes)
+early_stop_on_AR_default = "loss"     # "loss" | "acc" (mean per-feature val accuracy)
+
 
 # Feature ordering (for autoregressive prediction)
 # Features will be predicted in this order, each building on previous predictions
@@ -415,11 +426,25 @@ def train_model(cfg, model, train_loader, val_loader, criterion, optimizer, devi
 
 
 def train_autoregressive_model(cfg, model, train_loader, val_loader, criterion, optimizer,
-                               device, epochs, early_stopping_patience, num_hidden):
-    """Train the autoregressive model on full sequences with causal masking."""
+                               device, epochs, early_stopping_patience, num_hidden,
+                               scheduler=None, token_dropout=0.0, loss_weights=None,
+                               early_stop_on="loss"):
+    """Train the autoregressive model on full sequences with causal masking.
+
+    ``token_dropout`` replaces each teacher-forced hidden input token with its
+    PAD token with this probability, so the model learns not to over-trust
+    earlier hidden values (at inference they are its own, possibly wrong,
+    predictions). ``loss_weights`` scales each hidden feature's cross-entropy
+    (None = plain sum). ``early_stop_on`` is "loss" or "acc" (mean per-feature
+    validation accuracy); ``scheduler`` is stepped on the same quantity.
+    """
     model.to(device)
     best_val_loss = float('inf')
+    best_state = None
     patience_counter = 0
+    num_qi = model.num_qi
+    pad = torch.tensor(model.pad_indices[num_qi:], dtype=torch.long, device=device)
+    w = [1.0] * num_hidden if loss_weights is None else list(loss_weights)
 
     for epoch in range(epochs):
         # Training phase
@@ -429,11 +454,15 @@ def train_autoregressive_model(cfg, model, train_loader, val_loader, criterion, 
 
         for X_batch, Y_batch in train_loader:
             X_batch, Y_batch = X_batch.to(device), Y_batch.to(device)
+            if token_dropout > 0:
+                hid = X_batch[:, num_qi:]
+                drop = torch.rand(hid.shape, device=device) < token_dropout
+                X_batch = torch.cat([X_batch[:, :num_qi], torch.where(drop, pad.expand_as(hid), hid)], dim=1)
 
             optimizer.zero_grad()
             outputs = model(X_batch)  # list of (batch, num_classes_k)
 
-            loss = sum(criterion(outputs[k], Y_batch[:, k]) for k in range(num_hidden))
+            loss = sum(w[k] * criterion(outputs[k], Y_batch[:, k]) for k in range(num_hidden))
 
             loss.backward()
             optimizer.step()
@@ -454,7 +483,7 @@ def train_autoregressive_model(cfg, model, train_loader, val_loader, criterion, 
                 X_batch, Y_batch = X_batch.to(device), Y_batch.to(device)
                 outputs = model(X_batch)
 
-                loss = sum(criterion(outputs[k], Y_batch[:, k]) for k in range(num_hidden))
+                loss = sum(w[k] * criterion(outputs[k], Y_batch[:, k]) for k in range(num_hidden))
                 val_loss += loss.item() * X_batch.size(0)
 
                 for k in range(num_hidden):
@@ -471,18 +500,24 @@ def train_autoregressive_model(cfg, model, train_loader, val_loader, criterion, 
                   f'Val Loss: {val_loss:.4f}, '
                   f'Val Accuracy: {val_accuracy:.4f}')
 
-        # Early stopping
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        monitored = val_loss if early_stop_on == "loss" else -val_accuracy
+        if scheduler is not None:
+            scheduler.step(monitored)
+
+        # Early stopping. The best weights are kept in memory rather than in the
+        # shared artifacts dir, so concurrent runs on the same cell cannot
+        # overwrite each other's checkpoint.
+        if monitored < best_val_loss:
+            best_val_loss = monitored
             patience_counter = 0
-            torch.save(model.state_dict(), os.path.join(cfg["dataset"]["artifacts"], 'best_autoregressive_model.pth'))
+            best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
         else:
             patience_counter += 1
             if patience_counter >= early_stopping_patience:
                 print(f'Early stopping triggered after {epoch + 1} epochs')
                 break
 
-    model.load_state_dict(torch.load(os.path.join(cfg["dataset"]["artifacts"], 'best_autoregressive_model.pth')))
+    model.load_state_dict(best_state)
     return model
 
 
@@ -726,11 +761,32 @@ def attention_reconstruction_autoregressive_true(cfg, synth, targets, known_feat
                                                  hidden_features, embedding_dim, num_heads,
                                                  num_layers, feedforward_dim, dropout_rate,
                                                  test_size, batch_size, learning_rate,
-                                                 epochs, patience, feature_order=None):
+                                                 epochs, patience, feature_order=None,
+                                                 weight_decay=0.0, label_smoothing=0.0,
+                                                 lr_plateau=False, token_dropout=0.0,
+                                                 decode="greedy", decode_samples=32,
+                                                 loss_norm=False, early_stop_on="loss"):
     """
     TRUE autoregressive reconstruction with causal attention masking.
     Like an LLM: trains on full sequences with teacher forcing and causal mask,
     then predicts hidden features one at a time at inference.
+
+    ``feature_order``: None (hidden_features order), an explicit list, or
+    "entropy" (lowest synthetic marginal entropy first, so the most certain
+    features are decoded, and fed back, before the least certain).
+
+    ``loss_norm``: weight each feature's cross-entropy by 1/log(C_k), so a
+    high-cardinality column (fnlwgt has ~10^4 values) does not dominate the
+    shared gradient and the early-stopping signal.
+
+    ``decode``:
+      "greedy"      — feed back each argmax prediction (the original decoder).
+      "mc_marginal" — draw ``decode_samples`` ancestral sequences per target,
+                      average each feature's predictive distribution over the
+                      sampled prefixes, and output its argmax. This estimates
+                      the per-feature marginal P(h_k | QI) under the model, which
+                      is what per-feature accuracy rewards, instead of
+                      conditioning every feature on one greedy prefix.
     """
     # Handle unseen categories ONCE
     targets_cleaned = handle_unseen_categories(targets, synth, known_features, verbose=True)
@@ -739,6 +795,11 @@ def attention_reconstruction_autoregressive_true(cfg, synth, targets, known_feat
     # Determine prediction order
     if feature_order is None:
         feature_order = list(hidden_features)
+    elif feature_order == "entropy":
+        def _entropy(col):
+            p = synth[col].astype(str).value_counts(normalize=True).values
+            return float(-(p * np.log(p)).sum())
+        feature_order = sorted(hidden_features, key=_entropy)
     else:
         assert set(feature_order) == set(hidden_features)
 
@@ -773,13 +834,21 @@ def attention_reconstruction_autoregressive_true(cfg, synth, targets, known_feat
         embedding_dim, num_heads, num_layers, feedforward_dim, dropout_rate
     )
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+    if weight_decay > 0:
+        optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    scheduler = (optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=5)
+                 if lr_plateau else None)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     trained_model = train_autoregressive_model(
         cfg, model, train_loader, val_loader, criterion, optimizer,
-        device, epochs, patience, num_hidden
+        device, epochs, patience, num_hidden,
+        scheduler=scheduler, token_dropout=token_dropout,
+        loss_weights=[1.0 / max(np.log(c), np.log(2)) for c in num_classes_per_hidden] if loss_norm else None,
+        early_stop_on=early_stop_on,
     )
 
     # Autoregressive inference on targets
@@ -803,8 +872,35 @@ def attention_reconstruction_autoregressive_true(cfg, synth, targets, known_feat
     for k in range(num_hidden):
         X_inference[:, num_qi + k] = vocab_sizes[num_qi + k]  # PAD index
 
-    # Predict hidden features one at a time, filling in each before the next
     trained_model.eval()
+    if decode == "mc_marginal":
+        # S ancestral sequences per target, decoded feature by feature. The
+        # causal mask means position num_qi-1+k only sees QI + H_0..H_{k-1}, so
+        # each pass reads head k and then writes the sampled H_k.
+        S = int(decode_samples)
+        Xs = torch.tensor(np.repeat(X_inference, S, axis=0), dtype=torch.long, device=device)
+        owner = torch.arange(len(Xs), device=device) // S   # row → target index
+        chunk = 4096
+        with torch.no_grad():
+            for k, hidden_feature in enumerate(feature_order):
+                # Accumulate per target rather than keeping all S·n rows of
+                # probabilities: a high-cardinality column (e.g. fnlwgt, ~10^4
+                # values) would otherwise need S·n·C floats.
+                marg = torch.zeros(n_targets, num_classes_per_hidden[k], device=device)
+                for start in range(0, len(Xs), chunk):
+                    logits = trained_model(Xs[start:start + chunk])[k]
+                    p = torch.softmax(logits.float(), dim=1)
+                    Xs[start:start + chunk, num_qi + k] = torch.multinomial(p, 1).squeeze(1)
+                    marg.index_add_(0, owner[start:start + chunk], p)
+                predictions = marg.argmax(dim=1).cpu().numpy()
+                decoded = encoders[hidden_feature].inverse_transform(predictions)
+                try:
+                    targets_copy[hidden_feature] = pd.Series(decoded).astype(synth[hidden_feature].dtype).values
+                except (ValueError, TypeError):
+                    targets_copy[hidden_feature] = decoded
+        return targets_copy
+
+    # Predict hidden features one at a time, filling in each before the next
     with torch.no_grad():
         for k, hidden_feature in enumerate(feature_order):
             print(f'  Predicting: {hidden_feature} ({k + 1}/{num_hidden})')
@@ -876,7 +972,15 @@ def attention_autoregressive_reconstruction(cfg, synth, targets, known_features,
         cfg["attack_params"].get("learning_rate_AR", learning_rate_AR_default),
         cfg["attack_params"].get("epochs_AR", epochs_AR_default),
         cfg["attack_params"].get("patience_AR", patience_AR_default),
-        cfg["attack_params"].get("feature_order", feature_order_default)
+        cfg["attack_params"].get("feature_order", feature_order_default),
+        weight_decay=cfg["attack_params"].get("weight_decay_AR", weight_decay_AR_default),
+        label_smoothing=cfg["attack_params"].get("label_smoothing_AR", label_smoothing_AR_default),
+        lr_plateau=cfg["attack_params"].get("lr_plateau_AR", lr_plateau_AR_default),
+        token_dropout=cfg["attack_params"].get("token_dropout_AR", token_dropout_AR_default),
+        decode=cfg["attack_params"].get("decode_AR", decode_AR_default),
+        decode_samples=cfg["attack_params"].get("decode_samples_AR", decode_samples_AR_default),
+        loss_norm=cfg["attack_params"].get("loss_norm_AR", loss_norm_AR_default),
+        early_stop_on=cfg["attack_params"].get("early_stop_on_AR", early_stop_on_AR_default),
     ), None, None
 
 
