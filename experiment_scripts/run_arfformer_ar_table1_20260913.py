@@ -39,16 +39,20 @@ def done_keys():
 
 
 def init_worker():
+    # Spawned children inherit this script's argv, and master_experiment_script
+    # parses sys.argv at import time, so --gpu would abort every job.
+    sys.argv = sys.argv[:1]
     import torch
     torch.set_num_threads(1)
 
 
 def run(job):
+    sys.argv = sys.argv[:1]
     import queue_worker as w
     try:
         w._setup_paths()
         return job, w._do_attack(job), None
-    except Exception:
+    except BaseException:
         return job, None, traceback.format_exc()
 
 
