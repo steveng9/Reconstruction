@@ -87,6 +87,8 @@ LABEL_TO_METHOD = {
     "PartialMSTIndependent": "CondMSTIndependent",
     "ConditionedRePaint": "CondRePaint", "RePaint": "RePaint",
     "Attention": "ARFFormer", "JointMLP": "MultiHeadMLP",
+    "AttentionAutoregressive": "ARFFormerAutoregressive",
+    "AttentionAutoregressiveTuned": "ARFFormerAutoregressive",
 }
 # Attacks in the manuscript's main + appendix tables (tier 3); everything else
 # that maps cleanly goes to tier 4.
@@ -94,7 +96,7 @@ CORE_LABELS = {
     "Random", "Mode", "KNN", "NaiveBayes", "LogisticRegression", "RandomForest",
     "MLP", "SVM", "TabPFN", "MeasureDeid", "LinearReconstruction",
     "CoBP-RA", "MarginalRF_graphQI_entropyBP", "TabDDPM", "PartialMST",
-    "ConditionedRePaint", "Attention", "JointMLP",
+    "ConditionedRePaint", "Attention", "AttentionAutoregressiveTuned", "JointMLP",
 }
 
 SCHEMA = """

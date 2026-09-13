@@ -137,7 +137,9 @@ T1_ROWS = [("__grp__", "Reference points (not attacks)"),
            ("SVM",r"\textsc{svm}"),("RandomForest","Random Forest"),("LightGBM","LightGBM"),
            ("MLP",r"\textsc{mlp}"),("TabPFN","TabPFN"),
            ("__grp__", "Feature-correlated: autoregressive"),
-           ("Attention",r"ARFFormer$^\dagger$"),
+           # The camera-ready Table 1 reports the causal (autoregressive) transformer at its
+           # tuned defaults; label `Attention` is the earlier per-feature model.
+           ("AttentionAutoregressiveTuned",r"ARFFormer$^\dagger$"),
            ("__grp__", "Feature-correlated: row-wise message passing"),
            ("CoBP-RA",r"CoBP-RA$^\dagger$"),
            ("__grp__", "Feature-correlated: joint generative conditioning"),

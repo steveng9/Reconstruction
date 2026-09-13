@@ -84,6 +84,11 @@ return fewer rows than exist — or none at all.
 | CondDDPM | `TabDDPM` | 516 (**all** of them) |
 | CondRePaint | `ConditionedRePaint` | 339 (**all** of them) |
 
+**ARFFormer has two models.** `Attention` is an earlier per-feature transformer (registry
+`ARFFormer`). The paper's ARFFormer, as printed in the camera-ready Table 1, is the causal
+autoregressive transformer (registry `ARFFormerAutoregressive`) at its tuned defaults, stored as
+`AttentionAutoregressiveTuned`. `AttentionAutoregressive` holds a first fill at the old defaults.
+
 So `WHERE attack_label = 'CoBP-RA'` misses 1,221 runs, and
 `WHERE attack_label = 'ARFFormer'` returns nothing whatsoever. Normalise first:
 
