@@ -203,9 +203,9 @@ PER_DATASET = [
     dict(
         out="table_ra_mean_cdc.tex", label="tab:ra_mean_cdc",
         dataset="cdc_diabetes", size=1000, qi="QI1",
-        cols=DEID_COLS + MST_EPS_COLS
+        cols=DEID_COLS + DEEP_COLS + MST_EPS_COLS
              + [("AIM_eps1", r"AIM $(\varepsilon{=}1)$"), ("AIM_eps3", r"AIM $(\varepsilon{=}3)$"),
-                ("AIM_eps10", r"AIM $(\varepsilon{=}10)$")] + DEEP_COLS,
+                ("AIM_eps10", r"AIM $(\varepsilon{=}10)$")],
         # `TabDDPM` as an *attack* label is CondDDPM; as an SDG column it is the
         # generator. The two never collide because they index different axes.
         rows=[("KNN", "KNN"), ("RandomForest", "Random Forest"), ("MLP", "MLP"),
@@ -214,15 +214,14 @@ PER_DATASET = [
     dict(
         out="table_cdc_100k.tex", label="tab:cdc_100k",
         dataset="cdc_diabetes", size=100000, qi="QI1",
-        cols=DEID_COLS + MST_EPS_COLS + [("AIM_eps1", r"AIM $(\varepsilon{=}1)$")] + DEEP_COLS,
+        cols=DEID_COLS + DEEP_COLS + MST_EPS_COLS + [("AIM_eps1", r"AIM $(\varepsilon{=}1)$")],
         rows=[("RandomForest", "Random Forest"), ("MLP", r"\textsc{mlp}"),
               ("NaiveBayes", "Naive Bayes"), (COBP_VARIANT, r"CoBP-RA$^\dagger$")],
     ),
     dict(
         out="table_ra_mean_nist_sbo.tex", label="tab:ra_mean_nist_sbo",
         dataset="nist_sbo", size=1000, qi="QI1",
-        cols=MST_EPS_COLS + [("CellSuppression", "Cell Supp."), ("RankSwap", "RankSwap"),
-                             ("Synthpop", "Synthpop")] + DEEP_COLS,
+        cols=DEID_COLS + DEEP_COLS + MST_EPS_COLS,
         rows=[("KNN", "KNN"), ("NaiveBayes", "Naive Bayes"),
               ("RandomForest", "Random Forest"), (COBP_VARIANT, r"CoBP-RA$^\dagger$")],
     ),
