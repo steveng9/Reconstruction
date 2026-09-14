@@ -74,6 +74,10 @@ def run(sdg):
 
     print(f"\n=== {sdg}: AUC SynthDistance={sd_metrics['MIA_auc']:.3f} "
           f"NNDR={nn_metrics['MIA_auc']:.3f} RA-as-MIA={ra_metrics['RA_as_MIA_auc']:.3f}")
+    for row in C._outlier_auc({"SynthDistance": sd_scores, "NNDR": nn_scores, "RA-as-MIA": ra_scores},
+                              outlier_all, labels):
+        print(f"  {row['method']:<13} AUC outliers={row['auc_outlier']:.3f} (n={row['n_outlier']})"
+              f"  non-outliers={row['auc_non_outlier']:.3f} (n={row['n_non_outlier']})")
 
     m = labels == 1
     members = all_targets[m].reset_index(drop=True)
