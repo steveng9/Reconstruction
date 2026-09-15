@@ -254,6 +254,43 @@ def plot_combined(panels: list[tuple[np.ndarray, np.ndarray, list[str], bool, st
     plt.close(fig)
 
 
+def plot_grid(panels: list[tuple[np.ndarray, np.ndarray, list[str], bool, str]],
+              out_path: str):
+    """Lay out four heatmap panels as a 2x2 grid (for a two-column-wide figure)."""
+    n_attacks = len(panels[0][2])
+    cell_size    = 0.42
+    side         = n_attacks * cell_size
+    left_margin  = 1.8                        # y-tick labels, left column only
+    inner_gap    = 0.35                       # right column has no y-tick labels
+    cbar_space   = 1.6                        # colour bar and its label, per panel
+    top_margin   = 0.65
+    bot_margin   = 0.95                       # bottom row: rotated x-ticks
+    row_gap      = 0.15
+
+    fig_w = left_margin + side + cbar_space + inner_gap + side + cbar_space
+    fig_h = 2 * (top_margin + side) + bot_margin + row_gap
+    fig = plt.figure(figsize=(fig_w, fig_h))
+
+    col_left = [left_margin, left_margin + side + cbar_space + inner_gap]
+    row_bot = [bot_margin + side + top_margin + row_gap, bot_margin]
+    for p_idx, (matrix, delta, attacks, diff, title) in enumerate(panels):
+        r, c = divmod(p_idx, 2)
+        ax = fig.add_axes([col_left[c] / fig_w, row_bot[r] / fig_h,
+                           side / fig_w, side / fig_h])
+        cbar_ax = fig.add_axes([(col_left[c] + side + 0.25) / fig_w,
+                                (row_bot[r] + side * 0.10) / fig_h,
+                                0.28 / fig_w, side * 0.78 / fig_h])
+        _draw_panel(ax, cbar_ax, matrix, delta, attacks, diff, title,
+                    show_xlabel=(r == 1), show_xticks=(r == 1))
+        if c == 1:
+            ax.set_yticklabels([])
+            ax.set_ylabel("")
+
+    plt.savefig(out_path, dpi=200, bbox_inches="tight")
+    print(f"Saved grid to {out_path}")
+    plt.close(fig)
+
+
 COMBINED_PANELS = [
     # (sdg_filter, title)
     (None,        "Average over the four generators"),
@@ -283,6 +320,8 @@ def main():
     parser.add_argument("--title", default=None, help="Custom plot title.")
     parser.add_argument("--combined", action="store_true",
                         help="Produce one PDF with all 5 SDG panels stacked vertically.")
+    parser.add_argument("--grid", action="store_true",
+                        help="With --combined: lay the four panels out as a 2x2 grid.")
     args = parser.parse_args()
 
     full_df = pd.read_csv(args.csv)
@@ -296,7 +335,10 @@ def main():
             attacks = _resolve_attacks(df)
             matrix, delta = build_matrix(df, attacks, diff=args.diff)
             panels.append((matrix, delta, attacks, args.diff, title))
-        plot_combined(panels, args.out)
+        if args.grid:
+            plot_grid(panels, args.out)
+        else:
+            plot_combined(panels, args.out)
         return
 
     df = load_results(args.csv, args.sdg)
