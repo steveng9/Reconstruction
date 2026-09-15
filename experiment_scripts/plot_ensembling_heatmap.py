@@ -59,6 +59,9 @@ SHORT_LABELS = {
     "MLP":                "MLP",
     "CondMSTBounded":     "CondMST",
     "CondDDPM":           "CondDDPM",
+    # pre-2026-06 labels, as stored in the March 2026 result CSVs
+    "PartialMSTBounded":  "CondMST",
+    "TabDDPM":            "CondDDPM",
     "ARFFormer":          "Attn",
     "SVM":                "SVM",
 }
@@ -173,12 +176,8 @@ def _draw_panel(ax, cbar_ax, matrix: np.ndarray, delta: np.ndarray,
     ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=16)
     cbar_ax.tick_params(labelsize=14)
     cbar_ax.yaxis.label.set_size(15)
-
-    diag_patch = mpatches.Patch(facecolor="none", edgecolor="black",
-                                linewidth=2, label="Diagonal = individual score")
-    cbar_ax.legend(handles=[diag_patch], loc="upper left",
-                   bbox_to_anchor=(-0.3, -0.04), borderaxespad=0, fontsize=14,
-                   frameon=True)
+    # No legend for the outlined diagonal: the caption explains it, and a legend
+    # box under each colour bar only widened the figure.
 
 
 def plot_heatmap(matrix: np.ndarray, delta: np.ndarray, attacks: list[str],
@@ -206,7 +205,7 @@ def plot_combined(panels: list[tuple[np.ndarray, np.ndarray, list[str], bool, st
     cell_size      = 0.42                     # inches per heatmap cell
     heatmap_side   = n_attacks * cell_size    # e.g. 3.78 in for 9 attacks
     left_margin    = 1.8                      # room for 16pt y-tick labels
-    right_margin   = 3.2                      # colorbar + legend
+    right_margin   = 1.6                      # colorbar and its label
     top_margin     = 0.65                     # title above heatmap
     bot_margin_xt  = 0.95                     # bottom panel: room for rotated x-ticks
     bot_margin_no  = 0.10                     # other panels: no x-tick labels
@@ -257,7 +256,7 @@ def plot_combined(panels: list[tuple[np.ndarray, np.ndarray, list[str], bool, st
 
 COMBINED_PANELS = [
     # (sdg_filter, title)
-    (None,        "All SDG methods (average)"),
+    (None,        "Average over the four generators"),
     ("TabDDPM",   "TabDDPM"),
     ("MST_eps10", "MST ($\\varepsilon=10$)"),
     ("TVAE",      "TVAE"),
