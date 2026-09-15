@@ -149,6 +149,14 @@ Closing this needs new runs, not a new generator.
 MST $\varepsilon{=}0.1$ and AIM $\varepsilon{=}3$ were repaired and re-run:
 9 of 75 cells, largest move 0.9 pp. Everything else is exact.
 
+### The `Avg.` row and column of these three tables
+
+The generator averages its own unrounded cells; the paper averages the printed
+one-decimal cells. So any average that includes a divergent cell above moves with
+it (the SBO MST columns and the rows that span them, the two CDC 1k columns), and
+an average can otherwise differ by 0.1 from rounding (CDC 100k, MST
+$\varepsilon{=}100$: 44.5 here, 44.4 printed).
+
 ### `tab:mia_comparison` (Table 6) — seven cells
 
 The printed table mixes pre- and post-repair runs: the NIST Arizona block is

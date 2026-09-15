@@ -260,8 +260,16 @@ def table_perdataset(df):
         ml = {atk: [cell(d, attack_label=atk, sdg_method=s)[0] for s, _ in spec["cols"]]
               for atk, _ in spec["rows"]}
 
+        # Like Table 1, each row ends in its mean over generators, and a closing
+        # Avg. row gives each column's mean over the ML attacks (Mode excluded).
+        def row_mean(vals):
+            return np.nanmean(vals) if not all(pd.isna(v) for v in vals) else np.nan
+        for atk, _ in spec["rows"]:
+            ml[atk] = ml[atk] + [row_mean(ml[atk])]
+        mode = mode + [row_mean(mode)]
+
         best = []
-        for i in range(len(spec["cols"])):
+        for i in range(len(spec["cols"]) + 1):
             col = [ml[a][i] for a, _ in spec["rows"] if not pd.isna(ml[a][i])]
             best.append(max(col) if col else np.nan)
 
@@ -276,8 +284,11 @@ def table_perdataset(df):
                     t = rf"\textbf{{{t}}}"
                 cells.append(t)
             lines.append(f"{lab} & " + " & ".join(cells) + r" \\")
-            if all(pd.isna(v) for v in ml[atk]):
+            if all(pd.isna(v) for v in ml[atk][:-1]):
                 gaps.append((spec["label"], lab))
+        colavg = [np.nanmean([ml[a][i] for a, _ in spec["rows"]]) for i in range(len(spec["cols"]))]
+        lines += [r"\midrule",
+                  r"\textbf{Avg.} & " + " & ".join(rf"\textbf{{{f1(v)}}}" for v in colavg) + r" & \\"]
         (OUT / spec["out"]).write_text("\n".join(lines) + "\n")
     return gaps
 
