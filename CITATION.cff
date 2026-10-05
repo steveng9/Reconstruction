@@ -22,7 +22,7 @@ abstract: >-
   synthetic tabular data, including six new attacks (CoBP-RA, CondMST, CondDDPM,
   CondRePaint, ARFFormer and MultiHeadMLP), the composable chaining and
   ensembling wrappers, nine synthetic-data generators plus differentially private
-  mechanisms across nine privacy budgets, and a database of 49,126 scored
+  mechanisms across nine privacy budgets, and a database of 50,826 scored
   attack runs. Insights are drawn in part from the authors' winning entry to the
   NIST Collaborative Research Cycle.
 keywords:

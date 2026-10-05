@@ -8,7 +8,7 @@ Run it from the repository root:
 It needs only Python's standard library — no dependency on this repository, and
 nothing to install. The database is plain SQLite, and this script is meant to be
 read and copied from as much as run: each query below is a starting point for
-reusing the 49,126 scored runs as a dataset in their own right.
+reusing the 50,826 scored runs as a dataset in their own right.
 
 Full documentation of the schema, the label conventions and the caveats is in
 DATABASE.md.

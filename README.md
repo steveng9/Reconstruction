@@ -18,9 +18,9 @@ contents — everything except the diffusion attacks and LinearReconstruction
 works without them, but cloning with `--recurse-submodules` gets you the whole
 thing.
 
-> **Artifact reviewers:** start with **[`ARTIFACT-APPENDIX.md`](ARTIFACT-APPENDIX.md)**.
-> It has the badge-by-badge requirements, the claim-to-experiment mapping, and the
-> exact commands. The short version:
+> **To install it and reproduce the paper's results,** start with
+> **[`ARTIFACT-APPENDIX.md`](ARTIFACT-APPENDIX.md)**. It has the requirements, the
+> experiments behind each claim, and the exact commands. The short version:
 >
 > ```bash
 > git clone --recurse-submodules https://github.com/steveng9/Reconstruction.git
@@ -75,9 +75,9 @@ We use **rarity-weighted reconstruction advantage** ($R_{adv}$): a correct predi
 
 ## Installation
 
-> **This section is the native, from-source developer setup — it is *not* the
-> artifact-evaluation path.** Reviewers should use the Docker images, whose
-> dependency versions are pinned and verified end to end; see
+> **This section is the native, from-source developer setup.** To reproduce the
+> paper's results, use the Docker images instead, whose dependency versions are
+> pinned and verified end to end; see
 > [`ARTIFACT-APPENDIX.md`](ARTIFACT-APPENDIX.md). The conda and `pip` commands
 > below are unpinned and reflect how the environment was originally assembled,
 > not the exact versions the paper's results were produced with. Those live in
@@ -393,7 +393,7 @@ Reconstruction/
 │
 ├── examples/                      ← Short, runnable, self-contained
 │   ├── add_your_own_attack.py     ← Write, register and score a new attack in one file
-│   └── query_results_db.py        ← Five worked queries over the 49,126 scored runs
+│   └── query_results_db.py        ← Five worked queries over the 50,826 scored runs
 │
 ├── master_experiment_script.py   ← Main entry point: runs one experiment, logs to WandB
 ├── attack_defaults.py            ← Default hyperparameters for all 13 attacks
@@ -454,14 +454,14 @@ Reconstruction/
 │   ├── paper_objects.py         ← Manifest: every paper table/figure, its source and generator
 │   ├── regen_camera_tables.py    ← The generator functions reproduce.py calls
 │   ├── make_docs.py             ← Regenerates the manifest-derived doc sections
-│   ├── results.db                ← 49,126 scored runs behind the paper (68 MB)
+│   ├── results.db                ← 50,826 scored runs behind the paper (69 MB)
 │   ├── mia_comparison_results.csv ← MIA results (these live outside the DB)
 │   ├── raw_logs/                 ← Console logs that are the primary source for MIA
 │   ├── README.md                 ← Index of every script: tier, paper object, inputs
 │   └── historical/               ← One-off repair/fill scripts kept for provenance
 │
 ├── ARTIFACT-APPENDIX.md          ← PoPETs artifact appendix (start here to review)
-├── TABLE-COVERAGE.md        ← Which of the 33 paper tables/figures regenerate, and what is left
+├── TABLE-COVERAGE.md        ← Which of the 39 paper tables/figures regenerate, and what is left
 │                                   (generated from experiment_scripts/paper_objects.py)
 ├── test.sh                       ← One-command smoke test (env + attack + tables)
 ├── paths.py                      ← Central path resolution; every root is env-overridable
@@ -701,7 +701,7 @@ definitions in the `QIs` / `minus_QIs` dicts in `get_data.py`;
 python examples/query_results_db.py
 ```
 
-`experiment_scripts/results.db` is plain SQLite holding all 49,126 scored runs
+`experiment_scripts/results.db` is plain SQLite holding all 50,826 scored runs
 behind the paper, and is a usable secondary dataset in its own right for anyone
 studying reconstruction risk — no need to install or run this framework.
 [`DATABASE.md`](DATABASE.md) documents the schema, the label conventions that

@@ -1,8 +1,8 @@
 # `results.db` — the results database as a standalone dataset
 
 `experiment_scripts/results.db` holds every scored reconstruction run behind the
-paper: 49,126 runs and 413,318 per-feature scores, spanning 184 attack labels,
-59 generator configurations and five datasets.
+paper: 50,826 runs and 460,266 per-feature scores, spanning 187 attack labels,
+63 generator configurations and five datasets.
 
 It is plain SQLite with no extensions, so it is usable on its own — as a
 secondary dataset for studying reconstruction risk — without installing this
@@ -61,9 +61,9 @@ Two tables matter for analysis.
 **`feature_scores`** — one row per (run, attribute), joined on `run_id`. This is
 where per-attribute breakdowns come from; `runs.ra_mean` is the mean over these.
 
-`runs_superseded` and `feature_scores_superseded` retain 17,108 runs invalidated
-by the 2026-08 float-binned-encoding repair. They are kept for audit and are
-**not** part of any result. Every analytical query should read `runs`, not these.
+`runs_superseded` and `feature_scores_superseded` retain 17,413 runs that were
+replaced, almost all of them by the 2026-08 float-binned-encoding repair. They are
+kept for audit and are **not** part of any result. Every analytical query should read `runs`, not these.
 
 ---
 
@@ -77,15 +77,15 @@ return fewer rows than exist — or none at all.
 
 | Paper name | Also stored as | Rows under the old label |
 |---|---|---|
-| CoBP-RA | `MarginalRF` | 1,221 (plus 6,726 already under `CoBP-RA`) |
+| CoBP-RA | `MarginalRF` | 1,221 (plus 6,879 already under `CoBP-RA`) |
 | ARFFormer | `Attention` | 317 (**all** of them) |
 | MultiHeadMLP | `JointMLP` | 110 (**all** of them) |
-| CondMST | `PartialMST` | 304 (**all** of them) |
-| CondDDPM | `TabDDPM` | 516 (**all** of them) |
-| CondRePaint | `ConditionedRePaint` | 339 (**all** of them) |
+| CondMST | `PartialMST` | 297 (**all** of them) |
+| CondDDPM | `TabDDPM` | 435 (**all** of them) |
+| CondRePaint | `ConditionedRePaint` | 259 (**all** of them) |
 
 **ARFFormer has two models.** `Attention` is an earlier per-feature transformer (registry
-`ARFFormer`). The paper's ARFFormer, as printed in the camera-ready Table 1, is the causal
+`ARFFormer`). The paper's ARFFormer, as printed in `tab:ra_mean_adult`, is the causal
 autoregressive transformer (registry `ARFFormerAutoregressive`) at its tuned defaults, stored as
 `AttentionAutoregressiveTuned`. `AttentionAutoregressive` holds a first fill at the old defaults.
 
@@ -115,11 +115,13 @@ different things in different columns.
 
 ### 2. `attack_label` also holds variants, chains and ensembles
 
-The 184 labels are not 184 distinct attacks. They include:
+The 187 labels are not 187 distinct attacks. They include:
 
 - **ablation variants**, suffixed with an underscore — `MarginalRF_graphQI_entropyBP`,
   `MarginalRF_mst_local_100`;
-- **ensembles**, joined with `+` — `NaiveBayes+RandomForest+MLP`;
+- **ensembles**, joined with `+` — `NaiveBayes+RandomForest+MLP` — and the two
+  enhancement rows of `tab:ra_mean_adult`, `Ensemble_MRF_5` (Best ensemble) and
+  `CoBP-RA_HardChain` (Best chain);
 - **oracles**, which are upper bounds and not attacks — `OracleEnsemble`,
   `FeatSelectorOracle`. These will top any ranking you do not exclude them from.
 
@@ -190,7 +192,7 @@ ORDER BY on_train - on_holdout DESC;
 
 ## Caveats worth knowing before you draw conclusions
 
-- **`split = 'unknown'`** marks 1,569 rows migrated from Weights & Biases logs
+- **`split = 'unknown'`** marks 1,487 rows migrated from Weights & Biases logs
   that predate the split field. No table in the paper reads them; filter on
   `split = 'standard'` and they disappear.
 - **Coverage is uneven.** The grid is not complete — some (dataset, generator,

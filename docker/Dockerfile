@@ -2,11 +2,11 @@
 # ^ BuildKit lints a hardcoded `FROM --platform`, on the reasoning that it
 # usually means someone forgot about cross-compilation. Here it is deliberate
 # and explained at the FROM line below, so the lint is silenced rather than
-# left to print a warning a reviewer would have to wonder about.
+# left to print a warning a user would have to wonder about.
 # =============================================================================
 # Light image: reconstruction attacks, scoring, and paper-table regeneration.
 #
-# This is the image artifact reviewers should use. It covers every stage of the
+# This is the image to use for everything in ARTIFACT-APPENDIX.md. It covers every stage of the
 # pipeline that runs on CPU in reasonable time:
 #   * generating synthetic data with the CPU DP generators (MST, AIM, PrivBayes,
 #     PrivSyn, MWEM-PGM, Private-GSD) and with TabDDPM, which shares the
@@ -54,7 +54,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     OPENBLAS_NUM_THREADS=1 \
     MKL_NUM_THREADS=1 \
     NUMEXPR_NUM_THREADS=1 \
-    # Reviewers have no W&B account; keep all logging local by default.
+    # Most users have no W&B account; keep all logging local by default.
     WANDB_MODE=offline
 
 # git is needed for the two pinned VCS dependencies in requirements-attacks.txt.
@@ -96,7 +96,7 @@ RUN pip3 install --no-cache-dir --no-deps chex==0.1.90 optax==0.2.4 flax==0.8.5
 # TabPFN ships without its weights and downloads a ~100 MB checkpoint into its
 # own site-packages directory on first use. The image runs as a non-root user,
 # who cannot write there, so the attack fails with a PermissionError the first
-# time a reviewer runs it. Fetch the checkpoint at build time instead; this also
+# time someone runs it. Fetch the checkpoint at build time instead; this also
 # means the image needs no network access at run time.
 RUN python -c "\
 import numpy as np; \

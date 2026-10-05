@@ -2,7 +2,7 @@
 # ^ BuildKit lints a hardcoded `FROM --platform`, on the reasoning that it
 # usually means someone forgot about cross-compilation. Here it is deliberate
 # and explained at the FROM line below, so the lint is silenced rather than
-# left to print a warning a reviewer would have to wonder about.
+# left to print a warning a user would have to wonder about.
 # =============================================================================
 # Full image: everything in the light image, plus the GPU-oriented and R-based
 # synthetic data generators.
@@ -83,7 +83,7 @@ RUN conda run -n sdg pip install --no-cache-dir --no-deps smartnoise-synth==1.0.
 # TabPFN ships without its weights and downloads a ~100 MB checkpoint into its
 # own site-packages directory on first use. The image runs as a non-root user,
 # who cannot write there, so the attack fails with a PermissionError the first
-# time a reviewer runs it. Fetch the checkpoint at build time instead; this also
+# time someone runs it. Fetch the checkpoint at build time instead; this also
 # means the image needs no network access at run time.
 RUN conda run -n recon_ python -c "\
 import numpy as np; \
@@ -120,7 +120,7 @@ c.predict(np.random.rand(5, 3))" \
 # sdg (which needs the newer CXXABI) and torch in recon_ (which must keep working
 # against the older one). A future rebuild that picks a libstdc++ satisfying one
 # but not the other stops the build here with the real error, instead of shipping
-# an image that fails the first time a reviewer runs it.
+# an image that fails the first time someone runs it.
 RUN set -eux; \
     libcxx="$(for f in /opt/conda/lib/libstdc++.so.6.0.* /opt/conda/envs/*/lib/libstdc++.so.6.0.*; do \
                   if [ -f "$f" ]; then printf '%s %s\n' "${f##*.}" "$f"; fi; \
