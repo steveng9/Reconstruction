@@ -55,6 +55,17 @@ CLAUDE.md
 !experiment_scripts/per_attack_disparity_postrepair.csv
 !experiment_scripts/per_attack_disparity_postrepair_perfeat.csv
 !experiment_scripts/mia_comparison_results.csv
+!experiment_scripts/ra_subgroups_summary.csv
+
+# The result CSVs that historical/ingest_table1_sources.py loaded into results.db,
+# kept so that those rows can be traced to the sweep that produced them.
+!experiment_scripts/marginalrf_combos_20260514_040431.csv
+!experiment_scripts/marginalrf_combos_fill_20260521_182227.csv
+!experiment_scripts/joint_mlp_adult10k_20260529_084608.csv
+!experiment_scripts/sweep_results_adult_20260305_211106.csv
+!experiment_scripts/marginalrf_chains_ensembles_20260529_190349.csv
+!experiment_scripts/marginalrf_chains_ensembles_20260911_192758.csv
+!experiment_scripts/marginalrf_chains_ensembles_20260911_221015.csv
 
 # Membership-inference results. These live outside results.db (the schema is for
 # reconstruction runs), so the CSVs and the console logs they were extracted
@@ -65,13 +76,13 @@ CLAUDE.md
 !experiment_scripts/raw_logs/*.log
 !experiment_scripts/raw_logs/*.txt
 
-# The dummy dataset that lets reviewers exercise the pipeline with no downloads.
+# The dummy dataset that lets the pipeline run with no downloads.
 !data/dummy/
 !data/dummy/**/*.csv
 !data/dummy/**/*.json
 !data/dummy/*.json
 
-# Expected outputs committed for comparison during artifact evaluation.
+# Reference copies of the rebuilt tables and figures, for comparison.
 !expected_output/
 !expected_output/**/*.tex
 !expected_output/**/*.csv

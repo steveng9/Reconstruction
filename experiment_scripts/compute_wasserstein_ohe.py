@@ -3,12 +3,28 @@
 compute_wasserstein_ohe.py — custom one-hot Wasserstein distance for all
 synth.csv files on disk.
 
-Metric: for each feature, one-hot-encode (categorical/ordinal → dummy vars per
-category; continuous → 20 equal-depth bins → dummy vars), then sum
-|freq_train(v) - freq_synth(v)| over all one-hot columns.
+Metric (2026-09-11: now a faithful port of SyntheticData_MIA, the implementation
+behind golob_privacy_2025, which the paper cites for this metric):
+  * numeric columns (pandas numeric dtype) -> 20 equal-depth "baskets" built the
+    SyntheticData_MIA way (encode_data.fit_discrete_features_evenly): sort the
+    reference column, np.array_split it into 20 chunks, take each chunk's first
+    value as a basket edge, and when a chunk starts on an already-used value
+    (a spike, e.g. capital-gain's 92% zeros) bump the edge by +1 instead of
+    dropping it. Values are assigned with np.digitize.
+  * other columns -> one-hot over their categories.
+  * distance = sum over all one-hot columns of |freq_train - freq_synth|
+    (util.wasserstein_distance), i.e. the sum of per-feature TVDs x 2.
 
-This is the sum of per-feature TVDs × 2 (the factor-of-2 matches the original
-SyntheticData_MIA/util.py implementation, which does not divide by 2).
+The previous version used pd.qcut(..., duplicates="drop"), which collapses a
+spiky column to one or two bins (capital-gain -> 2 bins), so it could not see
+that pre-binned DP releases decode capital-gain's zero bin to its midpoint
+(2500). That hid ~1.8 per zero-inflated column. Kept as
+`compute_wasserstein_ohe_legacy` for comparison only.
+
+Deviation from SyntheticData_MIA, one only: its first basket edge is the
+constant 0, which sends every negative value to the last basket (np.eye[-1]).
+We use min(0, min(reference)) instead; this is identical for non-negative data
+and only matters for California Housing's longitude.
 
 The result is a separate join-key CSV: (dataset, size_dir, sample, method,
 wasserstein_ohe).  Merge into any quality table on those four columns.
@@ -81,7 +97,7 @@ def _col_freq_diffs(train_col: pd.Series, synth_col: pd.Series,
                    for b in range(n_actual))
 
 
-def compute_wasserstein_ohe(train_df: pd.DataFrame, synth_df: pd.DataFrame,
+def compute_wasserstein_ohe_legacy(train_df: pd.DataFrame, synth_df: pd.DataFrame,
                              meta: dict) -> float:
     """
     Compute the custom one-hot Wasserstein distance between train and synth.
@@ -97,6 +113,99 @@ def compute_wasserstein_ohe(train_df: pd.DataFrame, synth_df: pd.DataFrame,
     for col in common:
         total += _col_freq_diffs(train_df[col], synth_df[col],
                                  is_categorical=(col in cat_set))
+    return total
+
+
+def _mia_basket_edges(ref: pd.Series, n_bins: int = N_BINS) -> list:
+    """SyntheticData_MIA encode_data.fit_discrete_features_evenly, numeric branch."""
+    vals = np.sort(ref.dropna().values)
+    splits = np.array_split(vals, n_bins)
+    edges = [min(0, vals[0]) if len(vals) else 0]
+    for i in range(1, n_bins):
+        first = splits[i][0] if len(splits[i]) else edges[i - 1] + 1
+        edges.append(first if first > edges[i - 1] else edges[i - 1] + 1)
+    return edges
+
+
+def _mia_freqs(col: pd.Series, edges: list, n_bins: int = N_BINS) -> np.ndarray:
+    """np.eye(n_bins)[np.digitize(col, edges) - 1], summed and normalised."""
+    idx = np.digitize(col.values, edges) - 1          # -1 wraps to the last basket, as in the original
+    return np.bincount(idx % n_bins, minlength=n_bins) / len(col)
+
+
+def compute_wasserstein_ohe_mia_port(train_df: pd.DataFrame, synth_df: pd.DataFrame,
+                                    meta: dict | None = None) -> float:
+    """
+    One-hot Wasserstein distance, ported from SyntheticData_MIA
+    (util.wasserstein_distance + encode_data.binarize_discrete_features_evenly).
+    `meta` is accepted for call compatibility; as in the original, the numeric
+    vs one-hot decision follows the column dtype.
+    """
+    from pandas.api.types import is_numeric_dtype
+    total = 0.0
+    for col in train_df.columns:
+        if col not in synth_df.columns:
+            continue
+        t, s = train_df[col], synth_df[col]
+        if is_numeric_dtype(t) and is_numeric_dtype(s):
+            e = _mia_basket_edges(t)
+            total += float(np.abs(_mia_freqs(t, e) - _mia_freqs(s, e)).sum())
+        else:
+            t, s = t.astype(str), s.astype(str)
+            cats = sorted(set(t.unique()) | set(s.unique()))
+            total += float(np.abs(t.value_counts(normalize=True).reindex(cats, fill_value=0).values
+                                  - s.value_counts(normalize=True).reindex(cats, fill_value=0).values).sum())
+    return total
+
+
+def _freqs_over_union(t: pd.Series, s: pd.Series) -> tuple[np.ndarray, np.ndarray]:
+    """Per-value frequencies of two columns over the union of their values.
+    Numeric-looking columns are compared as floats so 1 and 1.0 are one value."""
+    try:
+        t, s = t.astype(float), s.astype(float)
+    except (ValueError, TypeError):
+        t, s = t.astype(str), s.astype(str)
+    cats = sorted(set(t.dropna().unique()) | set(s.dropna().unique()))
+    return (t.value_counts(normalize=True).reindex(cats, fill_value=0).values,
+            s.value_counts(normalize=True).reindex(cats, fill_value=0).values)
+
+
+def compute_wasserstein_ohe(train_df: pd.DataFrame, synth_df: pd.DataFrame,
+                            meta: dict) -> float:
+    """
+    One-hot Wasserstein distance as reported in the paper (2026-09-11).
+
+    Categorical / ordinal features (per meta) are one-hot encoded over their
+    values; continuous features are cut into the same N_BINS equal-width bins
+    over the real column's [min, max] that every pre-binned DP generator in
+    sdg/ uses (np.linspace + np.searchsorted, synth values outside the range
+    clipped to the end bins). The distance is the sum over all one-hot columns
+    of |freq_train - freq_synth|, as in SyntheticData_MIA's
+    util.wasserstein_distance.
+
+    Why not SyntheticData_MIA's equal-depth baskets (compute_wasserstein_ohe_mia_port):
+    those baskets are finest exactly where real values pile up (capital-gain's
+    zeros), so a DP release that writes each bin back as its midpoint
+    (0 -> 2500) is charged ~1.8 per such column at every epsilon, a fixed floor
+    (~7.1 on Adult) that measures the decoding, not the generator.
+    """
+    cont = set(meta.get("continuous", []))
+    feats = set(meta.get("categorical", [])) | set(meta.get("ordinal", [])) | cont
+    total = 0.0
+    for col in train_df.columns:
+        if col not in synth_df.columns or col not in feats:
+            continue
+        t, s = train_df[col], synth_df[col]
+        if col in cont:
+            lo, hi = t.min(), t.max()
+            if lo == hi:
+                continue                      # one bin: both sides put all mass there
+            inner = np.linspace(lo, hi, N_BINS + 1)[1:-1]
+            ft = np.bincount(np.searchsorted(inner, t.astype(float).values), minlength=N_BINS) / len(t)
+            fs = np.bincount(np.searchsorted(inner, s.astype(float).values), minlength=N_BINS) / len(s)
+        else:
+            ft, fs = _freqs_over_union(t, s)
+        total += float(np.abs(ft - fs).sum())
     return total
 
 

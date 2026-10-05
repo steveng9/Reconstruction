@@ -20,6 +20,9 @@ pre-repair database). Treat them as a record, not as tooling.
 | `fix_new_dp_sweep_csv.py` | Repair malformed rows in one DP-sweep output CSV. |
 | `ingest_california_memorization.py` | One-time ingest of the California memorization results. |
 | `merge_quality_results.py` | Merge two partial synthetic-quality result CSVs. |
+| `ingest_table1_sources.py` | Load the sweep CSVs behind six rows of `tab:ra_mean_adult` into `results.db`. |
+| `summarize_ra_subgroups.py` | Reduce the record-level scores of `analyze_ra_subgroups.py` to the subgroup means in `tab:disparate_impact`. |
+| `update_quality_camera_ready.py` | Bring `quality_results_merged.csv` to the published paper's values: Wass. OHE on 20 equal-width bins, and the pre-binned AIM releases on Adult 10k. |
 | `run_fill_in_sweep.py`, `run_fill_in_marginalrf.py`, `run_marginalrf_combos_fill.py`, `run_new_attacks_fill_in_sweep.py` | Fill specific missing cells in the main grid. |
 | `run_camera_fill_20260822.sh` | Fill the remaining camera-ready table cells. |
 | `run_disparity_full_rerun_20260821.sh`, `run_disparity_mst_rerun_20260821.sh` | Re-run the disparate-impact analysis on post-repair synthetic data. |
