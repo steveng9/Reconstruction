@@ -51,8 +51,9 @@ class PaperObject:
 DB      = "results.db"
 QUALITY = "quality_results_merged.csv"
 MEMO    = "linear_sweep_adult_1000_20260822_182357.csv + ds_risk_scores.csv"
-MIA     = "mia_comparison_results.csv"
+MIA     = "mia_comparison_results.csv + mia_rebuttal_sweep_results.csv"
 DISP    = "per_attack_disparity_postrepair.csv"
+SUBGRP  = "ra_subgroups_summary.csv + " + DISP
 DISP_PF = "per_attack_disparity_postrepair_perfeat.csv"
 
 BINARY_NOTE = ("PDF/PNG are not byte-stable across matplotlib and freetype "
@@ -75,13 +76,17 @@ MANIFEST: list[PaperObject] = [
     ),
     PaperObject(
         key="table4_compact", title="Epsilon sweep, compact (mean of 3 attacks)",
-        label="tab:eps_sweep", output="table4_eps_sweep_compact.tex",
+        label=None, output="table4_eps_sweep_compact.tex",
         source=DB, generator="table4", status="done", check=True,
+        note="The values plotted in fig:eps_curves, as a table. The paper prints "
+             "the figure only.",
     ),
     PaperObject(
         key="table4_full", title="Epsilon sweep, full (6 generators x 3 attacks x 2 QI)",
-        label="tab:eps_full", output="table4_eps_sweep_full.tex",
+        label=None, output="table4_eps_sweep_full.tex",
         source=DB, generator="table4", status="done", check=True,
+        note="The values plotted in the per-attack and other-QI epsilon figures, "
+             "as a table. The paper prints the figures only.",
     ),
     PaperObject(
         key="stats_eps", title="Epsilon-curve paired t-tests",
@@ -92,8 +97,7 @@ MANIFEST: list[PaperObject] = [
         key="table6", title="MIA baselines vs RA-as-MIA",
         label="tab:mia_comparison", output="table6_mia_comparison.tex",
         source=MIA, generator="table6", status="done", check=True,
-        note="The printed table mixes pre- and post-repair runs; this output is "
-             "the post-repair version. See TABLE-COVERAGE.md.",
+        note="Two of the 72 AUCs (Adult, MST eps=1) differ from the printed table by 0.01.",
     ),
     PaperObject(
         key="table7", title="Memorization gap and d_S disclosure risk",
@@ -102,61 +106,66 @@ MANIFEST: list[PaperObject] = [
     ),
     PaperObject(
         key="stats_memo", title="Memorization one-sample t-tests",
-        label=None, output="STATS_memorization.md",
+        label="tab:memo_stats", output="STATS_memorization.md",
         source=MEMO, generator="table7", status="done", check=True,
-        note="Supporting statistics for tab:memorization_and_ds_risk; no label of its own.",
     ),
     PaperObject(
         key="table9", title="Disparate impact by race and sex",
         label="tab:disparate_impact", output="table9_disparate_impact.tex",
-        source=DISP, generator="table9", status="done", check=True,
-        note="Regenerates from the post-repair CSV. The printed table predates "
-             "it and predates the pre-repair backup too, so its numbers have no "
-             "committed source: an extra AIM row here, and 32 of 45 shared cells "
-             "move by >5% relative (largest absolute move 1.68 pp). The "
-             "qualitative claim is unchanged. See TABLE-COVERAGE.md.",
+        source=SUBGRP, generator="table9", status="done", check=True,
     ),
     PaperObject(
         key="fig_eps", title="Reconstruction risk vs privacy budget",
         label="fig:eps_curves", output="fig_eps_curves.pdf",
-        source=DB, generator="figure_eps", status="done", check=False,
+        source=DB, generator="figures_paper", status="done", check=False,
         note="A .png companion is written alongside the .pdf. " + BINARY_NOTE,
     ),
     PaperObject(
         key="fig_eps_perattack", title="Epsilon curves broken out per attack",
-        label=None, output="fig_eps_curves_perattack.pdf",
-        source=DB, generator="figure_eps", status="done", check=False,
-        note="Appendix figure, no label. A .png companion is written alongside. " + BINARY_NOTE,
+        label="fig:eps_curves_perattack", output="fig_eps_curves_perattack.pdf",
+        source=DB, generator="figures_paper", status="done", check=False,
+        note="A .png companion is written alongside. " + BINARY_NOTE,
     ),
-
+    PaperObject(
+        key="fig_eps_otherqi", title="Epsilon curves under the two further QI sets",
+        label="fig:eps_curves_otherqi", output="fig_eps_curves_otherqi.pdf",
+        source=DB, generator="figures_paper", status="done", check=False,
+        note="A .png companion is written alongside. " + BINARY_NOTE,
+    ),
+    PaperObject(
+        key="fig_eps_perattack_qilarge", title="Per-attack epsilon curves, QI_large",
+        label="fig:eps_curves_perattack_qilarge", output="fig_eps_curves_perattack_qilarge.pdf",
+        source=DB, generator="figures_paper", status="done", check=False,
+        note="A .png companion is written alongside. " + BINARY_NOTE,
+    ),
+    PaperObject(
+        key="fig_eps_perattack_qibehavioral", title="Per-attack epsilon curves, QI_behavioral",
+        label="fig:eps_curves_perattack_qibehavioral",
+        output="fig_eps_curves_perattack_qibehavioral.pdf",
+        source=DB, generator="figures_paper", status="done", check=False,
+        note="A .png companion is written alongside. " + BINARY_NOTE,
+    ),
     # ── Tier A: data committed, generator missing ────────────────────────────
     PaperObject(
         key="table_cdc_1k", title="Attack x SDG, CDC Diabetes 1k",
         label="tab:ra_mean_cdc", source=DB + " (cdc_diabetes, 1k)",
         generator="table_perdataset",
         output="table_ra_mean_cdc.tex", status="done", check=True,
-        note="Reproduces the printed table except the MST(eps=0.1) and AIM(eps=3) "
-             "columns, which the 2026-08 encoding repair invalidated and re-ran: "
-             "9 of 75 cells, largest move 0.9 pp. The row printed as CoBP-RA is "
-             "the QIGraph+EntropyBP variant.",
+        note="The row printed as CoBP-RA is the QIGraph+EntropyBP variant.",
     ),
     PaperObject(
         key="table_cdc_100k", title="Attack x SDG, CDC Diabetes 100k",
         label="tab:cdc_100k", source=DB + " (cdc_diabetes, 100k)",
         generator="table_perdataset",
         output="table_cdc_100k.tex", status="done", check=True,
-        note="Reproduces the printed table exactly, all 52 cells. The row printed "
-             "as CoBP-RA is the QIGraph+EntropyBP variant.",
+        note="The row printed as CoBP-RA is the QIGraph+EntropyBP variant.",
     ),
     PaperObject(
         key="table_sbo", title="Attack x SDG, NIST SBO 1k",
         label="tab:ra_mean_nist_sbo", source=DB + " (nist_sbo, 1k)",
         generator="table_perdataset",
         output="table_ra_mean_nist_sbo.tex", status="done", check=True,
-        note="The eight non-MST columns reproduce exactly. MST(eps=0.1) and "
-             "MST(eps=1) were superseded by the encoding repair and never rerun, "
-             "so they print '---'; the other MST budgets rest on 2 samples rather "
-             "than 5 and move by up to 0.4 pp. Closing this needs new runs.",
+        note="The row printed as CoBP-RA is the QIGraph+EntropyBP variant.",
     ),
     PaperObject(
         key="table_feature_eps", title="Per-feature breakdown across epsilon",
@@ -209,7 +218,7 @@ MANIFEST: list[PaperObject] = [
         key="table_qi_adult", title="QI-set sensitivity, Adult",
         label="tab:qi_analysis_adult", source=DB, status="todo", tier="B",
         note="qi_analysis/wandb_to_latex_qi.py needs our Weights & Biases "
-             "credentials, so a reviewer cannot run it. The DB has every QI "
+             "credentials, so it cannot be run without them. The DB has every QI "
              "variant; port the formatter the way wandb_to_latex.py already reads the DB.",
     ),
     PaperObject(
@@ -224,6 +233,12 @@ MANIFEST: list[PaperObject] = [
         note="linear_sweep_to_latex.py is WandB-only. Port it to read the DB.",
     ),
 
+    PaperObject(
+        key="fig_quality_overview", title="Quality profile star chart, Adult",
+        label="fig:quality_overview", source=QUALITY, status="todo", tier="A",
+        note="Plots the values of tab:quality_overview, which does regenerate. "
+             "The chart itself was drawn outside this repository.",
+    ),
     # ── Tier C: needs a result file that is not committed yet ────────────────
     PaperObject(
         key="fig_heatmap_ensemble", title="Ensembling heatmap",
@@ -236,6 +251,17 @@ MANIFEST: list[PaperObject] = [
     ),
 
     # ── Tier D: not derived from this repository ─────────────────────────────
+    PaperObject(
+        key="table_notation", title="Notation",
+        label="tab:notation", source="hand-written", status="external", tier="D",
+        note="Hand-written glossary of symbols.",
+    ),
+    PaperObject(
+        key="table_hyperparams", title="Attack hyperparameters",
+        label="tab:hyperparams", source="hand-written from attack_defaults.py",
+        status="external", tier="D",
+        note="Hand-written from the defaults in attack_defaults.py.",
+    ),
     PaperObject(
         key="table_nist", title="NIST CRC scoreboard",
         label="tab:nist_results", source="NIST's published CRC scoreboard",

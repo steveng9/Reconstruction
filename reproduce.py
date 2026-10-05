@@ -47,11 +47,11 @@ def cmd_list() -> int:
           f"repository.\n")
 
     print("REGENERATES TODAY")
-    print(f"  {'paper label':<34}{'output':<38}{'checked':<11}source")
+    print(f"  {'paper label':<40}{'output':<44}{'checked':<11}source")
     for o in M.by_status("done"):
         label = o.label or "(unlabelled)"
         mark = "byte-diff" if o.check else "--"
-        print(f"  {label:<34}{o.output:<38}{mark:<11}{o.source}")
+        print(f"  {label:<40}{o.output:<44}{mark:<11}{o.source}")
 
     todo = M.by_status("todo")
     if todo:
@@ -66,13 +66,13 @@ def cmd_list() -> int:
                 continue
             print(f"\n  {heading}  ({len(rows)})")
             for o in rows:
-                print(f"    {o.label:<34}{o.source}")
+                print(f"    {o.label:<40}{o.source}")
 
     ext = M.by_status("external")
     if ext:
         print(f"\nNOT FROM THIS REPOSITORY  ({len(ext)})")
         for o in ext:
-            print(f"    {o.label:<34}{o.source}")
+            print(f"    {o.label:<40}{o.source}")
     print()
     return 0
 
@@ -135,7 +135,7 @@ def cmd_build(only_keys: set[str] | None, out_dir: Path | None) -> int:
 
 
 def _report(gen, results, full_run: bool) -> None:
-    """List what was written, then surface the two data-coverage warnings."""
+    """List what was written, and any cell that rests on fewer samples than the rest."""
     print("wrote:")
     for f in sorted(gen.OUT.iterdir()):
         print(f"  {f.name:<40}{f.stat().st_size:>8} B")
@@ -148,27 +148,25 @@ def _report(gen, results, full_run: bool) -> None:
             for n in absent:
                 print(f"  {n}")
 
-    if "table7" in results and results["table7"]:
-        print("\nTable 7 rows with NO QI_linear memorization runs "
-              "(cannot be filled without new runs):")
+    notes = False
+    if results.get("table7"):
+        notes = True
+        print("\nTable 7 rows with no QI_linear memorization runs:")
         for m in results["table7"]:
             print(f"  {m}")
 
     if "table1" in results:
         _grid, cov = results["table1"]
         if cov:
-            print("\ncells with n<5 disjoint samples (caption must not claim 5):")
+            notes = True
+            print("\nTable 1 cells backed by fewer than 5 training samples:")
             for a, b, n in cov:
                 print(f"  {a:<24}{b:<28}n={n}")
 
-    # The coverage lists above are the longest thing on screen and read like a
-    # failure if you were not expecting them. They are not: they are provenance
-    # notes saying how many samples back each cell. Close on an explicit
-    # success line so nobody has to guess.
     n_written = len(list(gen.OUT.iterdir()))
     print(f"\ndone: {n_written} files written to {gen.OUT}")
-    print("The lists above are notes on how many samples back each cell, "
-          "not errors.")
+    if notes:
+        print("The lists above say how many samples back each cell; they are not errors.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

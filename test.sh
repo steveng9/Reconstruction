@@ -91,6 +91,12 @@ else
       ok "$t matches the committed reference"
     else
       bad "$t differs from the committed reference"
+      # Show where, so a mismatch can be told apart from a missing output.
+      if [ -f "$TMPOUT/$t" ]; then
+        diff "expected_output/tables/$t" "$TMPOUT/$t" | head -6 | sed 's/^/        /'
+      else
+        echo "        (reproduce.py did not write $t)"
+      fi
     fi
   done
   rm -rf "$TMPOUT"

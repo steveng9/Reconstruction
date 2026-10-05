@@ -32,7 +32,7 @@ TIER_HEADINGS = {
           "add. This is the bulk of the remaining work and should be done first."),
     "B": ("Tier B -- data committed, formatter is WandB-only",
           "The data is in `results.db`, but the only existing formatter needs our\n"
-          "Weights & Biases credentials, so a reviewer cannot run it. Port the\n"
+          "Weights & Biases credentials, so it cannot be run without them. Port the\n"
           "formatting logic to read the DB, the way `wandb_to_latex.py` already does."),
     "C": ("Tier C -- needs a result file that is not committed yet", ""),
     "D": ("Tier D -- not derived from this repository",

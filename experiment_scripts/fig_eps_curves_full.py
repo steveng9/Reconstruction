@@ -1,24 +1,22 @@
-"""Camera-ready build of fig:eps_curves and the per-attack appendix figure.
+"""Draw fig:eps_curves and its per-attack appendix figure.
 
-Differs from `regen_camera_tables.figure_eps` in three ways:
+Three things to know about how the curves are drawn:
 
-  1. AIM uses the pre-binned releases end to end. The Feb-2026 `AIM_eps1`
-     (and, on CDC, `AIM_eps10`) releases went through SmartNoise's private
-     preprocessor instead; they were re-generated with continuous columns
-     pre-binned as `AIM_eps1_pb` / `AIM_eps10_pb`. Those suffixed names do not
-     parse as an epsilon, so they are mapped onto (AIM, eps) here and the
-     superseded rows dropped -- the epsilon trend then rests on one pipeline.
+  1. AIM uses the pre-binned releases end to end. The first `AIM_eps1` (and, on
+     CDC, `AIM_eps10`) releases went through SmartNoise's private preprocessor;
+     they were regenerated with continuous columns pre-binned as `AIM_eps1_pb` /
+     `AIM_eps10_pb`. Those suffixed names do not parse as an epsilon, so they are
+     mapped onto (AIM, eps) here and the earlier rows dropped, so that the
+     epsilon trend rests on one pipeline.
   2. A dashed Mode-baseline rule is drawn in every panel.
   3. The per-attack figure shares its y axis within a row only: the two
      datasets sit at different R_adv levels, and one shared range flattens
      both rows.
 
-The script refuses to draw a curve with a missing budget. AIM's high-budget
-points (Adult eps>=30, CDC eps>=100) were added to results.db in Sep 2026; an
-older database would otherwise produce a truncated AIM curve with no warning.
+The script refuses to draw a curve with a missing budget.
 
-Reads only results.db (RECON_RESULTS_DB overrides the path). Writes nothing
-into expected_output/.
+Reads only results.db (RECON_RESULTS_DB overrides the path). `python reproduce.py`
+runs it with --out pointing at expected_output/tables/.
 
   python experiment_scripts/fig_eps_curves_full.py [--out DIR]
 """

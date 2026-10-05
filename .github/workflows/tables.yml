@@ -1,0 +1,36 @@
+# Rebuild the paper's tables from the committed data on every push, and fail if
+# any of them differs from the committed reference copy.
+#
+# The table code, results.db and expected_output/ have to move together. A commit
+# that changes one without the others still passes on the machine it was made on
+# (where the newer database is sitting in the working tree) and fails for everyone
+# who clones. This job is a fresh clone, so it catches that before a user does.
+name: tables
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tables:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      # The four packages the table code imports, at the versions pinned in
+      # docker/requirements-attacks.txt.
+      - run: pip install numpy==1.23.5 pandas==2.3.1 scipy==1.13.1 matplotlib==3.9.4
+      - name: Rebuild every table and compare with expected_output/
+        run: |
+          python reproduce.py --out "$RUNNER_TEMP/tables" > /dev/null
+          status=0
+          for t in $(python reproduce.py --check-list); do
+            if diff -u "expected_output/tables/$t" "$RUNNER_TEMP/tables/$t"; then
+              echo "ok    $t"
+            else
+              echo "DIFF  $t"; status=1
+            fi
+          done
+          exit $status

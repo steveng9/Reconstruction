@@ -130,33 +130,48 @@ T1_COLS = [("RankSwap","RankSwap"),("CellSuppression","Cell Supp."),("Synthpop",
 # Paper row name -> attack_label as stored in results.db. The DB kept the
 # pre-2026-06 names; `Copy` is stored as `MeasureDeid`. Verified by reproducing
 # the printed Copy row exactly (RankSwap 49.3 / CellSupp 10.3 / TabDDPM 10.5).
+# A row whose label is a pair reads its eight non-MST columns from the first label and
+# its five MST columns from the second: CoBP-RA is the QI-graph, entropy-weighted
+# variant outside the MST columns and the plain attack inside them, and CondMST is
+# the bounded-clique variant outside them and the tree variant inside them.
 T1_ROWS = [("__grp__", "Reference points (not attacks)"),
            ("Mode","Mode"),("Random","Random"),("MeasureDeid","Copy"),
-           ("__grp__", r"Each feature in isolation: classifiers \& column-marginal"),
+           ("__grp__", "Each feature in isolation: classifiers"),
            ("KNN",r"\textsc{knn}"),("NaiveBayes","Naive Bayes"),("LogisticRegression","Logistic Regression"),
            ("SVM",r"\textsc{svm}"),("RandomForest","Random Forest"),("LightGBM","LightGBM"),
            ("MLP",r"\textsc{mlp}"),("TabPFN","TabPFN"),
+           ("Ensemble_MRF_5","Best ensemble"),
            ("__grp__", "Feature-correlated: autoregressive"),
-           # The camera-ready Table 1 reports the causal (autoregressive) transformer at its
-           # tuned defaults; label `Attention` is the earlier per-feature model.
+           # The causal (autoregressive) transformer at its tuned defaults; label
+           # `Attention` is the earlier per-feature model.
            ("AttentionAutoregressiveTuned",r"ARFFormer$^\dagger$"),
+           ("CoBP-RA_HardChain","Best chain"),
            ("__grp__", "Feature-correlated: row-wise message passing"),
-           ("CoBP-RA",r"CoBP-RA$^\dagger$"),
+           (("MarginalRF_graphQI_entropyBP","CoBP-RA"),r"CoBP-RA$^\dagger$"),
            ("__grp__", "Feature-correlated: joint generative conditioning"),
-           ("JointMLP",r"MultiHeadMLP$^\dagger$"),("PartialMST",r"CondMST$^\dagger$"),
+           ("JointMLP",r"MultiHeadMLP$^\dagger$"),(("PartialMSTBounded","PartialMST"),r"CondMST$^\dagger$"),
            ("TabDDPM",r"CondDDPM$^\dagger$"),("ConditionedRePaint",r"CondRePaint$^\dagger$")]
+# The two enhancement rows summarise a sweep rather than name an attack, so they are
+# left out of the bottom Avg. row.
+T1_NOT_AVERAGED = ("Best ensemble", "Best chain")
+
+def _t1_label(atk, sdg):
+    if isinstance(atk, tuple):
+        return atk[1] if sdg.startswith("MST_") else atk[0]
+    return atk
 
 def table1(df):
     d = df[(df.dataset=="adult")&(df.dataset_size==10000)&(df.qi=="QI1")&(df.split=="standard")]
     lines, grid = [], {}
     for atk, lab in T1_ROWS:
         if atk == "__grp__":
+            if lines: lines.append(r"\midrule")
             lines.append(rf"\multicolumn{{15}}{{l}}{{\emph{{{lab}}}}}\\"); continue
-        vals = [cell(d, attack_label=atk, sdg_method=s)[0] for s, _ in T1_COLS]
-        grid[atk] = vals
+        vals = [cell(d, attack_label=_t1_label(atk, s), sdg_method=s)[0] for s, _ in T1_COLS]
+        grid[lab] = vals
         avg = np.nanmean(vals) if not all(pd.isna(v) for v in vals) else np.nan
         lines.append(f"{lab} & " + " & ".join(f1(v) for v in vals) + f" & {f1(avg)} " + r"\\")
-    colavg = [np.nanmean([grid[a][i] for a in grid if a not in ("Mode","Random","Copy")]) for i in range(len(T1_COLS))]
+    colavg = [np.nanmean([grid[a][i] for a in grid if a not in T1_NOT_AVERAGED]) for i in range(len(T1_COLS))]
     body = "\n".join(lines) + "\n" + r"\midrule" + "\n" + \
            r"\textbf{Avg.} & " + " & ".join(rf"\textbf{{{f1(v)}}}" for v in colavg) + r" & \\"
     (OUT/"table1_ra_mean_adult.tex").write_text(body + "\n")
@@ -165,7 +180,7 @@ def table1(df):
     for atk, lab in T1_ROWS:
         if atk == "__grp__": continue
         for s, sl in T1_COLS:
-            m, c, n = cell(d, attack_label=atk, sdg_method=s)
+            m, c, n = cell(d, attack_label=_t1_label(atk, s), sdg_method=s)
             if n < 5: cov.append((lab, sl, n))
     return grid, cov
 
@@ -260,10 +275,12 @@ def table_perdataset(df):
         ml = {atk: [cell(d, attack_label=atk, sdg_method=s)[0] for s, _ in spec["cols"]]
               for atk, _ in spec["rows"]}
 
-        # Like Table 1, each row ends in its mean over generators, and a closing
-        # Avg. row gives each column's mean over the ML attacks (Mode excluded).
+        # Each row ends in its mean over generators, and a closing Avg. row gives
+        # each column's mean over the ML attacks (Mode excluded). Both are taken
+        # over the cells as printed, to one decimal.
         def row_mean(vals):
-            return np.nanmean(vals) if not all(pd.isna(v) for v in vals) else np.nan
+            shown = [float(f1(v)) for v in vals if not pd.isna(v)]
+            return np.mean(shown) if shown else np.nan
         for atk, _ in spec["rows"]:
             ml[atk] = ml[atk] + [row_mean(ml[atk])]
         mode = mode + [row_mean(mode)]
@@ -286,7 +303,7 @@ def table_perdataset(df):
             lines.append(f"{lab} & " + " & ".join(cells) + r" \\")
             if all(pd.isna(v) for v in ml[atk][:-1]):
                 gaps.append((spec["label"], lab))
-        colavg = [np.nanmean([ml[a][i] for a, _ in spec["rows"]]) for i in range(len(spec["cols"]))]
+        colavg = [row_mean([ml[a][i] for a, _ in spec["rows"]]) for i in range(len(spec["cols"]))]
         lines += [r"\midrule",
                   r"\textbf{Avg.} & " + " & ".join(rf"\textbf{{{f1(v)}}}" for v in colavg) + r" & \\"]
         (OUT / spec["out"]).write_text("\n".join(lines) + "\n")
@@ -305,7 +322,25 @@ def _eps_frame(df, dataset, size, qi):
            &(df.attack_label.isin(ATT3))&(df.gen.isin(DP_GENS))&df.eps.notna()]
     return d
 
+# AIM at eps=1 (and, on CDC, eps=10) was first generated through SmartNoise's own
+# preprocessor and later regenerated with continuous columns pre-binned, like the
+# other five mechanisms; those releases are stored as AIM_eps1_pb / AIM_eps10_pb.
+# Wherever a pre-binned release was attacked it stands in for the earlier one, so
+# an AIM curve rests on one pipeline.
+AIM_PREBINNED = {"AIM_eps1_pb": (1.0, "AIM_eps1"), "AIM_eps10_pb": (10.0, "AIM_eps10")}
+
+def _aim_prebinned(df):
+    df = df.copy()
+    drop = np.zeros(len(df), dtype=bool)
+    for pb, (eps, old) in AIM_PREBINNED.items():
+        for (ds, size, qi), _ in df[df.sdg_method == pb].groupby(["dataset", "dataset_size", "qi"]):
+            here = (df.dataset == ds) & (df.dataset_size == size) & (df.qi == qi)
+            df.loc[here & (df.sdg_method == pb), ["gen", "eps"]] = ["AIM", eps]
+            drop |= (here & (df.sdg_method == old)).to_numpy()
+    return df[~drop]
+
 def table4(df):
+    df = _aim_prebinned(df)
     full, compact = [], []
     for qi, qilab in [("QI_large", r"$\text{QI}_{\text{large}}$ (10 demographic features)"),
                       ("QI_behavioral", r"$\text{QI}_{\text{behavioral}}$ (6 behavioral/financial features)")]:
@@ -333,77 +368,33 @@ PALETTE = {"MST":"#0072B2","AIM":"#E69F00","PrivBayes":"#009E73",
            "PrivSyn":"#4B0092","MWEMPGM":"#D55E00","PrivateGSD":"#56B4E9"}
 MARKERS = {"MST":"o","AIM":"s","PrivBayes":"^","PrivSyn":"D","MWEMPGM":"v","PrivateGSD":"P"}
 
-def figure_eps(df):
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    plt.rcParams.update({"font.size":8,"axes.spines.top":False,"axes.spines.right":False,
-                         "pdf.fonttype":42,"ps.fonttype":42})   # Type-1/TrueType, not Type-3
+def figures_paper():
+    """Draw the epsilon-sweep figures as they are printed in the paper.
 
-    panels = [("adult",10000,"QI1","Adult (10k rows)"),("cdc_diabetes",1000,"QI1","CDC Diabetes (1k rows)")]
-    fig, axes = plt.subplots(1, 2, figsize=(7.0, 2.7), sharex=True)
-    for ax,(ds,size,qi,title) in zip(axes, panels):
-        d = _eps_frame(df, ds, size, qi)
-        for gen in DP_GENS:
-            xs, ys, es = [], [], []
-            for e in EPS:
-                m,c,n = cell(d, gen=gen, eps=e)
-                if n: xs.append(e); ys.append(m); es.append(0 if pd.isna(c) else c)
-            if not xs: continue
-            ax.errorbar(xs, ys, yerr=es, label=DP_LABEL[gen], color=PALETTE[gen],
-                        marker=MARKERS[gen], markersize=3.6, linewidth=1.6, capsize=1.8,
-                        elinewidth=0.8, zorder=3)
-        ax.set_xscale("log"); ax.set_title(title, fontsize=8.5, pad=4)
-        ax.set_xlabel(r"privacy budget $\varepsilon$")
-        ax.grid(alpha=.25, linewidth=.5, zorder=0)
-        ax.axvline(10, color="#666666", linestyle=":", linewidth=1, zorder=1)
-    axes[0].set_ylabel(r"$R_{adv}$ (%)")
-    axes[1].legend(frameon=False, fontsize=7, loc="lower right", ncol=2, handlelength=1.6)
-    fig.tight_layout(pad=0.4)
-    for ext in ("pdf","png"):
-        fig.savefig(OUT/f"fig_eps_curves.{ext}", dpi=200, bbox_inches="tight")
-    plt.close(fig)
-
-    # per-attack version (appendix): rows = dataset, cols = attack
-    fig, axes = plt.subplots(2, 3, figsize=(7.0, 4.2), sharex=True)
-    for r,(ds,size,qi,title) in enumerate(panels):
-        d = _eps_frame(df, ds, size, qi)
-        for c_,atk in enumerate(ATT3):
-            ax = axes[r][c_]
-            for gen in DP_GENS:
-                xs,ys,es=[],[],[]
-                for e in EPS:
-                    m,ci,n = cell(d, gen=gen, eps=e, attack_label=atk)
-                    if n: xs.append(e); ys.append(m); es.append(0 if pd.isna(ci) else ci)
-                if not xs: continue
-                ax.errorbar(xs,ys,yerr=es,label=DP_LABEL[gen],color=PALETTE[gen],
-                            marker=MARKERS[gen],markersize=3,linewidth=1.4,capsize=1.5,elinewidth=.7,zorder=3)
-            ax.set_xscale("log"); ax.grid(alpha=.25,linewidth=.5,zorder=0)
-            ax.axvline(10,color="#666666",linestyle=":",linewidth=1,zorder=1)
-            if r==0: ax.set_title(ATT3_LABEL[atk].replace(r"$^\dagger$",""), fontsize=8.5, pad=4)
-            if c_==0: ax.set_ylabel(f"{title}\n"+r"$R_{adv}$ (%)", fontsize=7.5)
-            if r==1: ax.set_xlabel(r"$\varepsilon$")
-    axes[0][2].legend(frameon=False, fontsize=6.5, loc="lower right", ncol=2, handlelength=1.4)
-    fig.tight_layout(pad=0.4)
-    for ext in ("pdf","png"):
-        fig.savefig(OUT/f"fig_eps_curves_perattack.{ext}", dpi=200, bbox_inches="tight")
-    plt.close(fig)
+    Two scripts draw them, fig_eps_curves_full.py for the main QI set and
+    fig_eps_curves_qi.py for the two further ones. They are run here so that
+    `reproduce.py` writes the figures next to the tables.
+    """
+    import subprocess
+    here = ROOT / "experiment_scripts"
+    for script in ("fig_eps_curves_full.py", "fig_eps_curves_qi.py"):
+        subprocess.run([sys.executable, str(here / script), "--out", str(OUT)],
+                       check=True, stdout=subprocess.DEVNULL,
+                       env={**os.environ, "RECON_RESULTS_DB": str(DB)})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Table 2 — quality profile (tab:quality_overview), extended with the new DP gens
 # ─────────────────────────────────────────────────────────────────────────────
-# The printed Table 2 was built from quality_results_merged.csv; it reproduces that
-# table exactly, column for column, on every row whose synth was never regenerated.
-# The Aug-2026 sweep (synth_quality_full_*.csv) covers the four new DP generators but
-# (a) has no `wasserstein_ohe` column and (b) reports a different `sdv_col_pairs`
-# (RankSwap 0.845 vs 0.929) — a different SDV metric configuration. Mixing them in one
-# table would put two different measurements in the same column, so the new-generator
-# rows print "---" until the merged-config metrics are recomputed for them.
+# Every row comes from quality_results_merged.csv. Wass. OHE there is computed on 20
+# equal-width bins over the real column's range (compute_wasserstein_ohe.py), and the
+# AIM rows are the pre-binned releases, like the other five DP generators;
+# historical/update_quality_camera_ready.py records how the CSV was brought to that state.
 QUALITY_CSV = ROOT/"experiment_scripts"/"quality_results_merged.csv"
 Q_ROWS = [("MST_eps0.1",r"MST $(\varepsilon{=}0.1)$"),("MST_eps1",r"MST $(\varepsilon{=}1)$"),
           ("MST_eps10",r"MST $(\varepsilon{=}10)$"),("MST_eps1000",r"MST $(\varepsilon{=}1000)$"),
-          ("AIM_eps1",r"AIM $(\varepsilon{=}1)$"),
+          ("AIM_eps1",r"AIM $(\varepsilon{=}1)$"),("AIM_eps10",r"AIM $(\varepsilon{=}10)$"),
+          ("AIM_eps1000",r"AIM $(\varepsilon{=}1000)$"),
           ("PrivBayes_eps1",r"PrivBayes $(\varepsilon{=}1)$"),("PrivBayes_eps1000",r"PrivBayes $(\varepsilon{=}1000)$"),
           ("PrivSyn_eps1",r"PrivSyn $(\varepsilon{=}1)$"),("PrivSyn_eps1000",r"PrivSyn $(\varepsilon{=}1000)$"),
           ("MWEMPGM_eps1",r"MWEM-PGM $(\varepsilon{=}1)$"),("MWEMPGM_eps1000",r"MWEM-PGM $(\varepsilon{=}1000)$"),
@@ -523,75 +514,87 @@ def table7(df):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Table 6 — MIA vs RA-as-MIA, from the extracted comparison CSV (not the DB).
-# The MIA drivers print rather than write; historical/parse_mia_log_to_csv.py
-# recovers their console output into mia_comparison_results.csv, which carries
-# both the May 2026 (pre-repair) and the 2026-08-21 (post-repair) runs. Only the
-# post-repair run is used here.
+# Table 6 — MIA vs RA-as-MIA (not the DB: AUCs, one per dataset and generator).
+# Two committed CSVs hold them. mia_comparison_results.csv carries the comparison
+# runs of May 2026 and the wider run of 2026-08-21, recovered from the drivers'
+# console output by historical/parse_mia_log_to_csv.py. The first six columns use
+# the May run where it covered the generator, and the August run otherwise. The
+# PrivateGSD columns were added with the August sweep and read its own CSV.
 # ─────────────────────────────────────────────────────────────────────────────
 MIA_CSV = ROOT/"experiment_scripts"/"mia_comparison_results.csv"
+MIA_SWEEP_CSV = ROOT/"experiment_scripts"/"mia_rebuttal_sweep_results.csv"
 T6_COLS = [("CellSuppression","Cell Supp."),("RankSwap","RankSwap"),("TabDDPM","TabDDPM"),
            ("Synthpop","Synthpop"),("MST_eps1",r"MST $(\varepsilon{=}1)$"),
-           ("MST_eps1000",r"MST $(\varepsilon{=}1000)$")]
-T6_BLOCKS = [("adult",       r"\textbf{Adult} ($n=10{,}000$, 15 features, $\text{QI}_{\text{demo}}$)"),
-             ("cdc_diabetes",r"\textbf{CDC Diabetes} ($n=1{,}000$, 22 features, $\text{QI}_{\text{demo}}$)"),
-             ("nist_arizona_25feat", r"\textbf{NIST Arizona} ($n=10{,}000$, 25 features, $\text{QI}_{\text{medium}}$)")]
+           ("MST_eps1000",r"MST $(\varepsilon{=}1000)$"),
+           ("PrivateGSD_eps1",r"PrivateGSD $(\varepsilon{=}1)$"),
+           ("PrivateGSD_eps1000",r"PrivateGSD $(\varepsilon{=}1000)$")]
+T6_BLOCKS = [("adult", "QI1", r"\textbf{Adult} data ($n=10{,}000$, 15 features, $\text{QI}_{\text{demo}}$)"),
+             ("cdc_diabetes", "QI1", r"\textbf{CDC Diabetes} data ($n=1{,}000$, 22 features, $\text{QI}_{\text{demo}}$)"),
+             ("nist_arizona_25feat", "QI_medium", r"\textbf{NIST Arizona} data ($n=10{,}000$, 25 features, $\text{QI}_{\text{medium}}$)")]
 T6_METRICS = [("SynthDistance_auc","SynthDistance"),("NNDR_auc","NNDR"),
               ("RA_as_MIA_auc","RA-as-MIA")]
 
+def _t6_row(runs, sweep, ds, qi, meth):
+    """The AUCs for one (dataset, generator) cell group, or None."""
+    if meth.startswith("PrivateGSD"):
+        eps = float(meth.split("_eps")[1])
+        r = sweep[(sweep.dataset==ds)&(sweep.qi==qi)&(sweep.sdg_method=="PrivateGSD")&(sweep.epsilon==eps)]
+    else:
+        r = runs[(runs.dataset==ds)&(runs.qi==qi)&(runs.sdg_method==meth)].sort_values("run")
+    # A run that did not report one of the three AUCs falls through to the next run.
+    return None if r.empty else r.bfill().iloc[0]
+
 def table6():
-    d = pd.read_csv(_require(MIA_CSV))
-    d = d[d.run.str.contains("postrepair")]
+    runs = pd.read_csv(_require(MIA_CSV)); sweep = pd.read_csv(_require(MIA_SWEEP_CSV))
+    ncol = len(T6_COLS) + 1
     lines = []
-    for bi,(ds,label) in enumerate(T6_BLOCKS):
+    for bi,(ds,qi,label) in enumerate(T6_BLOCKS):
         if bi: lines.append(r"\midrule")
-        lines.append(r"\multicolumn{7}{l}{" + label + r"} \\[2pt]")
-        sub = d[d.dataset==ds]
-        # bold the better of the two distance baselines, per column, as printed
-        best = {}
-        for meth,_ in T6_COLS:
-            r = sub[sub.sdg_method==meth]
-            if r.empty: continue
-            sd, nn = r.iloc[0]["SynthDistance_auc"], r.iloc[0]["NNDR_auc"]
-            best[meth] = "NNDR_auc" if nn >= sd else "SynthDistance_auc"
-        for mi,(col,mlabel) in enumerate(T6_METRICS):
-            if mlabel == "RA-as-MIA": lines.append(r"\cmidrule(l){1-7}")
-            cells = []
+        lines.append(rf"\multicolumn{{{ncol}}}{{l}}{{" + label + r"} \\[2pt]")
+        cells = {meth: _t6_row(runs, sweep, ds, qi, meth) for meth,_ in T6_COLS}
+        for col,mlabel in T6_METRICS:
+            if mlabel == "RA-as-MIA": lines.append(rf"\cmidrule(l){{1-{ncol}}}")
+            out = []
             for meth,_ in T6_COLS:
-                r = sub[sub.sdg_method==meth]
-                if r.empty or pd.isna(r.iloc[0][col]): cells.append("---"); continue
-                v = f"{r.iloc[0][col]:.2f}"
-                cells.append(rf"\textbf{{{v}}}" if best.get(meth)==col else v)
-            lines.append(f"{mlabel:15s} & " + " & ".join(cells) + r" \\")
+                r = cells[meth]
+                if r is None or pd.isna(r[col]): out.append("---"); continue
+                v = f"{r[col]:.2f}"
+                # bold the stronger of the two distance-based MIAs, NNDR on a printed tie
+                nn_wins = f"{r['NNDR_auc']:.2f}" >= f"{r['SynthDistance_auc']:.2f}"
+                bold = (col=="NNDR_auc" and nn_wins) or (col=="SynthDistance_auc" and not nn_wins)
+                out.append(rf"\textbf{{{v}}}" if bold else v)
+            lines.append(f"{mlabel:15s} & " + " & ".join(out) + r" \\")
     (OUT/"table6_mia_comparison.tex").write_text("\n".join(lines)+"\n")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Table 9 — disparate impact, from the 2026-08-21 post-repair sweep (not the DB;
-# row-level subgroup means are computed by run_per_attack_disparity.py).
+# Table 9 — disparate impact (not the DB: these are means over individual records).
+# The three non-DP rows come from analyze_ra_subgroups.py, reduced to subgroup
+# means by historical/summarize_ra_subgroups.py; the two MST rows come from the
+# sweep that run_per_attack_disparity.py ran on the MST releases. The MST rows
+# print two decimals because their values are below 1%.
 # ─────────────────────────────────────────────────────────────────────────────
-T9_ROWS=[("CellSuppression","Cell Supp."),("TabDDPM","TabDDPM"),("Synthpop","Synthpop"),
-         ("MST_eps1",r"MST $(\varepsilon{=}1)$"),("MST_eps1000",r"MST $(\varepsilon{=}1000)$"),
-         ("AIM_eps1",r"AIM $(\varepsilon{=}1)$")]
+def _f1_via_2dp(v):
+    """One decimal, taken from the two-decimal value analyze_ra_subgroups.py reports."""
+    from decimal import Decimal, ROUND_HALF_UP
+    two = Decimal(repr(float(v))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return str(two.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
+
+T9_ROWS=[("CellSuppression","Cell Supp.","ra_subgroups_summary.csv",_f1_via_2dp),
+         ("TabDDPM","TabDDPM","ra_subgroups_summary.csv",_f1_via_2dp),
+         ("Synthpop","Synthpop","ra_subgroups_summary.csv",_f1_via_2dp),
+         ("MST_eps1",r"MST $(\varepsilon{=}1)$","per_attack_disparity_postrepair.csv",f2),
+         ("MST_eps1000",r"MST $(\varepsilon{=}1000)$","per_attack_disparity_postrepair.csv",f2)]
 def table9():
-    p=ROOT/"experiment_scripts"/"per_attack_disparity_postrepair.csv"
-    d=pd.read_csv(_require(p)); d=d[d.attack=="RandomForest"]
-    cols=[c for c in d.columns]
     lines=[]
-    for meth,lab in T9_ROWS:
-        s=d[d.sdg==meth]
-        if s.empty: lines.append(f"{lab} & "+" & ".join(["---"]*9)+r" \\"); continue
-        r=s.iloc[0]
-        def gv(*names):
-            for n in names:
-                if n in cols and not pd.isna(r[n]): return r[n]*100
-            return float("nan")
-        out=[f2(gv("mean_ra")), rf"$\times${r['outlier_penalty']:.1f}"]
-        out+= [f2(gv(c)) for c in ("race_AI/AN","race_API","race_Black","race_White","race_Other",
-                                   "sex_Female","sex_Male")]
+    for meth,lab,src,fmt in T9_ROWS:
+        d=pd.read_csv(_require(ROOT/"experiment_scripts"/src))
+        r=d[(d.sdg==meth)&(d.attack=="RandomForest")].iloc[0]
+        out=[fmt(r["mean_ra"]*100), rf"$\times${r['outlier_penalty']:.1f}"]
+        out+= [fmt(r[c]*100) for c in ("race_AI/AN","race_API","race_Black","race_White","race_Other",
+                                       "sex_Female","sex_Male")]
         lines.append(f"{lab} & "+" & ".join(out)+r" \\")
     (OUT/"table9_disparate_impact.tex").write_text("\n".join(lines)+"\n")
-    return d
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -599,6 +602,7 @@ def table9():
 # Paired on the disjoint training sample, so each test has n=5 matched pairs.
 # ─────────────────────────────────────────────────────────────────────────────
 def stats_report(df):
+    df = _aim_prebinned(df)
     out=["# Epsilon-curve statistics (paired on disjoint training sample)","",
          "Cell = mean of RandomForest / NaiveBayes / CoBP-RA. Delta in percentage points.",""]
     for ds,size in [("adult",10000),("cdc_diabetes",1000)]:
@@ -615,7 +619,7 @@ def stats_report(df):
                     A=per[per.eps==lo].set_index("sample").ra_mean
                     B=per[per.eps==hi].set_index("sample").ra_mean
                     k=A.index.intersection(B.index)
-                    if len(k)<3: continue
+                    if len(k)<5: continue      # a comparison needs all five training samples
                     diff=(B[k]-A[k]); t,p=stats.ttest_rel(B[k],A[k])
                     h=stats.t.ppf(.975,len(k)-1)*diff.std(ddof=1)/np.sqrt(len(k))
                     out.append(f"| {qi} | {DP_LABEL[gen]} | ε {g(lo)}→{g(hi)} | {len(k)} | "
