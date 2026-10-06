@@ -1,750 +1,466 @@
 # SoK: Reconstruction Attacks on Synthetic Tabular Data
 
-This repository is the artifact for:
-
-> **SoK: Reconstruction Attacks on Synthetic Tabular Data (Insights from Winning the NIST CRC)**
-> To appear in *Proceedings on Privacy Enhancing Technologies (PoPETs)*, 2027
-
-The framework systematically evaluates **reconstruction attacks** (attribute inference) on de-identified and synthetic tabular data. Given a synthetic dataset and a target record's quasi-identifying features (e.g., age, sex, race), each attack attempts to reconstruct the target's hidden attribute values. We benchmark **13 attack algorithms** against **9 synthetic data generation (SDG) methods** across **5 benchmark datasets**, and introduce six new attacks: **CoBP-RA**, **CondMST**, **CondDDPM**, **CondRePaint**, **ARFFormer**, and **MultiHeadMLP**.
-
-The same methodology placed **first among all red teams** in the 2025 NIST Privacy Collaborative Research Cycle (CRC).
-
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22701232.svg)](https://doi.org/10.5281/zenodo.22701232)
 
-Every tagged release is archived on Zenodo. The DOI above is the *concept* DOI:
-it always resolves to the latest archived version. Note that automatically
-generated source archives (Zenodo's and GitHub's) do not carry submodule
-contents — everything except the diffusion attacks and LinearReconstruction
-works without them, but cloning with `--recurse-submodules` gets you the whole
-thing.
+This is the code and data for
 
-> **To install it and reproduce the paper's results,** start with
-> **[`ARTIFACT-APPENDIX.md`](ARTIFACT-APPENDIX.md)**. It has the requirements, the
-> experiments behind each claim, and the exact commands. The short version:
->
-> ```bash
-> git clone --recurse-submodules https://github.com/steveng9/Reconstruction.git
-> cd Reconstruction
-> docker build -f docker/Dockerfile --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t recon-artifact:latest .
-> docker run --rm -it -v "${PWD}":/workspace -w /workspace recon-artifact:latest ./test.sh
-> ```
->
-> That is the macOS and Linux form. On Windows, run it from a WSL2 shell exactly
-> as written; in PowerShell, drop the two `--build-arg` flags (Windows bind
-> mounts do not carry Unix ownership, so the defaults are correct there) and use
-> `${PWD}` as shown. The image is `linux/amd64`; on an Apple Silicon Mac Docker
-> emulates it, so everything below works but takes longer.
+> Steven Golob, Sikha Pentyala, Martine De Cock.
+> *SoK: Reconstruction Attacks on Synthetic Tabular Data (Insights from Winning the NIST CRC).*
+> Proceedings on Privacy Enhancing Technologies (PoPETs), 2027.
 
----
+A reconstruction attack (also called attribute inference) starts from a synthetic
+dataset and a few things known about a target person, such as age, sex and race
+(the quasi-identifiers, or QIs), and tries to recover that person's other
+attributes. This repository measures how well such attacks work. It holds
+fourteen attacks, thirteen synthetic-data generators, the scoring code, and the
+50,826 scored attack runs behind the paper. The same approach placed first among
+the red teams in the 2025 NIST Privacy Collaborative Research Cycle (CRC).
 
-## Table of Contents
+You can use it three ways:
 
-1. [Overview](#overview)
-2. [Installation](#installation)
-3. [Datasets](#datasets)
-4. [Quick Start](#quick-start)
-5. [Reproducing Paper Results](#reproducing-paper-results)
-6. [Repository Structure](#repository-structure)
-7. [Attack Taxonomy](#attack-taxonomy)
-8. [SDG Methods](#sdg-methods)
-9. [Configuration Reference](#configuration-reference)
-10. [Extending and Reusing](#extending-and-reusing)
-11. [Citation](#citation)
+- run an attack against a synthetic release, your own or one of ours
+  ([Quick start](#quick-start));
+- rebuild the paper's tables and figures
+  ([Reproducing the paper](#reproducing-the-paper));
+- add your own attack, generator or dataset, or query our results directly
+  ([Extending](#extending), [The results database](#the-results-database)).
 
----
+[`ARTIFACT-APPENDIX.md`](ARTIFACT-APPENDIX.md) is the PoPETs artifact appendix. It
+lists the requirements and maps each claim in the paper to an experiment.
 
-## Overview
+## Quick start
 
-### What this repo does
-
-The central workflow is:
-
-```
-Raw data → Disjoint training samples → Synthetic data (via SDG) → Reconstruction attack → Scored results
-```
-
-- **`sdg/generate_synth.py`**: Generates synthetic data from training samples using any of 9 SDG methods.
-- **`master_experiment_script.py`**: Runs a reconstruction (or MIA) attack for a single configuration and logs results to [Weights & Biases](https://wandb.ai).
-- **`experiment_scripts/run_production_sweep.py`**: Parallelized sweep over all samples × SDG methods × attacks for a given dataset.
-
-### Scoring
-
-We use **rarity-weighted reconstruction advantage** ($R_{adv}$): a correct prediction of a rare attribute value earns proportionally more credit than predicting a common one. Under this metric, a mode-baseline attack scores exactly $100/C$% for a $C$-valued feature regardless of the distribution; a perfect attack scores 100%. This was also the official scoring metric for the NIST CRC competition.
-
----
-
-## Installation
-
-> **This section is the native, from-source developer setup.** To reproduce the
-> paper's results, use the Docker images instead, whose dependency versions are
-> pinned and verified end to end; see
-> [`ARTIFACT-APPENDIX.md`](ARTIFACT-APPENDIX.md). The conda and `pip` commands
-> below are unpinned and reflect how the environment was originally assembled,
-> not the exact versions the paper's results were produced with. Those live in
-> `docker/requirements-attacks.txt` and `docker/requirements-sdg.txt`, and
-> `environment.yaml` is superseded by them.
-
-### Step 1: Clone this repository
+You need Docker. Everything else is in the image.
 
 ```bash
 git clone --recurse-submodules https://github.com/steveng9/Reconstruction.git
 cd Reconstruction
+docker build -f docker/Dockerfile --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t recon-artifact:latest .
+docker run --rm -it -v "${PWD}":/workspace -w /workspace recon-artifact:latest bash
 ```
 
-### Step 2: Create the experiment environment (`recon_`)
+The build takes 10 to 15 minutes. On Windows, run these in a WSL2 shell, or in
+PowerShell without the two `--build-arg` flags. On an Apple Silicon Mac they work
+unchanged, under emulation, so everything runs more slowly.
 
-This environment is used to run attacks and experiments.
+You are now in a shell inside the container, at the repository root. Check the
+installation:
 
 ```bash
-conda env create -f environment.yaml
-conda activate recon_
+./test.sh
 ```
 
-Additional packages not in `environment.yaml`:
+It takes about two minutes and ends with `18 passed, 0 failed`.
+
+Now run an attack:
 
 ```bash
-pip install wandb lightgbm tabpfn
-
-# For CondMST attack (private-pgm / mbi library):
-pip install git+https://github.com/ryan112358/private-pgm.git@01f02f17eba440f4e76c1d06fa5ee9eed0bd2bca
-```
-
-### Step 3: Create the SDG environment (`sdg`)
-
-A separate environment is used for generating synthetic data, since some SDG libraries (e.g., SmartNoise, SDV, SynthCity) conflict with the attack dependencies.
-
-```bash
-conda create -n sdg python=3.10
-conda activate sdg
-pip install smartnoise-synth sdv synthcity pandas numpy scikit-learn tqdm
-```
-
-For R-based methods (Synthpop, RankSwap, CellSuppression via sdcMicro):
-```bash
-# Install R ≥ 4.2 and the following packages in R:
-Rscript -e "install.packages(c('synthpop', 'sdcMicro'))"
-```
-
-For GPU-accelerated methods (TVAE, CTGAN, ARF, TabDDPM), a CUDA-enabled GPU is recommended but not required.
-
-### Step 4: External attack dependencies (git submodules)
-
-Two external repositories are required for the **CondDDPM / CondRePaint / RePaint**
-and **LinearReconstruction** attacks. They ship as git submodules pinned to the exact
-commits used for the paper, so nothing needs to be cloned by hand:
-
-```bash
-# If you did not clone with --recurse-submodules:
-git submodule update --init --recursive
-```
-
-This populates:
-
-| Path | Repository | Used by |
-|---|---|---|
-| `external/MIA_on_diffusion/` | [steveng9/MIA_on_diffusion](https://github.com/steveng9/MIA_on_diffusion) | CondDDPM, CondRePaint, RePaint, TabDDPM (SDG) |
-| `external/recon-synth/` | [steveng9/recon-synth](https://github.com/steveng9/recon-synth) | LinearReconstruction |
-
-Both are located through `paths.py`; set `RECON_EXTERNAL_ROOT` to override.
-
-The LinearReconstruction attack also requires a [Gurobi](https://www.gurobi.com/) academic license (free for academics). Install via `pip install gurobipy` and activate with your license key.
-
-### Verifying the installation
-
-```bash
-conda activate recon_
-
-# Smoke-test all SDG methods (in sdg env):
-conda run -n sdg python -m sdg.test_sdg
-
-# Run a minimal reconstruction experiment:
 python master_experiment_script.py --n_runs 1
 ```
 
----
-
-## Datasets
-
-All experiments use pre-generated data stored under a root data directory. The expected layout is:
+This runs the paper's strongest attack, CoBP-RA, against a small bundled dataset
+(`data/dummy/`) that was synthesized with the MST generator at ε = 10. The attack
+knows four attributes of each person (age band, region, sex, education) and
+predicts the other six. Near the end of the output are the score for each of
+the six and their mean:
 
 ```
-/path/to/data/reconstruction_data/
-  {dataset}/
-    meta.json          ← feature metadata (categorical / continuous / ordinal)
-    full_data.csv      ← full raw dataset
-    size_{N}/
-      sample_{XX}/
-        train.csv      ← training sample (N rows)
-        holdout.csv    ← holdout for memorization tests (optional)
-        {SDG_Method_params}/
-          synth.csv    ← synthetic data generated from train.csv
+[47.5 26.3 51.1 48.9 40.8 26.9]
+ave: 40.25
 ```
 
-Point the code at that directory by setting `RECON_DATA_ROOT`; every script
-resolves it through `paths.py`, so no path is hardcoded and no file needs
-editing. (`RECON_RESULTS_DB`, `RECON_TABLE_OUT`, `RECON_PYTHON` and
-`RECON_EXTERNAL_ROOT` work the same way.) The Docker images set
-`RECON_DATA_ROOT` to `/workspace/data` already.
+The score is the reconstruction advantage $R_{adv}$ described under
+[Scoring](#scoring). For comparison, always guessing the most common value scores
+33.88 here. To see that, open `configs/demo_dummy.yaml`, change `attack_method`
+from `"CoBP-RA"` to `"Mode"`, and run the command again. (CoBP-RA's number moves
+by a few tenths between runs.)
 
-### Dataset 1: Adult (Census Income)
+### The same thing on real data
 
-**Size**: 47,621 rows, 15 features  
-**Type**: Categorical  
-**Source**: UCI Machine Learning Repository
+The bundled dataset is machine-generated. To attack a release of the Adult census
+dataset instead, download Adult, synthesize it with MST at ε = 1, and run the
+attack. This takes about two minutes on CPU.
 
 ```bash
-# Download via UCI ML Repo
-pip install ucimlrepo
-python -c "from ucimlrepo import fetch_ucirepo; d = fetch_ucirepo(id=2); d.data.original.to_csv('adult/full_data.csv', index=False)"
+python experiment_scripts/fetch_dataset.py adult
+SDG_DATASET=adult SDG_SAMPLE_SIZE=10000 SDG_NUM_SAMPLES=1 SDG_JOBS=MST:1 SDG_BIN_CONTINUOUS=1 python sdg/generate_synth.py sdg
+python master_experiment_script.py --config configs/demo_adult.yaml --n_runs 1
 ```
 
-Or download directly from [https://archive.ics.uci.edu/dataset/2/adult](https://archive.ics.uci.edu/dataset/2/adult).
+The first command downloads Adult and cuts it into disjoint training samples of
+10,000 rows. The second trains MST on the first sample and writes the synthetic
+data to `data/adult/size_10000/sample_00/MST_eps1/synth.csv`
+(`SDG_BIN_CONTINUOUS=1` bins Adult's continuous columns first, as the paper
+does). The third runs CoBP-RA against it, knowing six attributes and predicting
+nine, and scores about 24, against 10.4 for `Mode`.
 
-**Quasi-identifiers (QI1 / demo)**: age, sex, race, native-country, education, marital-status  
-**Hidden features**: workclass, fnlwgt, education-num, occupation, relationship, capital-gain, capital-loss, hours-per-week, income
+`configs/demo_adult.yaml` is short and commented. Change `attack_method` to try
+another attack, `sdg_params.epsilon` to attack a different release (generate it
+first by changing `SDG_JOBS`, for example `SDG_JOBS=MST:10,AIM:1`), or `QI` to
+change what the attacker knows.
 
-### Dataset 2: CDC Diabetes Health Indicators
+## Reproducing the paper
 
-**Size**: 253,680 rows, 22 features  
-**Type**: Categorical (all binary or low-cardinality)  
-**Source**: Kaggle / CDC BRFSS 2015
-
-Download `diabetes_binary_health_indicators_BRFSS2015.csv` from [Kaggle](https://www.kaggle.com/datasets/alexteboul/diabetes-health-indicators-dataset).
-
-**Quasi-identifiers (QI1)**: Sex, Age, Education, Income, BMI, PhysActivity, Fruits, Veggies, HvyAlcoholConsump  
-**Hidden features**: Diabetes_binary, HighBP, HighChol, CholCheck, Smoker, Stroke, HeartDiseaseorAttack, PhysHlth, MentHlth, DiffWalk, AnyHealthcare, NoDocbcCost, GenHlth
-
-### Dataset 3: California Housing
-
-**Size**: 20,640 rows, 9 features  
-**Type**: Continuous  
-**Source**: scikit-learn built-in
+Inside the container:
 
 ```bash
-python -c "
-from sklearn.datasets import fetch_california_housing
-import pandas as pd
-d = fetch_california_housing(as_frame=True)
-df = d.frame
-df.to_csv('california/full_data.csv', index=False)
-"
+python reproduce.py
 ```
 
-**Quasi-identifiers (QI1)**: Latitude, Longitude, HouseAge, AveRooms  
-**Hidden features**: AveBedrms, Population, AveOccup, MedInc, MedHouseVal
+This rebuilds the paper's tables and figures from the scored runs in
+`experiment_scripts/results.db` and writes them to `expected_output/tables/`. It
+takes about a minute. `python reproduce.py --list` shows which file is which
+table.
 
-### Dataset 4: NIST Arizona (IPUMS 1940 Census)
-This was the dataset used in the NIST CRC competition.
+The runs themselves took CPU-weeks, so `reproduce.py` does not repeat them.
+[`ARTIFACT-APPENDIX.md`](ARTIFACT-APPENDIX.md) describes two reduced experiments
+that do rerun attacks from raw data, one for the main attack-by-generator table
+and one for the privacy-budget sweep.
 
-**Size**: 293,999 rows, up to 98 features  
-**Type**: Categorical (integer-coded IPUMS variables)  
-**Source**: IPUMS USA (registration required)
+To rerun a full experiment, these are the scripts that produced each part of the
+paper. Each needs the dataset in place (see [Datasets](#datasets)), and
+[`experiment_scripts/README.md`](experiment_scripts/README.md) describes every
+script in that directory.
 
-Register at [https://usa.ipums.org/](https://usa.ipums.org/) and request the 1940 Arizona census extract with the 25-column subset described below. Rename or link the downloaded file to `nist_arizona_data/full_data.csv`.
-
-We study three feature-subset variants:
-- **`nist_arizona_25feat`**: 25 columns (mirrors the NIST CRC competition format)
-- **`nist_arizona_50feat`**: 50 columns
-- **`nist_arizona_data`**: all 98 columns
-
-The full feature list and QI definitions for all three variants are in `get_data.py` (the `QIs` and `minus_QIs` dicts, keyed by dataset name then QI variant).
-
-### Dataset 5: NIST Survey of Business Owners (SBO)
-
-**Size**: ~123,892 rows (after cleaning), 130 features  
-**Type**: Categorical  
-**Source**: Available from NIST upon request as part of the Privacy CRC
-
-The SBO dataset was provided to red teams in the 2025 NIST Privacy CRC. Place the cleaned CSV at `nist_sbo/full_data.csv`. Contact NIST or the CRC organizers for access.
-
-### Setting up the data directory
-
-After acquiring the datasets, create the directory structure and generate training samples:
-
-```bash
-conda activate sdg
-
-# Edit DATASET, SAMPLE_SIZE, NUM_SAMPLES at the top of sdg/generate_synth.py
-# then:
-python sdg/generate_synth.py sample   # Step 1: carve out disjoint training samples
-python sdg/generate_synth.py sdg      # Step 2: generate synthetic data for each sample
-python sdg/generate_synth.py count    # Verify expected synth.csv files exist
-```
-
----
-
-## Quick Start
-
-### Run a single experiment
-
-```bash
-conda activate recon_
-
-# Edit configs/example_cfg.yaml to point to your data and set the attack/SDG method
-python master_experiment_script.py --n_runs 1
-```
-
-Results are logged to WandB under the project and group specified in the config YAML. Set `WANDB_MODE=offline` to run without a WandB account.
-
-### Run the CoBP-RA attack on Adult (our best attack)
-
-```bash
-# Create a config pointing to adult/size_10000/sample_00, SDG_method=MST_eps1
-# attack_method: CoBP-RA
-# data_type: categorical
-python master_experiment_script.py --n_runs 1
-```
-
----
-
-## Reproducing Paper Results
-
-The paper reports results averaged over **5 training samples** × **9 SDG methods** (MST at 5 ε values + AIM, TVAE, CTGAN, ARF, TabDDPM, Synthpop, RankSwap, CellSuppression). The full production sweep is run via:
-
-```bash
-conda activate recon_
-
-# Edit dataset/paths/workers at the top of the script
-python experiment_scripts/run_production_sweep.py \
-    --workers 8 \
-    --progress-log outfiles/progress.log
-```
-
-Monitor progress:
-```bash
-tail -f outfiles/progress.log
-```
-
-### Specific paper experiments
-
-| Paper section | Script |
+| Part of the paper | Script in `experiment_scripts/` |
 |---|---|
-| Main attack × SDG table (`tab:ra_mean_adult`) | `experiment_scripts/run_production_sweep.py` |
-| Epsilon sweep (MST, AIM over ε) | `experiment_scripts/run_mst_epsilon_rf_nb_sweep.py` |
-| LinearReconstruction comparison | `experiment_scripts/run_linear_sweep.py` |
-| Memorization test (train vs. holdout) | `experiment_scripts/run_memorization_sweep.py` |
-| MIA comparison (SynthDistance vs. NNDR vs. RA-as-MIA) | `experiment_scripts/compare_mia_ra.py` |
-| QI composition/size analysis | `experiment_scripts/qi_analysis/run_qi_sweep.py` |
-| Subgroup / disparate-impact analysis | `experiment_scripts/analyze_ra_subgroups.py` |
-| Ensembling heatmap | `experiment_scripts/run_ensembling_heatmap.py` + `plot_ensembling_heatmap.py` |
-| Chaining analysis | `experiment_scripts/run_chaining_analysis.py` |
-| Synthetic data quality evaluation | `experiment_scripts/evaluate_synth_quality.py` |
+| Attack × generator tables | `run_production_sweep.py` |
+| Privacy-budget (ε) sweep | `generate_new_dp_sweep.py`, then `run_new_dp_epsilon_sweep.py` |
+| Memorization test (training vs. held-out targets) | `run_memorization_sweep.py` |
+| Membership inference comparison | `compare_mia_ra.py` |
+| QI size and composition | `qi_analysis/run_qi_sweep.py` |
+| Disparate impact by subgroup | `analyze_ra_subgroups.py`, `run_per_attack_disparity.py` |
+| Ensembling and chaining | `run_ensembling_heatmap.py`, `run_chaining_analysis.py` |
+| LinearReconstruction comparison | `run_linear_sweep.py` |
+| Synthetic-data quality metrics | `evaluate_synth_quality.py` |
 
-### Rebuttal: cross-mechanism / cross-dataset epsilon-plateau validation
+## How it works
 
-Added for a POPETS rebuttal to show the RA-plateaus-at-ε>1 finding isn't MST-specific. Same 9-point ε sweep (0.1, 0.3, 1, 3, 10, 30, 100, 300, 1000) and same 3 attacks (RandomForest, NaiveBayes, CoBP-RA) throughout, run against 4 additional, mechanistically-distinct DP generators (PrivBayes, MWEMPGM, PrivSyn, PrivateGSD — see SDG Methods table above) and, separately, a second dataset (cdc_diabetes) with the original 3 DP generators (MST, PrivBayes, PrivSyn).
-
-| Script | Purpose |
-|---|---|
-| `experiment_scripts/generate_new_dp_sweep.py` | Generate synth.csv for any SDG method(s)/epsilon(s)/sample(s) at a given `--data-root`/`--meta-path`. Runs a quick per-file quality check (TVD/JSD/pairwise-TVD/mean-err%) inline. |
-| `experiment_scripts/run_new_dp_epsilon_sweep.py` | RF + NaiveBayes + CoBP-RA attack sweep across SDG methods × epsilons × QIs × samples, with memorization test. Dataset/size/data-root/N_samples/QI-variants/wandb-group all overridable via `SWEEP_*` env vars (needed for `ProcessPoolExecutor(spawn)` workers, which inherit env but not post-import globals). Writes `new_dp_epsilon_sweep_{dataset}_sz{size}_{timestamp}.csv`. |
-| `experiment_scripts/insert_new_dp_sweep_to_db.py` | Insert that CSV into `results.db` (3 rows/job: split=standard/train/nontraining), same convention as the rest of the DB. `--dataset`/`--dataset-size`/`--wandb-group` flags. |
-| `experiment_scripts/run_private_gsd_full_pipeline.sh` | End-to-end: PrivateGSD, adult size_1000, 4 trials × 9 ε × 3 QIs × 3 attacks. |
-| `experiment_scripts/run_private_gsd_10k_pipeline.sh` | End-to-end: PrivateGSD, adult size_10000, 1 trial × 9 ε × 3 QIs × 3 attacks (PrivateGSD does not scale cleanly to n=10000 on CPU-only jax — this run may be slow or partially incomplete; the script degrades gracefully, running attacks on whatever synth.csv did finish). |
-| `experiment_scripts/run_cdc_dp_sweep_pipeline.sh` | End-to-end: MST + PrivBayes + PrivSyn, cdc_diabetes size_1000, 5 trials × 9 ε × 2 QIs (QI1, QI_large) × 3 attacks. |
-
-WandB groups: `new-dp-epsilon-sweep-adult-10k` (PrivBayes/MWEMPGM/PrivSyn @ adult 10k), `new-dp-epsilon-sweep-adult-1k-privategsd` (PrivateGSD @ adult 1k), `new-dp-epsilon-sweep-adult-10k-privategsd` (PrivateGSD @ adult 10k), `new-dp-epsilon-sweep-cdc-1k` (cdc_diabetes).
-
-To pull results back out of `results.db` (averaged across whatever trials have completed so far):
-```python
-import sqlite3, pandas as pd
-conn = sqlite3.connect('experiment_scripts/results.db')
-df = pd.read_sql_query("""
-    select sdg_method, dataset, dataset_size, qi, attack_label, sample, ra_mean
-    from runs where split='standard'
-    and (sdg_method like 'PrivBayes_%' or sdg_method like 'MWEMPGM_%'
-         or sdg_method like 'PrivateGSD_%' or sdg_method like 'PrivSyn_%'
-         or (dataset='cdc_diabetes' and sdg_method like 'MST_%'))
-""", conn)
-df['method'] = df['sdg_method'].str.extract(r'^([A-Za-z]+)_eps')
-df['eps'] = df['sdg_method'].str.extract(r'_eps([\d\.]+)$').astype(float)
-# pivot: rows=attack_label, cols=eps, averaged over sample, per (dataset, method, qi)
-df.groupby(['dataset','method','qi','attack_label','eps'])['ra_mean'].mean().unstack('eps')
-```
-
-### Generating LaTeX tables from WandB results
-
-```bash
-# Main results table
-python experiment_scripts/wandb_to_latex.py --dataset adult --size 10000 --qi QI1
-
-# Epsilon sweep table
-python experiment_scripts/wandb_to_latex_epsilon_sweep.py --dataset adult
-
-# Per-feature breakdown
-python experiment_scripts/wandb_to_latex_by_feature.py --dataset adult
-
-# LinearReconstruction binary-feature table
-python experiment_scripts/linear_sweep_to_latex.py
-
-# Synthetic data quality table
-python experiment_scripts/synth_quality_to_latex.py experiment_scripts/synth_quality_results_*.csv
-```
-
----
-
-## Repository Structure
+An experiment has four steps.
 
 ```
-Reconstruction/
-├── reproduce.py                  ← Rebuild every paper table/figure; --list shows coverage
-├── test.sh                        ← Two-minute smoke test: environment, attack pipeline, tables
-├── DATABASE.md                    ← results.db as a standalone dataset: schema, conventions, queries
-│
-├── examples/                      ← Short, runnable, self-contained
-│   ├── add_your_own_attack.py     ← Write, register and score a new attack in one file
-│   └── query_results_db.py        ← Five worked queries over the 50,826 scored runs
-│
-├── master_experiment_script.py   ← Main entry point: runs one experiment, logs to WandB
-├── attack_defaults.py            ← Default hyperparameters for all 13 attacks
-├── get_data.py                   ← Data loading: load_data(), load_mia_data(), QI definitions
-├── scoring.py                    ← Rarity-weighted accuracy (categorical), NRMSE (continuous)
-├── util.py                       ← Shared utilities
-├── environment.yaml              ← Conda environment for running experiments (recon_ env)
-│
-├── attacks/                      ← All attack implementations
-│   ├── __init__.py               ← ATTACK_REGISTRY: maps {data_type: {name: fn}}
-│   ├── baselines_classifiers.py  ← Mode, Random, Copy baselines (categorical)
-│   ├── baselines_continuous.py   ← Mean, Median baselines (continuous)
-│   ├── ML_classifiers.py         ← KNN, NaiveBayes, LogisticRegression, SVM, RandomForest, LightGBM
-│   ├── ML_regression.py          ← KNN, LinearRegression, Ridge, Lasso, ElasticNet, SGD, RandomForest, LightGBM (continuous)
-│   ├── NN_classifier.py          ← MLP (categorical)
-│   ├── NN_regression.py          ← MLP (continuous)
-│   ├── attention_classifier.py   ← ARFFormer, ARFFormerAutoregressive (new)
-│   ├── joint_mlp.py              ← MultiHeadMLP: single network over all hidden features (new)
-│   ├── marginal_rf.py            ← CoBP-RA: RF posteriors + belief propagation (new, strongest attack)
-│   ├── partialMST.py             ← CondMST, CondMSTIndep, CondMSTBounded, CondMSTHub (new)
-│   ├── partialDiffusion.py       ← CondDDPM, CondRePaint, RePaint, CondDDPMWithMLP (new)
-│   ├── tabpfn_attack.py          ← TabPFN: pre-trained transformer attack
-│   └── mia.py                    ← Membership inference: SynthDistance, NNDR, RA-as-MIA
-│
-├── enhancements/                 ← Composable attack wrappers
-│   ├── chaining_wrapper.py       ← Sequential feature prediction (any order strategy)
-│   └── ensembling_wrapper.py     ← Multi-attack aggregation (voting, soft_voting, averaging)
-│
-├── sdg/                          ← Synthetic data generation
-│   ├── generate_synth.py         ← Main script: sample / sdg / count subcommands
-│   ├── evaluate_synth.py         ← Fidelity metrics (TVD, JSD, pairwise TVD, SDV scores)
-│   ├── smartnoise_methods.py     ← MST and AIM (differentially private)
-│   ├── tvae_method.py            ← TVAE (SDV)
-│   ├── ctgan_method.py           ← CTGAN (SDV)
-│   ├── arf_method.py             ← ARF (SynthCity)
-│   ├── tabddpm_method.py         ← TabDDPM
-│   ├── r_methods.py              ← Synthpop, RankSwap, CellSuppression (via R)
-│   └── test_sdg.py               ← Smoke tests for all SDG methods
-│
-├── experiment_scripts/           ← Paper-specific experiment drivers
-│   ├── run_production_sweep.py   ← Main sweep: all samples × SDG × attacks (parallelized)
-│   ├── run_linear_sweep.py       ← LinearReconstruction comparison
-│   ├── run_memorization_sweep.py ← Memorization test: train vs. holdout targets
-│   ├── run_mst_epsilon_rf_nb_sweep.py  ← MST/AIM epsilon sweep
-│   ├── run_chaining_analysis.py  ← Chaining order strategy analysis
-│   ├── run_ensembling_heatmap.py ← All-pairs ensembling heatmap
-│   ├── compare_mia_ra.py         ← RA vs. MIA comparison (SynthDistance, NNDR, RA-as-MIA)
-│   ├── analyze_ra_subgroups.py   ← Disparate impact by subgroup
-│   ├── evaluate_synth_quality.py ← Fidelity + utility quality evaluation (multiprocessed)
-│   ├── qi_analysis/              ← QI composition and size sweep
-│   ├── wandb_to_latex.py         ← WandB results → LaTeX tables (main results)
-│   ├── wandb_to_latex_epsilon_sweep.py  ← ε-sweep LaTeX table
-│   ├── wandb_to_latex_by_feature.py     ← Per-feature breakdown table
-│   ├── linear_sweep_to_latex.py  ← LinearReconstruction LaTeX tables
-│   ├── synth_quality_to_latex.py ← Synth quality LaTeX table
-│   ├── results_db.py             ← SQLite results database utilities
-│   ├── plot_ensembling_heatmap.py ← Heatmap visualization
-│   ├── paper_objects.py         ← Manifest: every paper table/figure, its source and generator
-│   ├── regen_camera_tables.py    ← The generator functions reproduce.py calls
-│   ├── make_docs.py             ← Regenerates the manifest-derived doc sections
-│   ├── results.db                ← 50,826 scored runs behind the paper (69 MB)
-│   ├── mia_comparison_results.csv ← MIA results (these live outside the DB)
-│   ├── raw_logs/                 ← Console logs that are the primary source for MIA
-│   ├── README.md                 ← Index of every script: tier, paper object, inputs
-│   └── historical/               ← One-off repair/fill scripts kept for provenance
-│
-├── ARTIFACT-APPENDIX.md          ← PoPETs artifact appendix (start here to review)
-├── TABLE-COVERAGE.md        ← Which of the 39 paper tables/figures regenerate, and what is left
-│                                   (generated from experiment_scripts/paper_objects.py)
-├── test.sh                       ← One-command smoke test (env + attack + tables)
-├── paths.py                      ← Central path resolution; every root is env-overridable
-│
-├── docker/
-│   ├── Dockerfile                ← Light image: attacks, scoring, table regeneration
-│   ├── Dockerfile.full           ← Adds GPU + R synthetic-data generators
-│   ├── requirements-attacks.txt  ← Pinned deps for the attack environment
-│   └── requirements-sdg.txt      ← Pinned deps for the SDG environment
-│
-├── data/
-│   └── dummy/                    ← Fully synthetic demo dataset + its generator
-│
-├── expected_output/tables/       ← Committed reference tables/figures for diffing
-├── LICENSES/                     ← Third-party licence notices
-│
-├── configs/
-│   ├── example_cfg.yaml          ← Fully annotated example configuration
-│   └── demo_dummy.yaml           ← Minimal runnable config (used by test.sh)
-│
-├── SOTA_attacks/                 ← Wrapper for LinearReconstruction (Annamalai et al. 2024)
-│
-├── NIST-CRC_leaderboardScripts/  ← Our NIST CRC competition submission scripts
-│
-├── incomplete_attacks/           ← Exploratory/unfinished attack variants (not used in paper)
-└── maintenance_scripts/          ← Debug and integration test scripts
+dataset  →  disjoint training samples  →  synthetic data  →  attack  →  score
 ```
 
----
+`sdg/generate_synth.py` does the first two arrows: it cuts a dataset into
+training samples and runs a generator on each. `master_experiment_script.py`
+does the last two for one configuration: it loads a synthetic dataset, takes the
+training records as targets, hides every attribute outside the QI set, runs the
+attack, and scores the predictions. `experiment_scripts/run_production_sweep.py`
+repeats that over many samples, generators and attacks in parallel.
 
-## Attack Taxonomy
+### Scoring
 
-Attacks are organized by how much joint structure they exploit, following the taxonomy in Figure 1 of the paper.
+The score is rarity-weighted reconstruction advantage, $R_{adv}$, on a 0 to 100
+scale. A correct guess of a rare value earns more than a correct guess of a
+common one. The weights are set so that always guessing the most common value
+of an attribute with $C$ distinct values scores exactly $100/C$, whatever the
+distribution, and a perfect attack scores 100. NIST used the same metric in the
+CRC. Continuous attributes are scored by normalized RMSE instead. `scoring.py`
+implements both.
 
-### Reference points (not attacks)
+### Where data lives
 
-| Name | Description |
-|---|---|
-| Mode | Predict the most common value in the synthetic column |
-| Random | Sample randomly from the synthetic column's distribution |
-| Copy | Copy the synthetic row at the same index |
+All data sits under one root, `data/` by default. Set `RECON_DATA_ROOT` to keep
+it somewhere else. `python paths.py` prints the locations in use.
 
-### Each feature in isolation
+```
+<data root>/<dataset>/
+    full_data.csv                  the source dataset
+    meta.json                      which columns are categorical, continuous, ordinal
+    size_<N>/sample_<KK>/
+        train.csv                  one training sample of N rows
+        <GENERATOR>_eps<E>/synth.csv   one synthetic release of that sample
+```
 
-These attacks treat each hidden feature independently, training one model per feature on synthetic data (QI → hidden feature) and applying it to the target's QI.
+Generators without a privacy budget use the bare name, for example
+`TVAE/synth.csv`. `data/dummy/` is a complete example of this layout.
 
-| Name | Class | Notes |
-|---|---|---|
-| KNN | `ML_classifiers.py` | k-nearest neighbors (default k=1) |
-| NaiveBayes | `ML_classifiers.py` | Gaussian/categorical NB |
-| LogisticRegression | `ML_classifiers.py` | L2-regularized logistic regression |
-| SVM | `ML_classifiers.py` | RBF kernel SVM; excluded for n≥10k (O(n²)) |
-| RandomForest | `ML_classifiers.py` | 25 trees, max depth 25 |
-| LightGBM | `ML_classifiers.py` | 100 estimators |
-| MLP | `NN_classifier.py` | PyTorch MLP, [300] hidden dims |
-| TabPFN | `tabpfn_attack.py` | Pre-trained transformer, single forward pass |
-| LinearReconstruction | `SOTA_attacks/` | LP attack (Annamalai et al. 2024); binary features only, requires Gurobi |
+### Configuration
 
-### Each feature in isolation — continuous data
-
-For continuous datasets (California Housing), classifiers are replaced by regressors. All are registered under `data_type: "continuous"`.
-
-| Name | Class | Notes |
-|---|---|---|
-| Mean | `baselines_continuous.py` | Predict the synthetic column mean |
-| Median | `baselines_continuous.py` | Predict the synthetic column median |
-| KNN | `ML_regression.py` | k-nearest-neighbor regressor |
-| RandomForest | `ML_regression.py` | Random forest regressor |
-| LightGBM | `ML_regression.py` | Gradient-boosted regressor |
-| LinearRegression | `ML_regression.py` | Polynomial (degree 2) linear regression |
-| Ridge | `ML_regression.py` | Ridge regression |
-| Lasso | `ML_regression.py` | Lasso regression |
-| ElasticNet | `ML_regression.py` | Elastic net regression |
-| SGDRegressor | `ML_regression.py` | Stochastic gradient descent regressor |
-| MLP | `NN_regression.py` | PyTorch MLP regressor |
-
-Scoring for continuous features uses normalized RMSE (lower is better), inverted so higher is still better, consistent with the categorical $R_{adv}$ direction.
-
-### Feature-correlated: autoregressive
-
-| Name | Description |
-|---|---|
-| ARFFormer | Multi-head self-attention encoder predicting hidden features in parallel |
-| ARFFormerAutoregressive | Same but predicts autoregressively |
-| Chaining (enhancement) | Wraps any base attack to predict features sequentially, each prediction fed forward |
-
-### Feature-correlated: row-wise message passing
-
-| Name | Description |
-|---|---|
-| **CoBP-RA** (the "cobra" attack) | **Our strongest attack.** Per-feature RF posteriors refined by belief propagation on an MI-weighted MST of hidden features. Local PMI tables from synth nearest-neighbors capture residual hidden-feature dependencies after conditioning on QI. Optional variants: `qi_in_graph` (QI as observed nodes), `entropy_weighted` (message damping by sender confidence). |
-
-### Feature-correlated: joint generative conditioning
-
-| Name | Description |
-|---|---|
-| MultiHeadMLP | Single neural network predicting all hidden features jointly |
-| CondMST | MST graphical model fit on synth, sampled conditional on QI |
-| CondMST (indep.) | Independent per-feature MST models |
-| CondMST (k=3) | Bounded-clique variant with up to k-1 QI cols per clique |
-| CondDDPM | Tabular diffusion model with QI-conditioned forward process |
-| CondRePaint | Same diffusion model; RePaint sampling (QI re-noised at each step) |
-| CondDDPMWithMLP | Two-stage: diffusion hints → MLP stacker trained on synthetic pseudo-targets |
-
-### Enhancements (composable)
-
-| Enhancement | Description |
-|---|---|
-| Ensembling | Combine any set of attacks by voting, soft voting (probability-weighted), averaging, or median |
-| Chaining | Predict hidden features sequentially in any order (default, correlation, mutual_info, random) |
-
-Enhancements are composable: ensembling first, then chaining.
-
----
-
-## SDG Methods
-
-| Method | Type | Key parameters | Notes |
-|---|---|---|---|
-| MST | DP (marginal + graphical model) | ε ∈ {0.1, 1, 10, 100, 1000} | SmartNoise. Use `bin_continuous_as_ordinal=True` for wide datasets with skewed continuous cols |
-| AIM | DP (marginal + graphical model) | ε ∈ {1, 10, 100} | SmartNoise. Infeasible for 50+ columns |
-| PrivBayes | DP (Bayesian network) | ε ∈ {0.1 ... 1000} (9-pt sweep) | `DataSynthesizer` package (correlated-attribute mode). `bin_continuous_as_ordinal=True` default — avoids severe skew inflation on zero-heavy continuous cols |
-| MWEMPGM | DP (marginal + graphical model) | ε ∈ {0.1 ... 1000} (9-pt sweep) | Custom MWEM+PGM impl on top of `mbi.FactoredInference` (older API) |
-| PrivSyn | DP (marginal, no graphical model) | ε ∈ {0.1 ... 1000} (9-pt sweep) | USENIX Security 2021. Vendored `View`/`Consistenter`/synthesizer core from SynMeter (`sdg/_privsyn_vendor.py`, Apache-2.0) + fresh DP marginal-selection/noise logic. Continuous cols decoded to true empirical bin mean (not midpoint) |
-| PrivateGSD | DP (genetic algorithm) | ε ∈ {0.1 ... 1000} (9-pt sweep) | `genetic_sd` (ICML 2023). CPU-only jax; does not scale cleanly past n≈1000 — validated at adult size_1000, spot-checked at size_10000 |
-| TVAE | Deep generative | — | SDV library, GPU recommended |
-| CTGAN | Deep generative | — | SDV library, GPU recommended |
-| ARF | Deep generative | — | SynthCity, GPU recommended |
-| TabDDPM | Diffusion | `iterations`, `num_timesteps` | GPU recommended |
-| Synthpop | Sequential regression | — | R `synthpop` package; CPU |
-| RankSwap | De-identification | `swap_features` (continuous only) | R `sdcMicro`; CPU |
-| CellSuppression | De-identification | `key_vars` (categorical QIs, ≥1) | R `sdcMicro`; CPU |
-
----
-
-## Configuration Reference
-
-Experiments are configured via YAML files. See `configs/example_cfg.yaml` for a fully annotated example. Key fields:
+One YAML file describes one experiment. This is `configs/demo_adult.yaml`:
 
 ```yaml
-wandb:
-  project: "my-project"
-  group: "main-sweep"
-
 dataset:
-  name: "adult"         # dataset key (matches QI definitions in get_data.py)
-  size: 10000           # training sample size
-  dir: "/path/to/data/adult/size_10000/sample_00"
+  name: "adult"                      # selects the QI definitions in get_data.py
+  size: 10000
+  dir: "adult/size_10000/sample_00"  # relative to the data root
 
-QI: "QI1"              # quasi-identifier variant (see get_data.py for available options)
+QI: "QI1"                            # which attributes the attacker knows
 
 sdg_method: "MST"
 sdg_params:
-  epsilon: 1.0
+  epsilon: 1                         # together these select MST_eps1/synth.csv
 
 attack_method: "CoBP-RA"
-data_type: "categorical"   # "categorical", "continuous", or "agnostic"
-
-memorization_test:
-  enabled: true
-  holdout_dir: "/path/to/data/adult/size_10000/sample_01"
+data_type: "categorical"             # "categorical", "continuous" or "agnostic"
 
 attack_params:
-  chaining:
-    enabled: false
   ensembling:
     enabled: false
-  CoBP-RA:
-    num_estimators: 25
-    max_depth: 25
-    knn_k: 100
-    graph_type: "mst"
-    col_correction_alpha: 0.5
+  chaining:
+    enabled: false
 ```
 
-### Data type conventions
+`data_type` says which family the attack belongs to. Classifiers such as
+RandomForest and CoBP-RA are `categorical`, regressors are `continuous`, and the
+CondMST and diffusion attacks are `agnostic`. `attacks/__init__.py` lists every
+attack under its family.
 
-- `"categorical"`: classification-based attacks (RF, LightGBM, MLP, CoBP-RA, CondMST, …)
-- `"continuous"`: regression-based attacks (RF regressor, MLP regressor, …)
-- `"agnostic"`: works for both (CondDDPM, CondRePaint, RePaint)
+To change an attack's hyperparameters, add a block named after the attack under
+`attack_params`. Anything you leave out takes its default from
+`attack_defaults.py`.
 
-### Adding a new attack
+```yaml
+attack_params:
+  RandomForest:
+    num_estimators: 100
+    max_depth: 15
+```
 
-1. Implement `my_attack(cfg, synth, targets, qi, hidden_features) → (reconstructed_df, probas, classes)` in `attacks/`
-2. Register in `attacks/__init__.py` ATTACK_REGISTRY under the appropriate data_type key
-3. Add default parameters to `attack_defaults.py`
+Two wrappers combine attacks, and each is switched on in `attack_params`.
+Ensembling runs several attacks and merges their predictions (`aggregation` is
+`voting`, `soft_voting`, `averaging` or `median`). Chaining predicts the hidden
+attributes one at a time and feeds each prediction to the next (`order_strategy`
+is `default`, `correlation`, `mutual_info`, `random` or `manual`).
+`configs/example_cfg.yaml` shows every option, including the memorization test,
+which scores the attack separately on training records and on records the
+generator never saw.
 
----
+Runs are logged with [Weights & Biases](https://wandb.ai). The Docker images set
+`WANDB_MODE=offline`, so no account is needed and nothing is uploaded. Outside
+Docker, set that variable yourself, or log in to W&B to have runs uploaded to
+the project named in the config.
 
-## Experiment Tracking
+## Attacks
 
-All experiments log to [Weights & Biases](https://wandb.ai). Set your project/group in the config YAML or `run_production_sweep.py`.
+The paper sorts attacks by how much of the relationship between attributes they
+use. The names below are the ones to put in `attack_method`.
 
-To run without internet access:
+**Reference points.** These are not attacks. They show what a score means.
+
+| Name | What it predicts |
+|---|---|
+| `Mode` | the most common value in the synthetic column |
+| `Random` | a random draw from the synthetic column |
+| `MeasureDeid` (Copy in the paper) | the value in the synthetic row at the target's own index |
+
+**Each attribute on its own.** One model per hidden attribute, trained on the
+synthetic data to predict it from the QIs.
+
+| Name | Model |
+|---|---|
+| `KNN` | nearest neighbour (k = 1) |
+| `NaiveBayes` | naive Bayes |
+| `LogisticRegression` | logistic regression |
+| `SVM` | support vector machine |
+| `RandomForest` | random forest (25 trees) |
+| `LightGBM` | gradient-boosted trees (100 rounds) |
+| `MLP` | neural network, one hidden layer of 300 units |
+| `TabPFN` | pre-trained tabular transformer |
+| `LinearReconstruction` | linear program of Annamalai et al. (2024); needs Gurobi |
+
+For continuous data, `KNN`, `RandomForest`, `LightGBM`, `MLP` and `SVM` select
+regressors, and `Mean` and `Median` are the reference points.
+
+**Attributes together.** These use the dependence between hidden attributes.
+All six were introduced in the paper.
+
+| Name | Idea |
+|---|---|
+| `CoBP-RA` | random-forest predictions for each attribute, reconciled by belief propagation over a graph of the hidden attributes. The strongest attack in the paper. `CoBP-RA_graphQI_entropyBP` is a variant that adds the QIs to the graph and weights each message by its sender's confidence. |
+| `ARFFormerAutoregressive` | transformer that predicts the hidden attributes one after another. This is the paper's ARFFormer; `ARFFormer` is an earlier version that predicts them in parallel. |
+| `MultiHeadMLP` | one network with an output head per hidden attribute |
+| `CondMST` | fits MST's graphical model to the synthetic data and samples the hidden attributes given the QIs. `CondMSTBounded` and `CondMSTIndependent` are variants. |
+| `CondDDPM` | tabular diffusion model that denoises the hidden attributes with the QIs held fixed |
+| `CondRePaint` | the same model with RePaint sampling |
+
+## Generators
+
+`sdg/generate_synth.py` runs any of these. Choose them with `SDG_JOBS`, writing
+`NAME:EPSILON` for the differentially private (DP) ones, for example
+`SDG_JOBS=MST:1,PrivBayes:10,TVAE`.
+
+| Name | Kind | Runs in |
+|---|---|---|
+| `MST`, `AIM` | DP, marginals and a graphical model (SmartNoise) | light image |
+| `PrivBayes` | DP, Bayesian network | light image |
+| `MWEMPGM` | DP, marginals and a graphical model | light image |
+| `PrivSyn` | DP, marginals | light image |
+| `PrivateGSD` | DP, genetic algorithm; slow above about 1,000 rows | light image |
+| `TabDDPM` | diffusion; a GPU helps | light image |
+| `TVAE`, `CTGAN` | deep generative (SDV) | full image |
+| `ARF` | adversarial random forest (SynthCity) | full image |
+| `Synthpop` | sequential regression (R) | full image |
+| `RankSwap`, `CellSuppression` | de-identification (R `sdcMicro`) | full image |
+
+The light image is the one built in the quick start. The full image adds the
+generators that need SDV, SynthCity or R:
+
 ```bash
-WANDB_MODE=offline python master_experiment_script.py ...
+docker build -f docker/Dockerfile.full --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t recon-artifact:full .
 ```
 
-Key WandB metrics logged per run:
-- `RA_{feature}` — per-feature reconstruction accuracy
-- `RA_mean` — mean across all hidden features (primary metric)
-- `RA_train_*` / `RA_nontraining_*` / `RA_delta_*` — memorization test split
-- `MIA_auc`, `MIA_advantage`, `MIA_tpr_at_fpr001` — MIA metrics (when `--mode mia`)
+It is about 23 GB. Use it the same way as the light one.
 
----
+## Datasets
 
-## Extending and Reusing
+No dataset is redistributed here except the machine-generated `data/dummy/`.
 
-This is a framework, not a single experiment. Two short, runnable examples show
-what reuse looks like in practice; both work on the shipped dummy data or the
-committed database, with no downloads and no GPU.
+| Dataset | Name in configs | Rows | How to get it |
+|---|---|---|---|
+| Adult (census income) | `adult` | 47,621 | `python experiment_scripts/fetch_dataset.py adult` |
+| CDC Diabetes Health Indicators | `cdc_diabetes` | 253,680 | `python experiment_scripts/fetch_dataset.py cdc_diabetes` |
+| California Housing | `california` | 20,640 | `sklearn.datasets.fetch_california_housing(as_frame=True).frame`, saved as `california/full_data.csv` |
+| NIST Arizona (1940 census) | `nist_arizona_25feat` | 293,999 | free registration at [IPUMS USA](https://usa.ipums.org/) |
+| NIST Survey of Business Owners | `nist_sbo` | 123,892 | from NIST on request, as part of the Privacy CRC |
 
-**Add your own attack.**
+`fetch_dataset.py` downloads the data, writes `meta.json`, and cuts the training
+samples. For the other three, put `full_data.csv` and a `meta.json` in the
+dataset's directory and cut the samples yourself:
+
+```bash
+SDG_DATASET=california SDG_SAMPLE_SIZE=1000 SDG_NUM_SAMPLES=5 python sdg/generate_synth.py sample
+```
+
+The QI sets for each dataset are in the `QIs` dictionary in `get_data.py`. `QI1`
+is the default set, and the others (`QI_large`, `QI_behavioral`, …) vary how much
+the attacker knows.
+
+## Extending
+
+**Add an attack.** An attack is one function:
+
+```python
+def my_attack(cfg, synth, targets, qi, hidden_features):
+    ...
+    return reconstructed_df, probas, classes
+```
+
+`synth` is the synthetic data, `targets` holds the target records, `qi` and
+`hidden_features` are lists of column names, and `reconstructed_df` is `targets`
+with the hidden columns filled in. Register the function in `ATTACK_REGISTRY` in
+`attacks/__init__.py` and give it defaults in `attack_defaults.py`. It then works
+in every sweep script and with both wrappers.
+
+`examples/add_your_own_attack.py` does all of this in one file that you can run
+and copy:
 
 ```bash
 python examples/add_your_own_attack.py
 ```
 
-Writes a new attack, registers it in `ATTACK_REGISTRY`, and scores it against
-the mode baseline and CoBP-RA on identical data using the paper's own metric.
-The file is commented as a template: copy it, change the attack body, and the
-result is immediately usable by every sweep script in the repository and
-composable with the chaining and ensembling wrappers. Making it permanent means
-putting the function in `attacks/`, adding one line to `attacks/__init__.py`,
-and adding defaults to `attack_defaults.py` — nothing else changes.
+It defines a small attack, registers it, and scores it next to `Mode` and CoBP-RA
+on the bundled dataset in about 30 seconds.
 
-Adding an **SDG method** is the same shape: implement
-`generate(train_df, meta, **config) -> synthetic_df` and register it in
-`SDG_REGISTRY` in `sdg/__init__.py`. Adding a **dataset** needs a directory in
-the documented layout (`meta.json` plus `size_{N}/sample_{XX}/train.csv`) and QI
-definitions in the `QIs` / `minus_QIs` dicts in `get_data.py`;
-`data/dummy/make_dummy_data.py` is a short worked example of exactly that.
+**Add a generator.** Write `generate(train_df, meta, **config)`, returning the
+synthetic DataFrame, and register it in `SDG_REGISTRY` in `sdg/__init__.py`.
 
-**Reuse the results instead of the code.**
+**Add a dataset.** Put `full_data.csv` and `meta.json` in a new directory under
+the data root, and add its QI sets to `QIs` and the matching hidden attributes
+to `minus_QIs` in `get_data.py`. Then cut samples and generate synthetic data
+with `sdg/generate_synth.py`, as for Adult above, with `SDG_DATASET` set to the
+directory's name. `data/dummy/` is a dataset set up this way, and
+`data/dummy/make_dummy_data.py` is the script that built it.
+
+**Membership inference.** `master_experiment_script.py --mode mia` runs a
+membership inference attack instead. The config then also names a `mia_method`
+and a held-out sample (`configs/example_cfg.yaml` shows both), and
+`experiment_scripts/compare_mia_ra.py` implements the paper's comparison of
+membership inference with reconstruction.
+
+## The results database
+
+`experiment_scripts/results.db` is a SQLite file with one row per scored run:
+dataset, training sample, QI set, generator, attack, and score. You can use it
+without installing anything here.
 
 ```bash
 python examples/query_results_db.py
 ```
 
-`experiment_scripts/results.db` is plain SQLite holding all 50,826 scored runs
-behind the paper, and is a usable secondary dataset in its own right for anyone
-studying reconstruction risk — no need to install or run this framework.
-[`DATABASE.md`](DATABASE.md) documents the schema, the label conventions that
-would otherwise catch you out, five worked queries, and the caveats to check
-before drawing conclusions.
+That runs five example queries using only the Python standard library.
+[`DATABASE.md`](DATABASE.md) documents the tables and the naming conventions,
+some of which are easy to trip over (several attacks are stored under earlier
+names).
 
-**Beyond reconstruction.** The same harness runs membership inference
-(`--mode mia`), and `experiment_scripts/compare_mia_ra.py` implements the
-paper's reduction placing reconstruction and MIA on one comparable scale.
+## Repository layout
 
----
+```
+master_experiment_script.py   run one experiment
+reproduce.py                  rebuild the paper's tables and figures
+test.sh                       check the installation
+paths.py                      where data and results are looked up
+get_data.py                   data loading and QI definitions
+scoring.py                    the R_adv and NRMSE scores
+attack_defaults.py            default hyperparameters for every attack
+
+attacks/                      the attacks; __init__.py holds the registry
+enhancements/                 the chaining and ensembling wrappers
+sdg/                          the generators and generate_synth.py
+configs/                      demo_dummy.yaml, demo_adult.yaml, example_cfg.yaml
+examples/                     add_your_own_attack.py, query_results_db.py
+data/dummy/                   the bundled example dataset
+docker/                       the two Dockerfiles and pinned requirements
+
+experiment_scripts/           the scripts behind each experiment in the paper
+    results.db                the scored runs
+    README.md                 what each script does
+expected_output/tables/       reference copies of the rebuilt tables and figures
+external/                     two dependencies, as git submodules
+
+ARTIFACT-APPENDIX.md          requirements, claims and experiments
+DATABASE.md                   guide to results.db
+TABLE-COVERAGE.md             which paper tables and figures reproduce.py rebuilds
+```
+
+## Installing without Docker
+
+The Docker images are the tested route. To install natively on Linux, use
+Python 3.9 and the same pinned requirements the light image uses:
+
+```bash
+python3.9 -m venv .venv
+source .venv/bin/activate
+pip install -r docker/requirements-attacks.txt
+export WANDB_MODE=offline
+./test.sh
+```
+
+This covers every attack and the seven generators of the light image. The other
+generators need a second environment (Python 3.10,
+`docker/requirements-sdg.txt`) and, for Synthpop, RankSwap and CellSuppression,
+R with the `synthpop` and `sdcMicro` packages; `docker/Dockerfile.full` is the
+exact recipe.
+
+Two attacks have extra requirements. The diffusion attacks (CondDDPM,
+CondRePaint) and LinearReconstruction use the two submodules under `external/`,
+so clone with `--recurse-submodules` or run
+`git submodule update --init --recursive`. LinearReconstruction also needs
+[Gurobi](https://www.gurobi.com/academia/), which is free for academic use.
+After activating a licence, `pip install gurobipy==11.0.3`.
 
 ## Citation
 
-If you use this code or the CoBP-RA / CondMST / CondDDPM / CondRePaint / MultiHeadMLP / ARFFormer attacks in your research, please cite:
-
 ```bibtex
 @article{golob2027sok,
-  title     = {{SoK}: Reconstruction Attacks on Synthetic Tabular Data
-               (Insights from Winning the {NIST CRC})},
-  author    = {Golob, Steven and Pentyala, Sikha and De Cock, Martine},
-  journal   = {Proceedings on Privacy Enhancing Technologies},
-  year      = {2027},
+  title   = {{SoK}: Reconstruction Attacks on Synthetic Tabular Data
+             (Insights from Winning the {NIST CRC})},
+  author  = {Golob, Steven and Pentyala, Sikha and De Cock, Martine},
+  journal = {Proceedings on Privacy Enhancing Technologies},
+  year    = {2027},
 }
 ```
 
-A machine-readable [`CITATION.cff`](CITATION.cff) is also provided, which GitHub
-renders as a "Cite this repository" button.
-
-To cite the software artifact itself rather than the paper, use the Zenodo
-concept DOI [10.5281/zenodo.22701232](https://doi.org/10.5281/zenodo.22701232),
-which always resolves to the most recent archived release.
-
----
+To cite the software itself, use the Zenodo DOI
+[10.5281/zenodo.22701232](https://doi.org/10.5281/zenodo.22701232), which always
+points to the latest archived release. [`CITATION.cff`](CITATION.cff) holds the
+same information in machine-readable form.
 
 ## License
 
-This project is released under the MIT License. See [LICENSE](LICENSE) for details.
-
-Third-party components, and two upstream repositories that carry no explicit
-licence of their own, are documented in
+MIT; see [`LICENSE`](LICENSE). Third-party components are listed in
 [`LICENSES/THIRD-PARTY-NOTICES.md`](LICENSES/THIRD-PARTY-NOTICES.md). Please read
-it before reusing `SOTA_attacks/linear_reconstruction.py` or the PrivateGSD
+it before reusing `SOTA_attacks/linear_reconstruction.py`, which is adapted from
+the reference implementation of Annamalai et al. (2024), or the PrivateGSD
 wrapper.
-
-The `SOTA_attacks/linear_reconstruction.py` is adapted from the reference implementation of the linear reconstruction attack of Annamalai et al. (2024), via [Filienko/recon-synth](https://github.com/Filienko/recon-synth) (our fork: [steveng9/recon-synth](https://github.com/steveng9/recon-synth)).

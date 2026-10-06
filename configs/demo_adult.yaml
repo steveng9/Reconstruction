@@ -1,0 +1,44 @@
+# One attack on real data: CoBP-RA against an MST (epsilon=1) release of Adult.
+#
+# Prepare the data first (about five minutes, CPU only):
+#
+#     python experiment_scripts/fetch_dataset.py adult
+#     SDG_DATASET=adult SDG_SAMPLE_SIZE=10000 SDG_NUM_SAMPLES=1 SDG_JOBS=MST:1 SDG_BIN_CONTINUOUS=1 python sdg/generate_synth.py sdg
+#
+# Then run:
+#
+#     python master_experiment_script.py --config configs/demo_adult.yaml --n_runs 1
+
+wandb:
+  project: "reconstruction-artifact-demo"
+  name: "adult-demo"
+  group: "demo"
+  tags: ["demo"]
+
+dataset:
+  name: "adult"
+  size: 10000
+  dir: "adult/size_10000/sample_00"  # relative to $RECON_DATA_ROOT
+
+QI: "QI1"                            # known: age, sex, race, native-country, education, marital-status
+
+sdg_method: "MST"
+sdg_params:
+  epsilon: 1                         # selects the release in <dir>/MST_eps1/synth.csv
+
+memorization_test:
+  enabled: false
+
+row_level_analysis:
+  enabled: false
+
+attack_method: "CoBP-RA"             # try Mode, KNN, NaiveBayes, RandomForest, MLP, ...
+data_type: "categorical"
+
+attack_params:
+  ensembling:
+    enabled: false
+  chaining:
+    enabled: false
+
+random_seed: 42

@@ -58,8 +58,9 @@ results without the code.
 ### Security/Privacy Issues and Ethical Concerns
 
 Running the artifact poses no risk to your machine. It trains ordinary ML models
-and solves linear programs on tabular data; it disables no security mechanism,
-needs no elevated privileges, and makes no network connections at run time
+and solves linear programs on tabular data; it disables no security mechanism
+and needs no elevated privileges. Its only network access at run time is
+`fetch_dataset.py` downloading two public datasets for Experiments 3 and 4
 (Weights & Biases logging is optional and off by default).
 
 The repository implements privacy attacks against synthetic-data releases. It is
@@ -98,13 +99,14 @@ they take, not what they compute.
   CellSuppression generators only. The full image includes R 4.5.
 - **Gurobi**, for the LinearReconstruction attack only. It needs a licence (free
   for academics) and is not installed in the images; see *Limitations*.
-- **Models**: none to download, except that TabPFN fetches its pre-trained
-  checkpoint on first use.
-- **Datasets**: none are redistributed. Adult, CDC Diabetes and California
-  Housing download with `experiment_scripts/fetch_dataset.py`. NIST Arizona
-  needs a free IPUMS registration, and NIST SBO is available from NIST on
-  request. `data/dummy/` is a small bundled dataset in the same layout, so the
-  whole pipeline runs with no downloads.
+- **Models**: none to download. The one pre-trained model, TabPFN's checkpoint,
+  is fetched when the image is built.
+- **Datasets**: none are redistributed. `experiment_scripts/fetch_dataset.py`
+  downloads Adult and CDC Diabetes, the two that Experiments 3 and 4 use.
+  California Housing ships with scikit-learn, NIST Arizona needs a free IPUMS
+  registration, and NIST SBO is available from NIST on request. `data/dummy/`
+  is a small bundled dataset in the same layout, so the whole pipeline runs
+  with no downloads.
 
 ### Estimated Time and Storage Consumption
 
@@ -179,10 +181,10 @@ environment variables override the defaults:
 | `RECON_RESULTS_DB` | `<repo>/experiment_scripts/results.db` | scored results |
 | `RECON_TABLE_OUT` | `<repo>/expected_output/tables` | rebuilt tables and figures |
 
-**The full image.** The light image runs every attack and the six CPU-based DP
-generators (MST, AIM, PrivBayes, PrivSyn, MWEM-PGM, PrivateGSD), which is all
-this document uses. To generate data with TVAE, CTGAN, ARF, TabDDPM, Synthpop,
-RankSwap or CellSuppression, build the full image instead:
+**The full image.** The light image runs every attack and seven generators: the
+six DP ones (MST, AIM, PrivBayes, PrivSyn, MWEM-PGM, PrivateGSD) and TabDDPM.
+That is all this document uses. To generate data with TVAE, CTGAN, ARF,
+Synthpop, RankSwap or CellSuppression, build the full image instead:
 
 ```bash
 docker build -f docker/Dockerfile.full --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t recon-artifact:full .
@@ -243,10 +245,11 @@ python experiment_scripts/verify_registries.py
 ```
 
 This runs every attack on the bundled dataset and asks every generator for a
-small synthetic table. It takes about twenty minutes in the light image, where
+small synthetic table. It takes about 25 minutes in the light image and prints
+one `ok` or `FAIL` line per attack and generator among the training logs. There,
 25 of the 28 attacks and 7 of the 12 generators run. The rest name the
 dependency they are missing: Gurobi for the three LinearReconstruction variants,
-and the full image for the other generators.
+and the full image for the other five generators.
 
 ## Artifact Evaluation
 
@@ -338,11 +341,12 @@ python master_experiment_script.py --n_runs 1
 ```
 
 This runs `configs/demo_dummy.yaml`: CoBP-RA against an MST (ε=10) release of
-the bundled dataset, with no downloads. Expect a mean $R_{adv}$ around **40**,
-against **33.88** for the `Mode` baseline. Change `attack_method` in the config
-to try another attack (`Mode`, `RandomForest`, `KNN`, `NaiveBayes`,
-`MultiHeadMLP`, …; `attacks/__init__.py` lists them all), or pass
-`--config <path>` to run a different config.
+the bundled dataset, with no downloads. Near the end of the output, the line
+starting `ave:` gives the mean $R_{adv}$. Expect about **40**, against **33.88**
+for the `Mode` baseline. Change `attack_method` in the config to try another
+attack (`Mode`, `RandomForest`, `KNN`, `NaiveBayes`, `MultiHeadMLP`, …;
+`attacks/__init__.py` lists them all), or pass `--config <path>` to run a
+different config. `README.md` walks through the same run on the Adult dataset.
 
 #### Experiment 3: Reduced attack × generator grid
 
@@ -361,17 +365,18 @@ The first command downloads Adult and carves disjoint training samples. The
 second generates synthetic data with four generator settings (MST at ε = 1, 10
 and 100, and AIM at ε = 1) and attacks each with Mode, KNN, Random Forest, Naive
 Bayes and CoBP-RA, on two training samples. All of it runs on CPU in the light
-image. The time above assumes 12 worker processes; with 4 cores allow about two
-hours, and set `WORKERS=<n>` to the number of cores you have.
+image. It took 14 minutes on our 24-core workstation, most of that generating
+the synthetic data; the 40 minutes above allow for a laptop. `WORKERS=<n>` sets
+the number of attack processes (4 by default).
 
 The script ends by printing the mean $R_{adv}$ per attack:
 
 | Attack | This experiment | Same four columns of `tab:ra_mean_adult` |
 |---|---|---|
-| CoBP-RA | 24.7 | 24.5 |
-| Random Forest | 23.6 | 23.1 |
-| Naive Bayes | 20.9 | 20.8 |
-| KNN | 20.8 | 19.7 |
+| CoBP-RA | 24.6 | 24.5 |
+| Random Forest | 23.5 | 23.1 |
+| Naive Bayes | 21.0 | 20.8 |
+| KNN | 20.6 | 19.7 |
 | Mode (baseline) | 10.4 | 10.3 |
 
 Expect each attack within about a point of the paper and the same ordering,
@@ -384,22 +389,31 @@ averages two.
 - Time: 10 human-minutes + ~50 compute-minutes
 - Storage: ~200 MB
 
-This reruns the ε sweep of Main Result 4 on CDC Diabetes with a subset of the
-mechanisms, over the paper's nine budgets (0.1 to 1000).
+This reruns the ε sweep of Main Result 4 on CDC Diabetes with three of the six
+mechanisms (MST, PrivBayes, PrivSyn), over the paper's nine budgets (0.1 to 1000).
 
 ```bash
 python experiment_scripts/fetch_dataset.py cdc_diabetes
 bash experiment_scripts/run_cdc_dp_sweep_pipeline.sh
 ```
 
-Expect $R_{adv}$ to rise steeply from ε = 0.1 to about 10 and to be close to
-flat above it, as in `fig_eps_curves.pdf`. The shape is the claim; absolute
-values vary with the training samples drawn.
+The script ends by printing the mean $R_{adv}$ at each budget. Our run gave:
 
-The time above assumes 12 worker processes; with 4 cores allow about two and a
-half hours, and set `SWEEP_WORKERS=<n>`. Results go to
-`experiment_scripts/results_reproduction.db`, so the shipped `results.db` is
-never modified.
+```
+epsilon        0.1    0.3      1      3     10     30    100    300   1000
+MST           42.2   42.8   42.9   44.0   44.7   44.8   45.0   44.9   45.0
+PrivBayes     42.8   42.0   43.3   43.5   44.8   43.3   44.7   45.3   44.8
+PrivSyn       42.3   43.3   43.6   44.6   45.7   45.3   45.3   45.6   45.4
+```
+
+Expect the same shape as in `fig_eps_curves.pdf`: $R_{adv}$ climbs by two to
+three points between ε = 0.1 and ε = 10 and moves little after that. Individual
+values shift by a few tenths between runs.
+
+The run took 14 minutes on our 24-core workstation with the default 12 worker
+processes. With 4 cores, set `SWEEP_WORKERS=4` and allow about two and a half
+hours. Results go to `experiment_scripts/results_reproduction.db`, so the
+shipped `results.db` is never modified.
 
 ## Limitations
 
@@ -453,8 +467,8 @@ and register it in `SDG_REGISTRY` in `sdg/__init__.py`.
 
 **Add a dataset.** Create `<dataset>/full_data.csv` and `meta.json` under the
 data root, add QI definitions to `get_data.py`, and run `sdg/generate_synth.py`
-to carve samples and generate synthetic data. `data/dummy/make_dummy_data.py` is
-a short worked example of the layout.
+with `SDG_DATASET=<dataset>` to cut training samples and generate synthetic
+data. `data/dummy/` is a small dataset in this layout.
 
 **Use the results without the code.** `results.db` is plain SQLite: one row per
 scored run, with per-feature scores in a companion table. `DATABASE.md`
