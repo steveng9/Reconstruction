@@ -33,7 +33,7 @@ from scipy import stats
 
 ROOT = Path(str(REPO_ROOT))
 DB   = Path(os.environ.get("RECON_RESULTS_DB", ROOT / "experiment_scripts" / "results.db"))
-# Reviewers get the tables in a tracked directory alongside the committed
+# Tables are written to a tracked directory alongside the committed
 # reference copies, so a run can be diffed against the numbers in the paper.
 # The author's manuscript build overrides this with RECON_TABLE_OUT.
 OUT  = Path(os.environ.get("RECON_TABLE_OUT", ROOT / "expected_output" / "tables"))

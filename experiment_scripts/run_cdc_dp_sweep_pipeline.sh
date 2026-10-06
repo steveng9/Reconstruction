@@ -19,7 +19,7 @@ done
   echo "error: cannot locate repository root (no paths.py found above $0)" >&2; exit 1; }
 : "${RECON_DATA_ROOT:=$REPO_ROOT/data}"
 
-# Write results to a separate database. Reviewers re-run test.sh after this,
+# Write results to a separate database. test.sh may be re-run after this,
 # and that compares tables regenerated from the shipped results.db against the
 # committed copies -- appending fresh runs to it would move those numbers.
 export RECON_RESULTS_DB="${RECON_RESULTS_DB:-$REPO_ROOT/experiment_scripts/results_reproduction.db}"
@@ -39,7 +39,7 @@ fi
 #
 # PIN is the CPU-affinity prefix applied to the two heavy steps below. Pinning
 # to cores 0-23 needs a machine with at least 24 of them; on a smaller host
-# (a reviewer's laptop, a CPU-limited container) taskset would fail outright,
+# (a laptop, a CPU-limited container) taskset would fail outright,
 # so fall back to running unpinned there.
 PIN=""
 if command -v taskset >/dev/null 2>&1 && [ "$(nproc)" -ge 24 ]; then
@@ -98,6 +98,26 @@ python experiment_scripts/insert_new_dp_sweep_to_db.py "$LATEST_CSV" \
   --dataset cdc_diabetes \
   --dataset-size 1000 \
   --wandb-group "new-dp-epsilon-sweep-cdc-1k"
+
+echo ""
+echo "=== Mean R_adv by privacy budget (QI1, mean of the three attacks) ==="
+python - <<'PYEOF'
+import os, sqlite3
+con = sqlite3.connect(os.environ["RECON_RESULTS_DB"])
+rows = con.execute("""
+    SELECT substr(sdg_method, 1, instr(sdg_method, '_eps') - 1) AS gen,
+           CAST(substr(sdg_method, instr(sdg_method, '_eps') + 4) AS REAL) AS eps,
+           AVG(ra_mean)
+    FROM runs
+    WHERE dataset = 'cdc_diabetes' AND dataset_size = 1000
+      AND qi = 'QI1' AND split = 'standard'
+    GROUP BY gen, eps ORDER BY gen, eps""").fetchall()
+budgets = sorted({e for _, e, _ in rows})
+print(f"{'epsilon':<11}" + "".join(f"{e:>7g}" for e in budgets))
+for gen in sorted({g for g, _, _ in rows}):
+    score = {e: v for g, e, v in rows if g == gen}
+    print(f"{gen:<11}" + "".join(f"{score[e]:>7.1f}" if e in score else f"{'-':>7}" for e in budgets))
+PYEOF
 
 echo ""
 echo "PIPELINE DONE: cdc_diabetes DP sweep (MST/PrivBayes/PrivSyn, 5 trials x 9 eps x 2 QIs x 3 attacks)"

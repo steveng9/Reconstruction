@@ -254,13 +254,9 @@ _SDG_JOBS_BY_DATASET = {
 
 }
 
-if DATASET not in _SDG_JOBS_BY_DATASET:
-    raise ValueError(
-        f"No SDG job config found for dataset '{DATASET}'. "
-        f"Add an entry to _SDG_JOBS_BY_DATASET in generate_synth.py."
-    )
-
-SDG_JOBS = _SDG_JOBS_BY_DATASET[DATASET]
+# A dataset with no entry above can still be sampled, and can be synthesized by
+# naming the generators in the SDG_JOBS environment variable (see below).
+SDG_JOBS = _SDG_JOBS_BY_DATASET.get(DATASET, [])
 
 
 def _parse_job_spec(spec):
@@ -714,6 +710,9 @@ if __name__ == "__main__":
     elif sys.argv[1] == "sample":
         do_sample()
     elif sys.argv[1] == "sdg":
+        if not SDG_JOBS:
+            sys.exit(f"No generators selected for dataset '{DATASET}'. Name them in SDG_JOBS, "
+                     f"for example:  SDG_JOBS=MST:1,TVAE python sdg/generate_synth.py sdg")
         # Open log file
         base = _base_dir()
         base.mkdir(parents=True, exist_ok=True)

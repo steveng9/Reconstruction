@@ -73,7 +73,7 @@ import pandas as pd
 _SCRIPT_DIR = Path(__file__).parent
 # paths.py documents RECON_RESULTS_DB as the way to point the artifact at a
 # different results database, and the table-regeneration path honours it. Writes
-# went through this module and did not, so a reviewer re-running an experiment
+# went through this module and did not, so anyone re-running an experiment
 # would silently append to the shipped results.db -- the very file whose tables
 # are then compared byte for byte. Honour it here too.
 DEFAULT_DB_PATH = (Path(os.environ["RECON_RESULTS_DB"])

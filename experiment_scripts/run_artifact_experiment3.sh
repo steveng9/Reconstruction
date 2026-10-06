@@ -40,7 +40,7 @@ if command -v conda >/dev/null 2>&1; then
   set -u
 fi
 
-# Write results to a separate database. Reviewers re-run test.sh after this,
+# Write results to a separate database. test.sh may be re-run after this,
 # and that compares tables regenerated from the shipped results.db against the
 # committed copies -- appending fresh runs to it would move those numbers.
 export RECON_RESULTS_DB="${RECON_RESULTS_DB:-$REPO_ROOT/experiment_scripts/results_reproduction.db}"

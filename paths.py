@@ -2,7 +2,7 @@
 
 Nothing in this repository should hard-code an absolute path. Every root below is
 derived from the location of this file and can be overridden with an environment
-variable, so the same checkout runs unchanged on a reviewer's laptop, inside the
+variable, so the same checkout runs unchanged on a laptop, inside the
 Docker image, or on a cluster.
 
 Environment variables

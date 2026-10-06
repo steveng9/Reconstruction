@@ -19,7 +19,7 @@ def _sdg_dirname(method, params=None):
 
 QIs = {
     # dummy: fully synthetic demonstration dataset shipped with the artifact
-    # (data/dummy/). Lets reviewers exercise the whole pipeline with no
+    # (data/dummy/). Lets anyone exercise the whole pipeline with no
     # downloads and no access-restricted data. See data/dummy/make_dummy_data.py.
     "dummy": {
         "QI1": ["age_band", "region", "sex", "education"],
@@ -448,7 +448,7 @@ def load_mia_data(config):
             f"Train dir {data_dir} is marked NO_HOLDOUT — this training sample was "
             f"drawn non-disjointly and may overlap any holdout set."
         )
-    holdout_path = Path(holdout_dir)
+    holdout_path = _resolve_data_dir(holdout_dir)
     if (holdout_path / "NO_HOLDOUT").exists():
         raise ValueError(
             f"holdout_dir '{holdout_dir}' is marked NO_HOLDOUT — this sample "
